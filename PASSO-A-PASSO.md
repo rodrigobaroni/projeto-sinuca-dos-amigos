@@ -30,27 +30,46 @@ Faça na ordem abaixo.
 
 ---
 
-## Parte 2 — Colar as chaves no app
+## Parte 2 — Configurar as chaves no app
 
-1. Abra o arquivo `index.html` num editor de texto.
-2. Lá no começo do `<script>` tem estas duas linhas:
+1. Crie um arquivo `.env.local` na raiz do projeto.
+2. Cole estas variáveis:
 
-   ```js
-   const SUPABASE_URL  = "COLE_AQUI_A_URL_DO_PROJETO";
-   const SUPABASE_ANON = "COLE_AQUI_A_CHAVE_ANON";
+   ```bash
+   VITE_SUPABASE_URL="COLE_AQUI_A_URL_DO_PROJETO"
+   VITE_SUPABASE_ANON="COLE_AQUI_A_CHAVE_ANON"
    ```
 
 3. Substitua pelo seu **Project URL** e sua **chave anon**. Salve.
+4. Para testar com dados fictícios, rode o projeto e abra com `?demo=1`.
 
 ---
 
-## Parte 3 — Publicar o site (Netlify)
+## Parte 3 — Rodar e publicar o site
 
-1. Acesse **app.netlify.com/drop** (faça login / crie conta grátis).
-2. **Arraste a pasta** que contém o `index.html` para a área indicada.
+1. Instale as dependências:
+
+   ```bash
+   npm install
+   ```
+
+2. Rode localmente:
+
+   ```bash
+   npm run dev
+   ```
+
+3. Gere a versão de produção:
+
+   ```bash
+   npm run build
+   ```
+
+4. Acesse **app.netlify.com/drop** (faça login / crie conta grátis).
+5. **Arraste a pasta `dist`** para a área indicada.
    - Em segundos sai uma URL tipo `nome-aleatorio.netlify.app`.
-3. (Opcional) Em **Site configuration → Change site name**, troque pra algo tipo `sinuca-da-galera`, virando `sinuca-da-galera.netlify.app`.
-4. **Compartilhe esse link no grupo.** Todo mundo abre e vê o placar. Só você (logando em **Admin**) consegue lançar partida.
+6. (Opcional) Em **Site configuration → Change site name**, troque pra algo tipo `sinuca-da-galera`, virando `sinuca-da-galera.netlify.app`.
+7. **Compartilhe esse link no grupo.** Todo mundo abre e vê o placar. Só você (logando em **Admin**) consegue lançar partida.
 
 ---
 
@@ -60,7 +79,8 @@ Faça na ordem abaixo.
 - **Lançar partida**: escolhe jogador A, jogador B, quem venceu e a data.
   - Jogador novo? No dropdown escolha **"+ novo jogador"** e digite o nome (evita nome duplicado bagunçando o ranking).
   - Ordem das bolas é **opcional**: vá adicionando "quem encaçapou + qual bola" pra ter o histórico completo da partida.
-- O resto da galera só abre o link: **Ranking**, **Partidas** (com filtro por nome), **Confronto** (cara a cara) e **Records**.
+- O resto da galera só abre o link: **Ranking**, **Partidas**, **Records** e **Regras**.
+- No **Ranking**, dá pra ver o placar geral, escolher o dia da jogatina (o app busca de meio-dia até meio-dia do dia seguinte), compartilhar o resumo e comparar confrontos diretos no total ou só naquele dia.
 
 ---
 
@@ -68,4 +88,4 @@ Faça na ordem abaixo.
 
 - **"Não consegui conectar no banco"** na tela: a URL ou a chave anon estão erradas/trocadas. Revise o passo da Parte 2.
 - **Login não entra**: confirme que marcou "Auto Confirm User" ao criar o usuário, ou em Authentication → Providers → Email, desligue "Confirm email".
-- **Mudou o index.html depois de publicar**: é só arrastar a pasta de novo no Netlify (ou usar o deploy do mesmo site).
+- **Mudou o app depois de publicar**: rode `npm run build` de novo e arraste a nova pasta `dist` no Netlify.

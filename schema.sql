@@ -19,11 +19,24 @@ create table if not exists matches (
   played_at   timestamptz not null default now(),
   player_a    uuid not null references players(id) on delete cascade,
   player_b    uuid not null references players(id) on delete cascade,
-  winner_id   uuid not null references players(id) on delete cascade,
+  winner_id   uuid references players(id) on delete cascade,
+  status      text not null default 'finished' check (status in ('live', 'finished')),
   ball_log    jsonb not null default '[]'::jsonb,
   notes       text,
   created_at  timestamptz not null default now()
 );
+
+-- Migração segura para bancos criados com a versão HTML inicial.
+alter table matches add column if not exists status text not null default 'finished';
+alter table matches alter column winner_id drop not null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'matches_status_check'
+  ) then
+    alter table matches add constraint matches_status_check check (status in ('live', 'finished'));
+  end if;
+end $$;
 
 create index if not exists matches_played_at_idx on matches (played_at desc);
 

@@ -1,0 +1,21 @@
+{
+  "name": "projeto-sinuca-dos-amigos",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "vite": "^7.2.7"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
+}
