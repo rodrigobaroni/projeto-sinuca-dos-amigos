@@ -4,8 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 import "./styles.css";
 import { App } from "./App.jsx";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON;
+const cleanEnv = (value) => String(value || "").trim().replace(/^['"]|['"]$/g, "");
+const SUPABASE_URL = cleanEnv(import.meta.env.VITE_SUPABASE_URL);
+const SUPABASE_ANON = cleanEnv(import.meta.env.VITE_SUPABASE_ANON);
 
 const hasSupabaseConfig =
   /^https:\/\/.+\.supabase\.co\/?$/.test(SUPABASE_URL) &&
