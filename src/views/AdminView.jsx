@@ -1,10 +1,28 @@
 import { useEffect, useState } from "react";
 import { PlayerBall, PoolBall, WhiteBall } from "../components/balls.jsx";
 import { ViewHead } from "../components/layout.jsx";
-import { classifyPot, deriveGroups, groupBalls, groupLabel } from "../domain/rules.js";
-import { fmtFull } from "../utils/date.js";
+import { GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
+import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
 
-export function AdminView({ repo, isAdmin, setIsAdmin, players, addPlayer, updatePlayer, liveMatch, playerById, playerName, persistMatch, setMatches, load, showToast }) {
+const GAME_SETTINGS_KEY = "sinuca-game-settings";
+const DEFAULT_GAME_SETTINGS = {
+  trackBalls: true,
+  gameModel: "even-odd",
+  penaltyBall: "1",
+  knockoutColorA: "red",
+  knockoutColorB: "yellow",
+};
+
+function loadGameSettings() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(GAME_SETTINGS_KEY) || "null");
+    return normalizeGameSettings({ ...DEFAULT_GAME_SETTINGS, ...(stored || {}) });
+  } catch {
+    return normalizeGameSettings(DEFAULT_GAME_SETTINGS);
+  }
+}
+
+export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -42,6 +60,11 @@ export function AdminView({ repo, isAdmin, setIsAdmin, players, addPlayer, updat
       <div className="admin-tabs">
         <button className={adminTab === "partida" ? "active" : ""} onClick={() => setAdminTab("partida")}>Partida</button>
         <button className={adminTab === "jogadores" ? "active" : ""} onClick={() => setAdminTab("jogadores")}>Jogadores</button>
+        <button className={adminTab === "configuracoes" ? "active" : ""} onClick={() => setAdminTab("configuracoes")}>Configurações</button>
+        <button className={adminTab === "logs" ? "active" : ""} onClick={() => {
+          setAdminTab("logs");
+          refreshAuditLogs?.();
+        }}>Logs</button>
         <button className="logout-mini" onClick={async () => {
           if (repo) await repo.signOut();
           setIsAdmin(false);
@@ -50,18 +73,252 @@ export function AdminView({ repo, isAdmin, setIsAdmin, players, addPlayer, updat
       </div>
       {adminTab === "jogadores" ? (
         <PlayerAdmin players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} showToast={showToast} />
+      ) : adminTab === "configuracoes" ? (
+        <AdminSettings adminUser={adminUser} auditLog={auditLog} showToast={showToast} />
+      ) : adminTab === "logs" ? (
+        <AdminLogs logs={auditLogs} refreshAuditLogs={refreshAuditLogs} />
       ) : liveMatch ? (
         <section className="panel live-admin-panel">
-          <LiveMatchPanel liveMatch={liveMatch} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} />
+          <LiveMatchRouter adminUser={adminUser} auditLog={auditLog} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} />
         </section>
       ) : (
         <section className="panel">
           <div className="eyebrow">admin</div>
           <div className="viewtitle">Iniciar partida</div>
-          <StartMatchPanel players={players} setMatches={setMatches} repo={repo} load={load} showToast={showToast} preferredPlayerA={lastWinnerId} />
+          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} setMatches={setMatches} repo={repo} load={load} showToast={showToast} preferredPlayerA={lastWinnerId} />
         </section>
       )}
     </>
+  );
+}
+
+function AdminSettings({ adminUser, auditLog, showToast }) {
+  const [settings, setSettings] = useState(loadGameSettings);
+  const [choicePrompt, setChoicePrompt] = useState(null);
+  const rules = getGameRules(settings);
+
+  const saveSettings = (nextSettings, changedKey, changedValue) => {
+    const next = normalizeGameSettings(nextSettings);
+    setSettings(next);
+    window.localStorage.setItem(GAME_SETTINGS_KEY, JSON.stringify(next));
+    auditLog?.({
+      action: "settings_updated",
+      entityType: "settings",
+      entityId: changedKey,
+      message: `${adminUser?.email || "admin"} alterou ${settingLabel(changedKey)} para ${settingValueLabel(changedKey, changedValue)}`,
+      metadata: { key: changedKey, value: changedValue, settings: next },
+    });
+    return next;
+  };
+
+  const updateSetting = (key, value) => {
+    saveSettings({ ...settings, [key]: value }, key, value);
+    showToast("Configuração salva");
+  };
+  const updateGameModel = (gameModel) => {
+    const next = saveSettings({ ...settings, gameModel }, "gameModel", gameModel);
+    const nextRules = getGameRules(next);
+    if (nextRules.penaltyOptions.length > 1) {
+      setChoicePrompt("penalty");
+      showToast("Escolha a bola de castigo desse modo");
+      return;
+    }
+    if (nextRules.colorOptions.length) {
+      setChoicePrompt("color");
+      showToast("Escolha as cores dos adversários");
+      return;
+    }
+    setChoicePrompt(null);
+    showToast("Configuração salva");
+  };
+  const choosePenaltyBall = (penaltyBall) => {
+    saveSettings({ ...settings, penaltyBall }, "penaltyBall", penaltyBall);
+    setChoicePrompt(null);
+    showToast(`Bola ${penaltyBall} definida como castigo`);
+  };
+  const chooseKnockoutColor = (side, colorValue) => {
+    const otherKey = side === "A" ? "knockoutColorB" : "knockoutColorA";
+    if (settings[otherKey] === colorValue) {
+      showToast("Cada adversário precisa ter uma cor diferente");
+      return;
+    }
+    const key = side === "A" ? "knockoutColorA" : "knockoutColorB";
+    saveSettings({ ...settings, [key]: colorValue }, key, colorValue);
+    showToast(`${side === "A" ? "Adversário A" : "Adversário B"}: ${settingValueLabel(key, colorValue)}`);
+  };
+  const closeColorChoice = () => {
+    setChoicePrompt(null);
+    showToast("Cores do mata a mata salvas");
+  };
+
+  return (
+    <section className="panel">
+      <div className="eyebrow">admin</div>
+      <div className="viewtitle">Configurações</div>
+
+      <div className="settings-section">
+        <div className="record-section-title">partida</div>
+        <div className="settings-list">
+          <div className="settings-row">
+            <div className="settings-copy">
+              <strong>Anotar bolas derrubadas durante partida?</strong>
+              <span>Quando ligado, a partida ao vivo registra a sequência das bolas.</span>
+            </div>
+            <button
+              className={`switch ${settings.trackBalls ? "on" : ""}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.trackBalls}
+              onClick={() => updateSetting("trackBalls", !settings.trackBalls)}
+            >
+              <span />
+            </button>
+          </div>
+
+          <label className="settings-field">
+            <span>Modelo de jogo</span>
+            <select className="select no-margin" value={settings.gameModel} onChange={(event) => updateGameModel(event.target.value)}>
+              {GAME_MODELS.map((model) => <option key={model.value} value={model.value}>{model.label}</option>)}
+            </select>
+          </label>
+
+          {choicePrompt === "penalty" && (
+            <div className="settings-choice-toast">
+              <div>
+                <span>bola de castigo</span>
+                <strong>{rules.label}</strong>
+              </div>
+              <div className="penalty-ball-list">
+                {rules.penaltyOptions.map((ball) => (
+                  <button
+                    key={ball}
+                    type="button"
+                    className={`penalty-ball-option ${settings.penaltyBall === ball ? "active" : ""}`}
+                    onClick={() => choosePenaltyBall(ball)}
+                  >
+                    <PoolBall num={ball} size={38} />
+                    <span>Bola {ball}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {choicePrompt === "color" && (
+            <div className="settings-choice-toast">
+              <div>
+                <span>cores das bolas</span>
+                <strong>{rules.label}</strong>
+              </div>
+              <div className="knockout-color-grid">
+                <KnockoutColorPicker
+                  title="Adversário A"
+                  value={settings.knockoutColorA}
+                  disabledValue={settings.knockoutColorB}
+                  onChoose={(color) => chooseKnockoutColor("A", color)}
+                />
+                <KnockoutColorPicker
+                  title="Adversário B"
+                  value={settings.knockoutColorB}
+                  disabledValue={settings.knockoutColorA}
+                  onChoose={(color) => chooseKnockoutColor("B", color)}
+                />
+              </div>
+              <button className="btn chalk small auto-btn" type="button" onClick={closeColorChoice}>Concluir cores</button>
+            </div>
+          )}
+
+          {rules.hasPenalty && choicePrompt !== "penalty" && (
+            <div className="settings-summary">
+              <span>Castigo deste modo</span>
+              <strong>Bola {settings.penaltyBall}</strong>
+            </div>
+          )}
+
+          {rules.colorOptions.length > 0 && choicePrompt !== "color" && (
+            <div className="settings-summary">
+              <span>Cores do mata a mata</span>
+              <strong>{settingValueLabel("knockoutColorA", settings.knockoutColorA)} x {settingValueLabel("knockoutColorB", settings.knockoutColorB)}</strong>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function settingLabel(key) {
+  return {
+    trackBalls: "anotação de bolas derrubadas",
+    gameModel: "modelo de jogo",
+    penaltyBall: "bola de castigo",
+    knockoutColorA: "cor do adversário A",
+    knockoutColorB: "cor do adversário B",
+  }[key] || key;
+}
+
+function settingValueLabel(key, value) {
+  if (key === "trackBalls") return value ? "ligado" : "desligado";
+  if (key === "gameModel") return GAME_MODELS.find((model) => model.value === value)?.label || value;
+  if (key === "penaltyBall") return `Bola ${value}`;
+  if (key === "knockoutColorA" || key === "knockoutColorB" || key === "knockoutColor") return KNOCKOUT_COLORS.find((color) => color.value === value)?.label || value;
+  return String(value);
+}
+
+function KnockoutColorPicker({ title, value, disabledValue, onChoose }) {
+  return (
+    <div className="knockout-color-picker">
+      <span>{title}</span>
+      <div className="penalty-ball-list">
+        {KNOCKOUT_COLORS.map((color) => {
+          const disabled = disabledValue === color.value;
+          return (
+            <button
+              key={color.value}
+              type="button"
+              className={`penalty-ball-option ${value === color.value ? "active" : ""}`}
+              disabled={disabled}
+              onClick={() => onChoose(color.value)}
+            >
+              <span className="color-choice-dot" style={{ background: color.color }} />
+              <span>{color.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AdminLogs({ logs, refreshAuditLogs }) {
+  const fmtLogTime = (ts) => new Date(ts).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return (
+    <section className="panel">
+      <div className="section-head compact">
+        <div>
+          <div className="eyebrow">admin</div>
+          <div className="viewtitle no-margin">Logs</div>
+        </div>
+        <button className="btn ghost small" onClick={refreshAuditLogs}>Atualizar</button>
+      </div>
+      <div className="audit-log-list">
+        {logs?.length ? logs.map((log) => (
+          <article className="audit-log-row" key={log.id}>
+            <div>
+              <strong>{log.message}</strong>
+              <span>{log.actor_email} · {fmtLogTime(log.created_at)}</span>
+            </div>
+            <em>{log.action}</em>
+          </article>
+        )) : <div className="empty compact-empty">Nenhum log registrado ainda.</div>}
+      </div>
+    </section>
   );
 }
 
@@ -149,7 +406,7 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ players, setMatches, repo, load, showToast, preferredPlayerA = "" }) {
+function StartMatchPanel({ adminUser, auditLog, players, setMatches, repo, load, showToast, preferredPlayerA = "" }) {
   const initialPlayerA = preferredPlayerA && players.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : players[0]?.id || "";
   const initialPlayerB = players.find((player) => player.id !== initialPlayerA)?.id || "";
   const [playerA, setPlayerA] = useState(initialPlayerA);
@@ -179,13 +436,30 @@ function StartMatchPanel({ players, setMatches, repo, load, showToast, preferred
           return;
         }
         const match = { player_a: playerA, player_b: playerB, played_at: new Date(when).toISOString(), ball_log: [], status: "live" };
+        const playerAName = players.find((player) => player.id === playerA)?.name;
+        const playerBName = players.find((player) => player.id === playerB)?.name;
         if (!repo) {
-          setMatches((items) => [...items, { ...match, id: `demo-live-${Date.now()}` }]);
+          const createdMatch = { ...match, id: `demo-live-${Date.now()}` };
+          setMatches((items) => [...items, createdMatch]);
+          await auditLog?.({
+            action: "match_started",
+            entityType: "match",
+            entityId: createdMatch.id,
+            message: `${adminUser?.email || "admin"} iniciou a partida ${playerAName} x ${playerBName}`,
+            metadata: { match: createdMatch, players: [playerAName, playerBName] },
+          });
           showToast("Partida iniciada");
           return;
         }
         try {
-          await repo.startMatch(match);
+          const createdMatch = await repo.startMatch(match);
+          await auditLog?.({
+            action: "match_started",
+            entityType: "match",
+            entityId: createdMatch?.id,
+            message: `${adminUser?.email || "admin"} iniciou a partida ${playerAName} x ${playerBName}`,
+            metadata: { match: createdMatch || match, players: [playerAName, playerBName] },
+          });
           await load();
           showToast("Partida iniciada");
         } catch (startError) {
@@ -196,34 +470,181 @@ function StartMatchPanel({ players, setMatches, repo, load, showToast, preferred
   );
 }
 
-function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished }) {
+function LiveMatchRouter(props) {
+  const settings = loadGameSettings();
+  const rules = getGameRules(settings);
+  if (!settings.trackBalls || rules.simpleOnly) return <SimpleLiveMatchPanel {...props} settings={settings} rules={rules} />;
+  return <LiveMatchPanel {...props} settings={settings} rules={rules} />;
+}
+
+function liveDayHeadToHead(finished, liveMatch) {
+  const gameDay = gameDayKey(liveMatch.played_at);
+  const { start, end } = gameDayRange(gameDay);
+  const dayMatches = matchesInRange(finished, start, end).filter((match) => (
+    [match.player_a, match.player_b].includes(liveMatch.player_a) &&
+    [match.player_a, match.player_b].includes(liveMatch.player_b)
+  ));
+  return {
+    gameDay,
+    start,
+    end,
+    total: dayMatches.length,
+    winsA: dayMatches.filter((match) => match.winner_id === liveMatch.player_a).length,
+    winsB: dayMatches.filter((match) => match.winner_id === liveMatch.player_b).length,
+  };
+}
+
+function LiveDayScore({ liveMatch, finished, playerById }) {
+  const playerA = playerById(liveMatch.player_a);
+  const playerB = playerById(liveMatch.player_b);
+  const score = liveDayHeadToHead(finished, liveMatch);
+  return (
+    <section className="live-day-score">
+      <div>
+        <div className="eyebrow">confronto da jogatina</div>
+        <span>{fmtPeriod(score.start)} até {fmtPeriod(score.end)} · {score.total} partida{score.total !== 1 ? "s" : ""} finalizada{score.total !== 1 ? "s" : ""}</span>
+      </div>
+      <div className="live-day-score-board">
+        <strong>{playerA?.name}</strong>
+        <b>{score.winsA}</b>
+        <em>x</em>
+        <b>{score.winsB}</b>
+        <strong>{playerB?.name}</strong>
+      </div>
+    </section>
+  );
+}
+
+function matchPlayersLabel(liveMatch, playerName) {
+  return `${playerName(liveMatch.player_a)} x ${playerName(liveMatch.player_b)}`;
+}
+
+function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules }) {
+  const [selectingWinner, setSelectingWinner] = useState(false);
+  const playerA = playerById(liveMatch.player_a);
+  const playerB = playerById(liveMatch.player_b);
+  const finishMatch = async (winnerId) => {
+    if (!window.confirm(`Confirmar vitória de ${playerName(winnerId)}?`)) return;
+    await persistMatch(liveMatch.id, { winner_id: winnerId, status: "finished" });
+    await auditLog?.({
+      action: "match_finished",
+      entityType: "match",
+      entityId: liveMatch.id,
+      message: `${adminUser?.email || "admin"} definiu ${playerName(winnerId)} como vencedor da partida ${matchPlayersLabel(liveMatch, playerName)}`,
+      metadata: { match: liveMatch, winnerId, winnerName: playerName(winnerId), players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+    });
+    onFinished?.(winnerId);
+    setSelectingWinner(false);
+    showToast(`Vitória de ${playerName(winnerId)} registrada`);
+  };
+
+  return (
+    <div className="live-table simple-live-table">
+      <div className="live-topbar">
+        <div className="live-now"><span />Ao vivo</div>
+        <div className="live-start-time">iniciada {fmtFull(liveMatch.played_at)}</div>
+        <button className="live-cancel" onClick={async () => {
+          if (!window.confirm("Cancelar a partida em andamento?")) return;
+          setMatches((items) => items.filter((match) => match.id !== liveMatch.id));
+          if (repo) {
+            try {
+              await repo.deleteMatch(liveMatch.id);
+            } catch (deleteError) {
+              showToast(`Erro: ${deleteError.message}`);
+              await load();
+              return;
+            }
+          } else await load();
+          await auditLog?.({
+            action: "match_cancelled",
+            entityType: "match",
+            entityId: liveMatch.id,
+            message: `${adminUser?.email || "admin"} cancelou a partida ${matchPlayersLabel(liveMatch, playerName)}`,
+            metadata: { match: liveMatch, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+          });
+          showToast("Partida cancelada");
+        }}>Cancelar partida</button>
+      </div>
+
+      <LiveDayScore liveMatch={liveMatch} finished={finished} playerById={playerById} />
+
+      <div className="simple-live-mode">
+        <span>{rules?.label || "Partida sem anotação de bolas"}</span>
+      </div>
+
+      <section className="simple-live-card">
+        <div className="simple-live-player">
+          <PlayerBall player={playerA} size={68} />
+          <strong>{playerA?.name}</strong>
+        </div>
+        <div className="simple-live-vs">VS</div>
+        <div className="simple-live-player">
+          <PlayerBall player={playerB} size={68} />
+          <strong>{playerB?.name}</strong>
+        </div>
+      </section>
+
+      <button className="btn chalk simple-winner-btn" onClick={() => setSelectingWinner(true)}>Definir vencedor</button>
+
+      {selectingWinner && (
+        <div className="define-overlay">
+          <div>
+            <div className="eyebrow">quem venceu?</div>
+            <div className="define-actions">
+              <button className="btn chalk" onClick={() => finishMatch(liveMatch.player_a)}>{playerA?.name}</button>
+              <button className="btn chalk" onClick={() => finishMatch(liveMatch.player_b)}>{playerB?.name}</button>
+            </div>
+            <button className="btn ghost small" onClick={() => setSelectingWinner(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules }) {
   const [pendingDefinition, setPendingDefinition] = useState(null);
-  const [pendingOne, setPendingOne] = useState(false);
+  const [pendingPenalty, setPendingPenalty] = useState(false);
   const playerA = playerById(liveMatch.player_a);
   const playerB = playerById(liveMatch.player_b);
   const log = liveMatch.ball_log || [];
-  const groups = deriveGroups(liveMatch, log);
+  const groups = rules.deriveGroups(liveMatch, log);
   const hasGroups = Boolean(groups[liveMatch.player_a] && groups[liveMatch.player_b]);
   const removedNumbered = new Set(log.map((entry) => Number(entry.ball)).filter((num) => num >= 1 && num <= 15));
-  const availableGroupBalls = Array.from({ length: 14 }, (_, index) => index + 2).filter((num) => !removedNumbered.has(num));
+  const availableGroupBalls = rules.setupBalls().filter((num) => !removedNumbered.has(num));
+  const penaltyBall = rules.penaltyBall;
 
   const removeBall = async (ball) => {
+    const removedEntry = log.find((entry) => Number(entry.ball) === Number(ball));
     const nextLog = log
       .filter((entry) => Number(entry.ball) !== Number(ball))
       .map((entry, index) => ({ ...entry, n: index + 1 }));
     await persistMatch(liveMatch.id, { ball_log: nextLog });
+    await auditLog?.({
+      action: "ball_removed",
+      entityType: "match",
+      entityId: liveMatch.id,
+      message: `${adminUser?.email || "admin"} removeu a bola ${ball} da partida ${matchPlayersLabel(liveMatch, playerName)}`,
+      metadata: { matchId: liveMatch.id, ball: String(ball), removedEntry, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+    });
   };
 
   const appendBall = async (ball, by, type = "pot", reason = "", brk = false) => {
-    const nextLog = [...log, { n: log.length + 1, ball: String(ball), by, type, ...(reason ? { reason } : {}), ...(brk ? { brk: true } : {}) }];
+    const entry = { n: log.length + 1, ball: String(ball), by, type, ...(reason ? { reason } : {}), ...(brk ? { brk: true } : {}) };
+    const nextLog = [...log, entry];
     await persistMatch(liveMatch.id, { ball_log: nextLog });
+    await auditLog?.({
+      action: type === "foul" ? "foul_logged" : "ball_logged",
+      entityType: "match",
+      entityId: liveMatch.id,
+      message: `${adminUser?.email || "admin"} anotou bola ${ball} para ${playerName(by)} na partida ${matchPlayersLabel(liveMatch, playerName)}`,
+      metadata: { matchId: liveMatch.id, entry, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+    });
   };
 
   const entryForBall = (ball) => log.find((entry) => Number(entry.ball) === Number(ball));
   const isGroupCleared = (playerId) => {
-    const group = groups[playerId];
-    if (!group) return false;
-    return groupBalls(group).every((ball) => removedNumbered.has(ball));
+    return rules.isGroupCleared(playerId, groups, log);
   };
   const trunfoPlayerId = [liveMatch.player_a, liveMatch.player_b].find((id) => isGroupCleared(id));
   const trunfoUnlocked = Boolean(trunfoPlayerId);
@@ -237,30 +658,45 @@ function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMa
       setPendingDefinition({ ball });
       return;
     }
-    const result = classifyPot({ ball, by: ownerId, groups, log });
-    if (result.type === "foul") showToast(result.reason === "oponente" ? "Falta! matou bola do oponente" : "Falta! bola 1 cedo demais");
+    const result = rules.classifyPot({ ball, by: ownerId, groups, log });
+    if (result.type === "foul") showToast(result.reason === "oponente" ? "Falta! matou bola do oponente" : `Falta! bola ${penaltyBall} cedo demais`);
     appendBall(ball, ownerId, result.type, result.reason);
   };
 
-  const finishWithOne = async (by) => {
+  const finishWithPenalty = async (by) => {
     const canWin = isGroupCleared(by);
     const winnerId = canWin ? by : (by === liveMatch.player_a ? liveMatch.player_b : liveMatch.player_a);
-    const cleanLog = log.filter((entry) => Number(entry.ball) !== 1);
+    const cleanLog = log.filter((entry) => Number(entry.ball) !== Number(penaltyBall));
     const nextLog = [
       ...cleanLog,
-      { n: cleanLog.length + 1, ball: "1", by, type: canWin ? "pot" : "foul", reason: "trunfo" },
+      { n: cleanLog.length + 1, ball: String(penaltyBall), by, type: canWin ? "pot" : "foul", reason: "trunfo" },
     ].map((entry, index) => ({ ...entry, n: index + 1 }));
-    setPendingOne(false);
+    setPendingPenalty(false);
     await persistMatch(liveMatch.id, { ball_log: nextLog, winner_id: winnerId, status: "finished" });
+    await auditLog?.({
+      action: "match_finished",
+      entityType: "match",
+      entityId: liveMatch.id,
+      message: `${adminUser?.email || "admin"} definiu ${playerName(winnerId)} como vencedor da partida ${matchPlayersLabel(liveMatch, playerName)}`,
+      metadata: { match: liveMatch, winnerId, winnerName: playerName(winnerId), penaltyBall, penaltyBallBy: by, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+    });
     onFinished?.(winnerId);
-    showToast(canWin ? `${playerName(by)} venceu na bola 1` : `Bola 1 fora da hora: vitória de ${playerName(winnerId)}`);
+    showToast(canWin ? `${playerName(by)} venceu na bola ${penaltyBall}` : `Bola ${penaltyBall} fora da hora: vitória de ${playerName(winnerId)}`);
   };
 
   const undoEntry = async (indexToRemove) => {
+    const removedEntry = log[indexToRemove];
     const nextLog = log
       .filter((_, index) => index !== indexToRemove)
       .map((entry, index) => ({ ...entry, n: index + 1 }));
     await persistMatch(liveMatch.id, { ball_log: nextLog });
+    await auditLog?.({
+      action: "ball_undone",
+      entityType: "match",
+      entityId: liveMatch.id,
+      message: `${adminUser?.email || "admin"} desfez uma anotação de bola na partida ${matchPlayersLabel(liveMatch, playerName)}`,
+      metadata: { matchId: liveMatch.id, removedEntry, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+    });
   };
 
   const defineGroup = (side) => {
@@ -287,9 +723,18 @@ function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMa
               return;
             }
           } else await load();
+          await auditLog?.({
+            action: "match_cancelled",
+            entityType: "match",
+            entityId: liveMatch.id,
+            message: `${adminUser?.email || "admin"} cancelou a partida ${matchPlayersLabel(liveMatch, playerName)}`,
+            metadata: { match: liveMatch, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+          });
           showToast("Partida cancelada");
         }}>Cancelar partida</button>
       </div>
+
+      <LiveDayScore liveMatch={liveMatch} finished={finished} playerById={playerById} />
 
       <div className="live-game-grid">
         <LivePlayerColumn
@@ -297,23 +742,24 @@ function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMa
           playerId={liveMatch.player_a}
           group={groups[liveMatch.player_a]}
           log={log}
+          rules={rules}
           onBallTap={touchGroupBall}
-          onOneTap={() => finishWithOne(liveMatch.player_a)}
+          onPenaltyTap={() => finishWithPenalty(liveMatch.player_a)}
         />
 
         <div className="live-center">
-          <div className={`live-control-card trunfo-card ${trunfoUnlocked ? "unlocked" : ""} ${entryForBall(1) ? "marked-one" : ""}`}>
-            <div className="eyebrow">a bola 1 — o trunfo</div>
-            <button className="trunfo-ball" onClick={() => setPendingOne(true)}>
-              <PoolBall num={1} size={58} />
+          <div className={`live-control-card trunfo-card ${trunfoUnlocked ? "unlocked" : ""} ${entryForBall(penaltyBall) ? "marked-one" : ""}`}>
+            <div className="eyebrow">bola {penaltyBall} — castigo</div>
+            <button className="trunfo-ball" onClick={() => setPendingPenalty(true)}>
+              <PoolBall num={penaltyBall} size={58} />
             </button>
-            <p>{trunfoUnlocked ? "Liberada para quem zerou o grupo. Use a bola 1 no rack do jogador." : "Toque aqui quando a 1 cair fora do rack liberado."}</p>
+            <p>{trunfoUnlocked ? `Liberada para quem zerou o grupo. Use a bola ${penaltyBall} no rack do jogador.` : `Toque aqui quando a ${penaltyBall} cair fora do rack liberado.`}</p>
           </div>
 
           {!hasGroups && (
             <div className="live-control-card group-setup-card">
               <div className="eyebrow">definir grupos</div>
-              <p>Toque na primeira bola encaçapada e escolha quem matou. Ela define pares e ímpares.</p>
+              <p>{rules.setupText}</p>
               <div className="neutral-rack">
                 {availableGroupBalls.map((ball) => <LiveBallButton key={ball} ball={ball} entry={entryForBall(ball)} onClick={() => setPendingDefinition({ ball })} />)}
               </div>
@@ -328,7 +774,7 @@ function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMa
                   <span>{index + 1}</span>
                   <BallLogLabel ball={entry.ball} />
                   <strong>{playerName(entry.by)}</strong>
-                  <em>{entry.type === "foul" ? "falta" : Number(entry.ball) === 1 ? "trunfo" : "queda"}</em>
+                  <em>{entry.type === "foul" ? "falta" : Number(entry.ball) === Number(penaltyBall) ? "castigo" : "queda"}</em>
                   <button className="history-undo" onClick={() => undoEntry(index)}>Desfazer</button>
                 </div>
               )) : <p>Nenhuma bola marcada ainda.</p>}
@@ -341,9 +787,10 @@ function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMa
           playerId={liveMatch.player_b}
           group={groups[liveMatch.player_b]}
           log={log}
+          rules={rules}
           mirrored
           onBallTap={touchGroupBall}
-          onOneTap={() => finishWithOne(liveMatch.player_b)}
+          onPenaltyTap={() => finishWithPenalty(liveMatch.player_b)}
         />
       </div>
 
@@ -361,17 +808,17 @@ function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMa
         </div>
       )}
 
-      {pendingOne && (
+      {pendingPenalty && (
         <div className="define-overlay">
           <div>
-            <div className="eyebrow">quem derrubou a 1?</div>
-            <PoolBall num={1} size={58} />
+            <div className="eyebrow">quem derrubou a {penaltyBall}?</div>
+            <PoolBall num={penaltyBall} size={58} />
             <p className="define-copy">Se esse jogador ainda tiver bolas na mesa, ele perde automaticamente.</p>
             <div className="define-actions">
-              <button className="btn chalk" onClick={() => finishWithOne(liveMatch.player_a)}>{playerA?.name}</button>
-              <button className="btn chalk" onClick={() => finishWithOne(liveMatch.player_b)}>{playerB?.name}</button>
+              <button className="btn chalk" onClick={() => finishWithPenalty(liveMatch.player_a)}>{playerA?.name}</button>
+              <button className="btn chalk" onClick={() => finishWithPenalty(liveMatch.player_b)}>{playerB?.name}</button>
             </div>
-            <button className="btn ghost small" onClick={() => setPendingOne(false)}>Cancelar</button>
+            <button className="btn ghost small" onClick={() => setPendingPenalty(false)}>Cancelar</button>
           </div>
         </div>
       )}
@@ -379,11 +826,11 @@ function LiveMatchPanel({ liveMatch, playerById, playerName, persistMatch, setMa
   );
 }
 
-function LivePlayerColumn({ player, playerId, group, log, mirrored = false, onBallTap, onOneTap }) {
-  const groupBallsList = group ? groupBalls(group) : [];
+function LivePlayerColumn({ player, playerId, group, log, rules, mirrored = false, onBallTap, onPenaltyTap }) {
+  const groupBallsList = group ? rules.groupBalls(group) : [];
   const visibleBalls = groupBallsList.filter((ball) => !log.some((item) => Number(item.ball) === ball));
   const groupCleared = Boolean(group && visibleBalls.length === 0);
-  const oneDown = log.some((item) => Number(item.ball) === 1);
+  const penaltyDown = log.some((item) => Number(item.ball) === Number(rules.penaltyBall));
   const pottedCount = groupBallsList.filter((ball) => {
     const entry = log.find((item) => Number(item.ball) === ball);
     return entry && entry.type !== "foul" && entry.by === playerId;
@@ -394,12 +841,12 @@ function LivePlayerColumn({ player, playerId, group, log, mirrored = false, onBa
       <div className="live-player-head">
         <div>
           <h3>{player?.name}</h3>
-          <span>{group ? groupLabel(group) : "grupo indefinido"}</span>
+          <span>{group ? rules.groupLabel(group) : "grupo indefinido"}</span>
         </div>
       </div>
       <div className="live-count">
         <strong>{pottedCount}</strong>
-        <span>/ 7 na mesa</span>
+        <span>/ {groupBallsList.length || 0} na mesa</span>
       </div>
       <div className="live-player-area">
         {group ? (
@@ -409,10 +856,10 @@ function LivePlayerColumn({ player, playerId, group, log, mirrored = false, onBa
                 event.stopPropagation();
                 onBallTap(ball, playerId);
               }} />
-            )) : groupCleared && !oneDown ? (
-              <LiveBallButton ball={1} onClick={(event) => {
+            )) : groupCleared && !penaltyDown ? (
+              <LiveBallButton ball={rules.penaltyBall} onClick={(event) => {
                 event.stopPropagation();
-                onOneTap();
+                onPenaltyTap();
               }} />
             ) : <div className="rack-empty cleared">Grupo zerado.</div>}
           </div>

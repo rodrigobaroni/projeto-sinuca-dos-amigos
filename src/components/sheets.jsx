@@ -29,7 +29,15 @@ export function PlayerSheet({ stat, rank, playerById }) {
   );
 }
 
-export function MatchSheet({ match, playerById, playerName, isAdmin, onDelete }) {
+function clipDuration(seconds) {
+  const value = Number(seconds) || 0;
+  const minutes = Math.floor(value / 60);
+  const rest = value % 60;
+  if (!minutes) return `${rest}s`;
+  return `${minutes}min ${String(rest).padStart(2, "0")}s`;
+}
+
+export function MatchSheet({ match, clips = [], playerById, playerName, isAdmin, onDelete }) {
   if (!match) return null;
   const playerA = playerById(match.player_a);
   const playerB = playerById(match.player_b);
@@ -55,6 +63,20 @@ export function MatchSheet({ match, playerById, playerName, isAdmin, onDelete })
           <span className="log-desc">— {entry.type === "foul" ? `falta de ${playerName(entry.by)}${foulReasonText(entry.reason) ? ` (${foulReasonText(entry.reason)})` : ""}` : `${playerName(entry.by)}${entry.brk ? " (estouro)" : ""}`}</span>
         </div>
       )) : <div className="empty small-empty">{live ? "Ainda sem bolas marcadas." : "Essa partida não teve a ordem das bolas registrada."}</div>}
+      <div className="eyebrow sheet-section">clipes da partida</div>
+      {clips.length ? (
+        <div className="clip-list">
+          {clips.map((clip, index) => (
+            <div className="clip-row" key={clip.id}>
+              <div>
+                <strong>{clip.label || `Clipe ${index + 1}`}</strong>
+                <span>{clipDuration(clip.duration_seconds)} · {fmtFull(clip.created_at)}</span>
+              </div>
+              <a className="btn ghost small clip-download" href={clip.public_url} download={clip.file_name || true} target="_blank" rel="noreferrer">Baixar</a>
+            </div>
+          ))}
+        </div>
+      ) : <div className="empty small-empty">Nenhum clipe salvo para essa partida.</div>}
       {isAdmin && !live && <button className="btn ghost delete-btn" onClick={() => onDelete(match.id)}>Apagar partida</button>}
     </>
   );

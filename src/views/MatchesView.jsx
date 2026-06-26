@@ -3,7 +3,7 @@ import { PlayerBall } from "../components/balls.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { fmtDate } from "../utils/date.js";
 
-export function MatchesView({ finished, liveMatch, isAdmin, playerById, openMatch, go }) {
+export function MatchesView({ finished, liveMatch, clips = [], isAdmin, playerById, openMatch, go }) {
   const [filter, setFilter] = useState("");
   const list = finished.slice().reverse().filter((match) => {
     const query = filter.trim().toLowerCase();
@@ -30,10 +30,11 @@ export function MatchesView({ finished, liveMatch, isAdmin, playerById, openMatc
             const playerB = playerById(match.player_b);
             const playerAWon = match.winner_id === match.player_a;
             const playerBWon = match.winner_id === match.player_b;
+            const clipCount = clips.filter((clip) => clip.match_id === match.id).length;
             return (
               <button key={match.id} className="match" onClick={() => openMatch(match.id)}>
                 <div className="side"><PlayerBall player={playerA} size={30} /><span className={`pname ${playerAWon ? "win" : ""}`}>{playerA?.name}</span></div>
-                <div className="match-center"><div className="vs">VS</div><div className="date">{fmtDate(match.played_at)}{(match.ball_log || []).length ? ` · ${match.ball_log.length} bolas` : ""}</div></div>
+                <div className="match-center"><div className="vs">VS</div><div className="date">{fmtDate(match.played_at)}{(match.ball_log || []).length ? ` · ${match.ball_log.length} bolas` : ""}{clipCount ? ` · ${clipCount} clipe${clipCount !== 1 ? "s" : ""}` : ""}</div></div>
                 <div className="side right"><span className={`pname ${playerBWon ? "win" : ""}`}>{playerB?.name}</span><PlayerBall player={playerB} size={30} /></div>
               </button>
             );

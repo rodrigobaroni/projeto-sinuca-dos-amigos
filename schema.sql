@@ -91,6 +91,46 @@ create trigger matches_touch_updated_at
   for each row
   execute function touch_matches_updated_at();
 
+-- Logs de auditoria ------------------------------------------
+-- Registra ações administrativas relevantes: jogadores,
+-- partidas, configurações e eventos da partida ao vivo.
+create table if not exists audit_logs (
+  id            uuid primary key default gen_random_uuid(),
+  actor_id      uuid,
+  actor_email   text not null default 'admin',
+  action        text not null,
+  entity_type   text not null,
+  entity_id     text,
+  message       text not null,
+  metadata      jsonb not null default '{}'::jsonb,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists audit_logs_created_at_idx on audit_logs (created_at desc);
+create index if not exists audit_logs_actor_email_idx on audit_logs (actor_email);
+
+-- Clipes de partidas -----------------------------------------
+-- Arquivos gravados pelo app iOS e vinculados a uma partida.
+create table if not exists match_clips (
+  id                uuid primary key default gen_random_uuid(),
+  match_id          uuid not null references matches(id) on delete cascade,
+  storage_path      text not null,
+  duration_seconds  int not null check (duration_seconds > 0),
+  label             text,
+  file_name         text,
+  mime_type         text not null default 'video/mp4',
+  created_by        uuid,
+  created_at        timestamptz not null default now()
+);
+
+create index if not exists match_clips_match_id_idx on match_clips (match_id);
+create index if not exists match_clips_created_at_idx on match_clips (created_at desc);
+
+-- Bucket publico para download/visualização dos clipes no web app.
+insert into storage.buckets (id, name, public)
+values ('match-clips', 'match-clips', true)
+on conflict (id) do update set public = true;
+
 -- ============================================================
 --  RLS (Row Level Security)
 --  Leitura: liberada para todos (qualquer pessoa com o link).
@@ -98,6 +138,8 @@ create trigger matches_touch_updated_at
 -- ============================================================
 alter table players enable row level security;
 alter table matches enable row level security;
+alter table audit_logs enable row level security;
+alter table match_clips enable row level security;
 
 -- Leitura publica
 drop policy if exists "leitura publica players" on players;
@@ -107,6 +149,14 @@ create policy "leitura publica players"
 drop policy if exists "leitura publica matches" on matches;
 create policy "leitura publica matches"
   on matches for select using (true);
+
+drop policy if exists "leitura admin audit_logs" on audit_logs;
+create policy "leitura admin audit_logs"
+  on audit_logs for select using (auth.role() = 'authenticated');
+
+drop policy if exists "leitura publica match_clips" on match_clips;
+create policy "leitura publica match_clips"
+  on match_clips for select using (true);
 
 -- Escrita somente para logado (admin)
 drop policy if exists "escrita admin players" on players;
@@ -120,3 +170,26 @@ create policy "escrita admin matches"
   on matches for all
   using (auth.role() = 'authenticated')
   with check (auth.role() = 'authenticated');
+
+drop policy if exists "escrita admin audit_logs" on audit_logs;
+create policy "escrita admin audit_logs"
+  on audit_logs for insert
+  with check (auth.role() = 'authenticated');
+
+drop policy if exists "escrita admin match_clips" on match_clips;
+create policy "escrita admin match_clips"
+  on match_clips for all
+  using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
+
+-- Storage: leitura publica, escrita somente admin autenticado.
+drop policy if exists "leitura publica match clip files" on storage.objects;
+create policy "leitura publica match clip files"
+  on storage.objects for select
+  using (bucket_id = 'match-clips');
+
+drop policy if exists "escrita admin match clip files" on storage.objects;
+create policy "escrita admin match clip files"
+  on storage.objects for all
+  using (bucket_id = 'match-clips' and auth.role() = 'authenticated')
+  with check (bucket_id = 'match-clips' and auth.role() = 'authenticated');

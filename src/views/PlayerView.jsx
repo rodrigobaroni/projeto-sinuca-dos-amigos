@@ -4,12 +4,14 @@ import { ViewHead } from "../components/layout.jsx";
 import { Record, RecordSection } from "../components/recordCards.jsx";
 import { fmtPeriod, gameDayKey, monthKey, monthLabel } from "../utils/date.js";
 
-export function PlayerView({ players, finished, stats, playerById, openMatch }) {
+export function PlayerView({ players, finished, stats, clips = [], playerById, openMatch }) {
   const firstActive = useMemo(() => players.find((player) => stats[player.id]?.total > 0)?.id || players[0]?.id || "", [players, stats]);
   const [selectedPlayer, setSelectedPlayer] = useState(firstActive);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedDay, setSelectedDay] = useState("");
-  const [page, setPage] = useState(1);
+  const [opponentFilter, setOpponentFilter] = useState("");
+  const [selectedOpponent, setSelectedOpponent] = useState("");
+  const [selectedH2HRange, setSelectedH2HRange] = useState("");
 
   useEffect(() => {
     if (!selectedPlayer || !players.some((player) => player.id === selectedPlayer)) setSelectedPlayer(firstActive);
@@ -18,12 +20,15 @@ export function PlayerView({ players, finished, stats, playerById, openMatch }) 
   useEffect(() => {
     setSelectedMonth("");
     setSelectedDay("");
-    setPage(1);
+    setOpponentFilter("");
+    setSelectedOpponent("");
+    setSelectedH2HRange("");
   }, [selectedPlayer]);
 
   useEffect(() => {
     setSelectedDay("");
-    setPage(1);
+    setSelectedOpponent("");
+    setSelectedH2HRange("");
   }, [selectedMonth]);
 
   const player = playerById(selectedPlayer);
@@ -75,14 +80,55 @@ export function PlayerView({ players, finished, stats, playerById, openMatch }) 
   }), [playerMatchesDesc, selectedMonth, selectedDay]);
 
   useEffect(() => {
-    setPage(1);
-  }, [selectedDay, selectedMonth]);
+    setSelectedOpponent("");
+    setSelectedH2HRange("");
+  }, [selectedDay, selectedMonth, opponentFilter]);
 
-  const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(filteredMatches.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pagedMatches = filteredMatches.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const confrontationRows = useMemo(() => {
+    const byOpponent = {};
+    filteredMatches.forEach((match) => {
+      const opponentId = match.player_a === selectedPlayer ? match.player_b : match.player_a;
+      if (!byOpponent[opponentId]) byOpponent[opponentId] = { id: opponentId, total: 0, wins: 0, losses: 0, matches: [] };
+      byOpponent[opponentId].total += 1;
+      byOpponent[opponentId].matches.push(match);
+      if (match.winner_id === selectedPlayer) byOpponent[opponentId].wins += 1;
+      else byOpponent[opponentId].losses += 1;
+    });
+    return Object.values(byOpponent)
+      .map((row) => ({ ...row, pct: row.total ? Math.round((row.wins / row.total) * 100) : 0 }))
+      .sort((a, b) => b.total - a.total || b.wins - a.wins || playerById(a.id)?.name?.localeCompare(playerById(b.id)?.name || "") || 0);
+  }, [filteredMatches, playerById, selectedPlayer]);
+  const selectedOpponentRow = confrontationRows.find((row) => row.id === selectedOpponent);
+  const opponentOptions = useMemo(
+    () => opponentRows.slice().sort((a, b) => playerById(a.id)?.name?.localeCompare(playerById(b.id)?.name || "") || 0),
+    [opponentRows, playerById],
+  );
+  const opponentFilteredMatches = useMemo(() => (
+    opponentFilter
+      ? filteredMatches.filter((match) => match.player_a === opponentFilter || match.player_b === opponentFilter)
+      : []
+  ), [filteredMatches, opponentFilter]);
+  const opponentTotalRow = useMemo(() => {
+    if (!opponentFilter) return null;
+    return summarizeH2H("recorte selecionado", opponentFilteredMatches, selectedPlayer);
+  }, [opponentFilteredMatches, opponentFilter, selectedPlayer]);
+  const opponentDayRows = useMemo(() => {
+    if (!opponentFilter) return [];
+    const byDay = {};
+    opponentFilteredMatches.forEach((match) => {
+      const key = gameDayKey(match.played_at);
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(match);
+    });
+    return Object.entries(byDay)
+      .map(([key, matches]) => summarizeH2H(key, matches, selectedPlayer))
+      .sort((a, b) => b.key.localeCompare(a.key));
+  }, [opponentFilteredMatches, opponentFilter, selectedPlayer]);
+  const selectedH2HRow = selectedH2HRange === "total"
+    ? opponentTotalRow
+    : opponentDayRows.find((row) => row.key === selectedH2HRange);
   const fmtDay = (key) => key ? new Date(`${key}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "-";
+  const filterLabel = selectedDay ? fmtDay(selectedDay) : selectedMonth ? monthLabel(selectedMonth) : "Geral";
   const bestDay = (field, direction = "max") => {
     if (!dayRows.length) return null;
     return dayRows.slice().sort((a, b) => direction === "max" ? b[field] - a[field] || b.total - a.total : a[field] - b[field] || b.total - a.total)[0];
@@ -144,41 +190,164 @@ export function PlayerView({ players, finished, stats, playerById, openMatch }) 
               <section className="player-history-section">
                 <div className="section-head compact">
                   <div>
-                    <div className="eyebrow">histórico completo</div>
-                    <h2>Partidas</h2>
+                    <div className="eyebrow">confronto direto</div>
+                    <h2>Adversários</h2>
                   </div>
-                  <span className="rank-sub">{filteredMatches.length} partida{filteredMatches.length !== 1 ? "s" : ""}</span>
+                  <span className="rank-sub">{filterLabel} · {filteredMatches.length} partida{filteredMatches.length !== 1 ? "s" : ""}</span>
                 </div>
                 <div className="player-history-filters">
+                  <button className={`btn ghost small ${!selectedMonth && !selectedDay ? "active-filter" : ""}`} type="button" onClick={() => {
+                    setSelectedMonth("");
+                    setSelectedDay("");
+                  }}>Geral</button>
                   <label className="fld"><span>mês</span><select className="select" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}><option value="">Todos</option>{months.map((key) => <option key={key} value={key}>{monthLabel(key)}</option>)}</select></label>
                   <label className="fld"><span>dia jogado</span><select className="select" value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)}><option value="">Todos</option>{playableDays.map((key) => <option key={key} value={key}>{fmtDay(key)}</option>)}</select></label>
+                  <label className="fld"><span>adversário</span><select className="select" value={opponentFilter} onChange={(event) => setOpponentFilter(event.target.value)}><option value="">Todos</option>{opponentOptions.map((row) => <option key={row.id} value={row.id}>{playerById(row.id)?.name}</option>)}</select></label>
                 </div>
-                {!pagedMatches.length ? <div className="empty compact-empty">Nenhuma partida nesse filtro.</div> : (
-                  <div className="player-history-list">
-                    {pagedMatches.map((match) => {
-                      const opponent = playerById(match.player_a === selectedPlayer ? match.player_b : match.player_a);
-                      const won = match.winner_id === selectedPlayer;
-                      return (
-                        <button className="player-history-row" key={match.id} onClick={() => openMatch(match.id)}>
-                          <span className="dtag">{fmtPeriod(match.played_at)}</span>
-                          <PlayerBall player={opponent} size={30} />
-                          <strong>vs {opponent?.name}</strong>
-                          <b className={won ? "gold-text" : "clay-text"}>{won ? "Vitória" : "Derrota"}</b>
-                        </button>
-                      );
-                    })}
-                  </div>
+                {opponentFilter ? (
+                  !opponentFilteredMatches.length ? <div className="empty compact-empty">Nenhuma partida contra esse adversário nesse filtro.</div> : (
+                    <>
+                      <div className="player-h2h-score-list">
+                        <PlayerH2HScoreCard
+                          label="histórico do recorte"
+                          player={player}
+                          opponent={playerById(opponentFilter)}
+                          row={opponentTotalRow}
+                          active={selectedH2HRange === "total"}
+                          onClick={() => setSelectedH2HRange(selectedH2HRange === "total" ? "" : "total")}
+                          highlight
+                        />
+                        {opponentDayRows.map((row) => (
+                          <PlayerH2HScoreCard
+                            key={row.key}
+                            label={fmtDay(row.key)}
+                            player={player}
+                            opponent={playerById(opponentFilter)}
+                            row={row}
+                            active={selectedH2HRange === row.key}
+                            onClick={() => setSelectedH2HRange(selectedH2HRange === row.key ? "" : row.key)}
+                          />
+                        ))}
+                      </div>
+
+                      {selectedH2HRow && (
+                        <div className="player-h2h-detail">
+                          <div className="section-head compact">
+                            <div>
+                              <div className="eyebrow">partidas do placar</div>
+                              <h2>{selectedH2HRange === "total" ? "Recorte selecionado" : fmtDay(selectedH2HRow.key)}</h2>
+                            </div>
+                            <span className="rank-sub">{selectedH2HRow.matches.length} partida{selectedH2HRow.matches.length !== 1 ? "s" : ""}</span>
+                          </div>
+                          <PlayerMatchRows matches={selectedH2HRow.matches} selectedPlayer={selectedPlayer} playerById={playerById} clips={clips} openMatch={openMatch} />
+                        </div>
+                      )}
+                    </>
+                  )
+                ) : !confrontationRows.length ? <div className="empty compact-empty">Nenhum confronto nesse filtro.</div> : (
+                  <>
+                    <div className="player-h2h-list">
+                      {confrontationRows.map((row) => {
+                        const opponent = playerById(row.id);
+                        const active = selectedOpponent === row.id;
+                        return (
+                          <button className={`player-h2h-card ${active ? "active" : ""}`} key={row.id} onClick={() => setSelectedOpponent(active ? "" : row.id)}>
+                            <PlayerBall player={opponent} size={42} />
+                            <div className="player-h2h-main">
+                              <strong>{opponent?.name}</strong>
+                              <span>{row.total} partida{row.total !== 1 ? "s" : ""} no filtro</span>
+                            </div>
+                            <div className="player-h2h-score stat-num">
+                              <span><b>{row.wins}</b>V</span>
+                              <em>x</em>
+                              <span><b>{row.losses}</b>D</span>
+                              <strong>{row.pct}%</strong>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedOpponentRow && (
+                      <div className="player-h2h-detail">
+                        <div className="section-head compact">
+                          <div>
+                            <div className="eyebrow">partidas do confronto</div>
+                            <h2>{playerById(selectedOpponentRow.id)?.name}</h2>
+                          </div>
+                          <span className="rank-sub">{selectedOpponentRow.matches.length} partida{selectedOpponentRow.matches.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <PlayerMatchRows matches={selectedOpponentRow.matches} selectedPlayer={selectedPlayer} playerById={playerById} clips={clips} openMatch={openMatch} />
+                      </div>
+                    )}
+                  </>
                 )}
-                <div className="pagination">
-                  <button className="btn ghost small" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button>
-                  <span>{currentPage} / {totalPages}</span>
-                  <button className="btn ghost small" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Próxima</button>
-                </div>
               </section>
             </>
           )}
         </>
       )}
     </section>
+  );
+}
+
+function summarizeH2H(key, matches, selectedPlayer) {
+  const wins = matches.filter((match) => match.winner_id === selectedPlayer).length;
+  return {
+    key,
+    matches,
+    total: matches.length,
+    wins,
+    losses: matches.length - wins,
+  };
+}
+
+function PlayerH2HScoreCard({ label, player, opponent, row, active = false, highlight = false, onClick }) {
+  if (!row) return null;
+  const leader = row.wins === row.losses ? "Confronto empatado" : row.wins > row.losses ? `${player?.name} na frente` : `${opponent?.name} na frente`;
+  return (
+    <button className={`player-h2h-score-card ${active ? "active" : ""} ${highlight ? "highlight" : ""}`} type="button" onClick={onClick}>
+      <div className="player-h2h-score-top">
+        <span>{label}</span>
+        <em>{row.total} jogo{row.total !== 1 ? "s" : ""}</em>
+      </div>
+      <div className="player-h2h-score-body">
+        <div className="player-h2h-score-side">
+          <PlayerBall player={player} size={40} />
+          <strong>{player?.name}</strong>
+        </div>
+        <div className="player-h2h-score-board stat-num">
+          <b>{row.wins}</b>
+          <span>x</span>
+          <b>{row.losses}</b>
+        </div>
+        <div className="player-h2h-score-side right">
+          <strong>{opponent?.name}</strong>
+          <PlayerBall player={opponent} size={40} />
+        </div>
+      </div>
+      <div className="player-h2h-score-leader">{leader}</div>
+    </button>
+  );
+}
+
+function PlayerMatchRows({ matches, selectedPlayer, playerById, clips, openMatch }) {
+  return (
+    <div className="player-history-list">
+      {matches.map((match) => {
+        const opponent = playerById(match.player_a === selectedPlayer ? match.player_b : match.player_a);
+        const won = match.winner_id === selectedPlayer;
+        const clipCount = clips.filter((clip) => clip.match_id === match.id).length;
+        return (
+          <button className="player-history-row" key={match.id} onClick={() => openMatch(match.id)}>
+            <span className="dtag">{fmtPeriod(match.played_at)}</span>
+            <PlayerBall player={opponent} size={30} />
+            <strong>vs {opponent?.name}</strong>
+            {clipCount > 0 && <span className="clip-badge">{clipCount} clipe{clipCount !== 1 ? "s" : ""}</span>}
+            <b className={won ? "gold-text" : "clay-text"}>{won ? "Vitória" : "Derrota"}</b>
+          </button>
+        );
+      })}
+    </div>
   );
 }

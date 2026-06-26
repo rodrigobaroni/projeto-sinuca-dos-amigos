@@ -22,8 +22,11 @@ export function App({ supabaseClient }) {
 
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [clips, setClips] = useState([]);
   const [current, setCurrent] = useState("ranking");
   const [isAdmin, setIsAdmin] = useState(demoMode);
+  const [adminUser, setAdminUser] = useState(demoMode ? { id: "demo", email: "demo" } : null);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
@@ -50,6 +53,7 @@ export function App({ supabaseClient }) {
       const data = demoData(demoStartForm);
       setPlayers(data.players);
       setMatches(data.matches);
+      setClips([]);
       setLoading(false);
       return;
     }
@@ -62,6 +66,12 @@ export function App({ supabaseClient }) {
       const data = await repo.loadScoreboard();
       setPlayers(data.players);
       setMatches(data.matches);
+      setClips(data.clips || []);
+      try {
+        setAuditLogs(await repo.listAuditLogs());
+      } catch {
+        setAuditLogs([]);
+      }
     } catch (loadError) {
       setError(loadError.message);
       setLoading(false);
@@ -76,9 +86,60 @@ export function App({ supabaseClient }) {
 
   useEffect(() => {
     if (!repo) return;
-    repo.getSession().then((session) => setIsAdmin(Boolean(session))).catch(() => setIsAdmin(false));
-    return repo.onAuthStateChange((session) => setIsAdmin(Boolean(session)));
+    repo.getSession().then((session) => {
+      setIsAdmin(Boolean(session));
+      setAdminUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+    }).catch(() => {
+      setIsAdmin(false);
+      setAdminUser(null);
+    });
+    return repo.onAuthStateChange((session) => {
+      setIsAdmin(Boolean(session));
+      setAdminUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+    });
   }, [repo]);
+
+  const refreshAuditLogs = async () => {
+    if (!repo) return;
+    try {
+      setAuditLogs(await repo.listAuditLogs());
+    } catch (error) {
+      showToast(`Erro ao carregar logs: ${error.message}`);
+    }
+  };
+
+  const auditLog = async ({ action, entityType, entityId, message, metadata = {} }) => {
+    const actor = adminUser || { id: demoMode ? "demo" : null, email: demoMode ? "demo" : "admin" };
+    const localEntry = {
+      id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      actor_id: actor.id,
+      actor_email: actor.email || "admin",
+      action,
+      entity_type: entityType,
+      entity_id: entityId ? String(entityId) : null,
+      message,
+      metadata,
+      created_at: new Date().toISOString(),
+    };
+    setAuditLogs((items) => [localEntry, ...items].slice(0, 100));
+    if (!repo) return localEntry;
+    try {
+      const saved = await repo.createAuditLog({
+        actor_id: actor.id && actor.id !== "demo" ? actor.id : null,
+        actor_email: actor.email || "admin",
+        action,
+        entity_type: entityType,
+        entity_id: entityId ? String(entityId) : null,
+        message,
+        metadata,
+      });
+      setAuditLogs((items) => [saved, ...items.filter((item) => item.id !== localEntry.id)].slice(0, 100));
+      return saved;
+    } catch (error) {
+      showToast(`Erro ao gravar log: ${error.message}`);
+      return localEntry;
+    }
+  };
 
   const persistMatch = async (id, patch) => {
     setMatches((items) => items.map((match) => (match.id === id ? { ...match, ...patch } : match)));
@@ -99,10 +160,24 @@ export function App({ supabaseClient }) {
     if (!repo) {
       const player = { id: `demo-${cleanName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`, name: cleanName };
       setPlayers((items) => [...items, player].sort((a, b) => a.name.localeCompare(b.name)));
+      await auditLog({
+        action: "player_created",
+        entityType: "player",
+        entityId: player.id,
+        message: `${adminUser?.email || "admin"} adicionou o jogador ${player.name}`,
+        metadata: { player },
+      });
       return player;
     }
     const player = await repo.addPlayer(cleanName);
     setPlayers((items) => [...items, player].sort((a, b) => a.name.localeCompare(b.name)));
+    await auditLog({
+      action: "player_created",
+      entityType: "player",
+      entityId: player.id,
+      message: `${adminUser?.email || "admin"} adicionou o jogador ${player.name}`,
+      metadata: { player },
+    });
     return player;
   };
 
@@ -116,10 +191,24 @@ export function App({ supabaseClient }) {
       if (!updated) throw new Error("Jogador não encontrado");
       const player = { ...updated, name: cleanName };
       setPlayers((items) => items.map((item) => (item.id === id ? player : item)).sort((a, b) => a.name.localeCompare(b.name)));
+      await auditLog({
+        action: "player_updated",
+        entityType: "player",
+        entityId: player.id,
+        message: `${adminUser?.email || "admin"} alterou o jogador para ${player.name}`,
+        metadata: { player, previousName: updated.name },
+      });
       return player;
     }
     const player = await repo.updatePlayer(id, { name: cleanName });
     setPlayers((items) => items.map((item) => (item.id === id ? player : item)).sort((a, b) => a.name.localeCompare(b.name)));
+    await auditLog({
+      action: "player_updated",
+      entityType: "player",
+      entityId: player.id,
+      message: `${adminUser?.email || "admin"} alterou o jogador para ${player.name}`,
+      metadata: { player, previousName: players.find((item) => item.id === id)?.name },
+    });
     return player;
   };
 
@@ -132,7 +221,7 @@ export function App({ supabaseClient }) {
   if (loading) content = <div className="loading">engizAndo o taco...</div>;
   else if (error) content = <div className="empty">Nao consegui conectar no banco.<br /><small style={{ color: "var(--clay)" }}>{error}</small></div>;
   else if (current === "ranking") content = <RankingView players={players} finished={finished} stats={stats} ranked={ranked} isAdmin={isAdmin} showToast={showToast} playerById={playerById} openPlayer={(id) => setSheet(<PlayerSheet stat={stats[id]} rank={ranked.findIndex((item) => item.id === id) + 1} playerById={playerById} />)} />;
-  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
+  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
     if (!window.confirm("Apagar essa partida? Não dá pra desfazer.")) return;
     setMatches((items) => items.filter((match) => match.id !== matchId));
     if (repo) {
@@ -145,9 +234,17 @@ export function App({ supabaseClient }) {
       }
     }
     setSheet(null);
+    const deleted = matches.find((item) => item.id === matchId);
+    await auditLog({
+      action: "match_deleted",
+      entityType: "match",
+      entityId: matchId,
+      message: `${adminUser?.email || "admin"} apagou a partida ${playerName(deleted?.player_a)} x ${playerName(deleted?.player_b)}`,
+      metadata: { match: deleted, players: [playerName(deleted?.player_a), playerName(deleted?.player_b)] },
+    });
     showToast("Partida apagada");
   }} />)} />;
-  else if (current === "partidas") content = <MatchesView finished={finished} liveMatch={liveMatch} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
+  else if (current === "partidas") content = <MatchesView finished={finished} liveMatch={liveMatch} clips={clips} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
     if (!window.confirm("Apagar essa partida? Não dá pra desfazer.")) return;
     setMatches((items) => items.filter((match) => match.id !== matchId));
     if (repo) {
@@ -160,11 +257,19 @@ export function App({ supabaseClient }) {
       }
     }
     setSheet(null);
+    const deleted = matches.find((item) => item.id === matchId);
+    await auditLog({
+      action: "match_deleted",
+      entityType: "match",
+      entityId: matchId,
+      message: `${adminUser?.email || "admin"} apagou a partida ${playerName(deleted?.player_a)} x ${playerName(deleted?.player_b)}`,
+      metadata: { match: deleted, players: [playerName(deleted?.player_a), playerName(deleted?.player_b)] },
+    });
     showToast("Partida apagada");
   }} />)} go={go} />;
   else if (current === "records") content = <RecordsView players={players} finished={finished} stats={stats} />;
   else if (current === "regras") content = <RulesView />;
-  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatch={liveMatch} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} />;
+  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} />;
 
   return (
     <>

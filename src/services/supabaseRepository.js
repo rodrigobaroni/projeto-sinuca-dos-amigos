@@ -6,7 +6,41 @@ export function createRepository(sb) {
         sb.from("matches").select("*").order("played_at", { ascending: true }),
       ]);
       if (playersError || matchesError) throw playersError || matchesError;
-      return { players: players || [], matches: matches || [] };
+      const { data: clips, error: clipsError } = await sb
+        .from("match_clips")
+        .select("*")
+        .order("created_at", { ascending: false });
+      const safeClips = clipsError ? [] : clips || [];
+      return {
+        players: players || [],
+        matches: matches || [],
+        clips: safeClips.map((clip) => ({
+          ...clip,
+          public_url: this.getClipPublicUrl(clip.storage_path),
+        })),
+      };
+    },
+
+    getClipPublicUrl(storagePath) {
+      if (!storagePath) return "";
+      const { data } = sb.storage.from("match-clips").getPublicUrl(storagePath);
+      return data.publicUrl;
+    },
+
+    async listAuditLogs(limit = 100) {
+      const { data, error } = await sb
+        .from("audit_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data || [];
+    },
+
+    async createAuditLog(entry) {
+      const { data, error } = await sb.from("audit_logs").insert(entry).select().single();
+      if (error) throw error;
+      return data;
     },
 
     async addPlayer(name) {
@@ -22,8 +56,9 @@ export function createRepository(sb) {
     },
 
     async startMatch(match) {
-      const { error } = await sb.from("matches").insert(match);
+      const { data, error } = await sb.from("matches").insert(match).select().single();
       if (error) throw error;
+      return data;
     },
 
     async updateMatch(id, patch) {
