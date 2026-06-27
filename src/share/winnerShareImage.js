@@ -1,6 +1,16 @@
 import { fmtPeriod } from "../utils/date.js";
 import { hashColor, initials } from "../utils/player.js";
 
+const DS = {
+  felt900: "#07271c",
+  felt800: "#0c3b2a",
+  felt600: "#15523b",
+  cream: "#f4efe3",
+  muted: "#acc6b9",
+  brass: "#cdaa54",
+  gold: "#f4c430",
+};
+
 function drawRoundRect(ctx, x, y, width, height, radius) {
   const r = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
@@ -69,13 +79,13 @@ export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd
   const activeRanked = ranked.filter((stat) => stat.total > 0).slice(0, 6);
 
   const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  bg.addColorStop(0, "#115a40");
-  bg.addColorStop(0.56, "#0c3b2a");
-  bg.addColorStop(1, "#062319");
+  bg.addColorStop(0, "#11583f");
+  bg.addColorStop(0.56, DS.felt800);
+  bg.addColorStop(1, DS.felt900);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "rgba(8,42,30,.72)";
+  ctx.fillStyle = "rgba(7,39,28,.72)";
   drawRoundRect(ctx, 54, 54, 972, 1242, 42);
   ctx.fill();
   ctx.strokeStyle = "rgba(201,162,75,.28)";
@@ -83,33 +93,33 @@ export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd
   ctx.stroke();
 
   drawShareBall(ctx, 92, 92, 58, null);
-  ctx.fillStyle = "#f3efe3";
+  ctx.fillStyle = DS.cream;
   ctx.font = "400 54px Anton, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillText("PLACAR DA SINUCA", 168, 130);
-  ctx.fillStyle = "#c9a24b";
+  ctx.fillStyle = DS.brass;
   ctx.font = "400 22px Space Mono, monospace";
   ctx.letterSpacing = "5px";
   ctx.fillText("RESENHA OFICIAL", 170, 164);
   ctx.letterSpacing = "0px";
 
-  ctx.fillStyle = "#c9a24b";
+  ctx.fillStyle = DS.brass;
   ctx.font = "700 27px Space Mono, monospace";
   ctx.fillText("JOGATINA", 92, 250);
-  ctx.fillStyle = "#f3efe3";
+  ctx.fillStyle = DS.cream;
   ctx.font = "400 74px Anton, sans-serif";
   ctx.fillText("VITORIOSO DO DIA", 92, 324);
 
-  ctx.fillStyle = "#8fb3a2";
+  ctx.fillStyle = DS.muted;
   ctx.font = "400 25px Space Mono, monospace";
   ctx.fillText(dayLabel.toUpperCase(), 92, 372);
   ctx.fillText(`${fmtPeriod(rangeStart)} ate ${fmtPeriod(rangeEnd)}`, 92, 410);
 
   const cardGradient = ctx.createLinearGradient(92, 470, 988, 700);
   cardGradient.addColorStop(0, "rgba(244,196,48,.22)");
-  cardGradient.addColorStop(0.48, "rgba(8,42,30,.78)");
-  cardGradient.addColorStop(1, "rgba(8,42,30,.95)");
+  cardGradient.addColorStop(0.48, "rgba(7,39,28,.78)");
+  cardGradient.addColorStop(1, "rgba(7,39,28,.95)");
   ctx.fillStyle = cardGradient;
   drawRoundRect(ctx, 92, 468, 896, 250, 34);
   ctx.fill();
@@ -119,25 +129,25 @@ export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd
 
   if (leader) {
     drawShareBall(ctx, 132, 542, 112, leader);
-    ctx.fillStyle = "#c9a24b";
+    ctx.fillStyle = DS.brass;
     ctx.font = "700 25px Space Mono, monospace";
     ctx.fillText("LIDER DO RECORTE", 284, 548);
-    ctx.fillStyle = "#f4c430";
+    ctx.fillStyle = DS.gold;
     ctx.font = "400 68px Anton, sans-serif";
     ctx.fillText(fitCanvasText(ctx, leader.name, 650), 284, 620);
-    ctx.fillStyle = "#8fb3a2";
+    ctx.fillStyle = DS.muted;
     ctx.font = "400 31px Archivo, sans-serif";
     ctx.fillText(`${leader.wins} vitorias · ${leader.losses} derrotas · ${leader.pct}%`, 286, 674);
   } else {
-    ctx.fillStyle = "#f4c430";
+    ctx.fillStyle = DS.gold;
     ctx.font = "400 64px Anton, sans-serif";
     ctx.fillText("SEM PARTIDAS", 132, 608);
-    ctx.fillStyle = "#8fb3a2";
+    ctx.fillStyle = DS.muted;
     ctx.font = "400 30px Archivo, sans-serif";
     ctx.fillText("Nenhum jogo registrado nesse recorte.", 132, 666);
   }
 
-  ctx.fillStyle = "#8fb3a2";
+  ctx.fillStyle = DS.muted;
   ctx.font = "400 28px Space Mono, monospace";
   ctx.textAlign = "left";
   ctx.fillText(`${matches.length} jogos no periodo`, 92, 782);
@@ -151,30 +161,30 @@ export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = index === 0 ? "#f4c430" : "#f3efe3";
+    ctx.fillStyle = index === 0 ? DS.gold : DS.cream;
     ctx.font = "700 30px Space Mono, monospace";
     ctx.textAlign = "center";
     ctx.fillText(String(index + 1), 124, y + 38);
 
     ctx.textAlign = "left";
-    ctx.fillStyle = "#f3efe3";
+    ctx.fillStyle = DS.cream;
     ctx.font = "700 28px Archivo, sans-serif";
     ctx.fillText(fitCanvasText(ctx, stat.name, 330), 166, y + 36);
 
-    ctx.fillStyle = "#8fb3a2";
+    ctx.fillStyle = DS.muted;
     ctx.font = "400 22px Space Mono, monospace";
     ctx.fillText(`${stat.total} jogos`, 520, y + 36);
 
-    ctx.fillStyle = "#f3efe3";
+    ctx.fillStyle = DS.cream;
     ctx.font = "700 25px Space Mono, monospace";
     ctx.fillText(`${stat.wins}V · ${stat.losses}D`, 680, y + 36);
 
-    ctx.fillStyle = "#f4c430";
+    ctx.fillStyle = DS.gold;
     ctx.font = "700 29px Space Mono, monospace";
     ctx.fillText(`${stat.pct}%`, 865, y + 36);
   });
 
-  ctx.fillStyle = "#c9a24b";
+  ctx.fillStyle = DS.brass;
   ctx.font = "400 22px Space Mono, monospace";
   ctx.textAlign = "center";
   ctx.fillText("gerado no placar da sinuca", canvas.width / 2, 1250);

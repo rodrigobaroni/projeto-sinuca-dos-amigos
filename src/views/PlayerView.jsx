@@ -9,8 +9,8 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
   const [selectedPlayer, setSelectedPlayer] = useState(firstActive);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedDay, setSelectedDay] = useState("");
+  const [selectedPeriodOpponent, setSelectedPeriodOpponent] = useState("");
   const [opponentFilter, setOpponentFilter] = useState("");
-  const [selectedOpponent, setSelectedOpponent] = useState("");
   const [selectedH2HRange, setSelectedH2HRange] = useState("");
 
   useEffect(() => {
@@ -20,16 +20,14 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
   useEffect(() => {
     setSelectedMonth("");
     setSelectedDay("");
+    setSelectedPeriodOpponent("");
     setOpponentFilter("");
-    setSelectedOpponent("");
     setSelectedH2HRange("");
   }, [selectedPlayer]);
 
   useEffect(() => {
-    setSelectedDay("");
-    setSelectedOpponent("");
-    setSelectedH2HRange("");
-  }, [selectedMonth]);
+    setSelectedPeriodOpponent("");
+  }, [selectedMonth, selectedDay]);
 
   const player = playerById(selectedPlayer);
   const playerStats = stats[selectedPlayer] || { wins: 0, losses: 0, total: 0, pct: 0, bestStreak: 0 };
@@ -68,10 +66,7 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
 
   const gameDayMonth = (match) => monthKey(`${gameDayKey(match.played_at)}T12:00:00`);
   const months = useMemo(() => [...new Set(playerMatches.map((match) => gameDayMonth(match)))].sort().reverse(), [playerMatches]);
-  const playableDays = useMemo(() => {
-    const matches = selectedMonth ? playerMatches.filter((match) => gameDayMonth(match) === selectedMonth) : playerMatches;
-    return [...new Set(matches.map((match) => gameDayKey(match.played_at)))].sort().reverse();
-  }, [playerMatches, selectedMonth]);
+  const playableDays = useMemo(() => [...new Set(playerMatches.map((match) => gameDayKey(match.played_at)))].sort().reverse(), [playerMatches]);
 
   const filteredMatches = useMemo(() => playerMatchesDesc.filter((match) => {
     if (selectedMonth && gameDayMonth(match) !== selectedMonth) return false;
@@ -79,12 +74,7 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
     return true;
   }), [playerMatchesDesc, selectedMonth, selectedDay]);
 
-  useEffect(() => {
-    setSelectedOpponent("");
-    setSelectedH2HRange("");
-  }, [selectedDay, selectedMonth, opponentFilter]);
-
-  const confrontationRows = useMemo(() => {
+  const periodConfrontationRows = useMemo(() => {
     const byOpponent = {};
     filteredMatches.forEach((match) => {
       const opponentId = match.player_a === selectedPlayer ? match.player_b : match.player_a;
@@ -98,19 +88,24 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
       .map((row) => ({ ...row, pct: row.total ? Math.round((row.wins / row.total) * 100) : 0 }))
       .sort((a, b) => b.total - a.total || b.wins - a.wins || playerById(a.id)?.name?.localeCompare(playerById(b.id)?.name || "") || 0);
   }, [filteredMatches, playerById, selectedPlayer]);
-  const selectedOpponentRow = confrontationRows.find((row) => row.id === selectedOpponent);
+  const selectedPeriodOpponentRow = periodConfrontationRows.find((row) => row.id === selectedPeriodOpponent);
+
+  useEffect(() => {
+    setSelectedH2HRange("");
+  }, [opponentFilter]);
+
   const opponentOptions = useMemo(
     () => opponentRows.slice().sort((a, b) => playerById(a.id)?.name?.localeCompare(playerById(b.id)?.name || "") || 0),
     [opponentRows, playerById],
   );
   const opponentFilteredMatches = useMemo(() => (
     opponentFilter
-      ? filteredMatches.filter((match) => match.player_a === opponentFilter || match.player_b === opponentFilter)
+      ? playerMatchesDesc.filter((match) => match.player_a === opponentFilter || match.player_b === opponentFilter)
       : []
-  ), [filteredMatches, opponentFilter]);
+  ), [playerMatchesDesc, opponentFilter]);
   const opponentTotalRow = useMemo(() => {
     if (!opponentFilter) return null;
-    return summarizeH2H("recorte selecionado", opponentFilteredMatches, selectedPlayer);
+    return summarizeH2H("histórico total", opponentFilteredMatches, selectedPlayer);
   }, [opponentFilteredMatches, opponentFilter, selectedPlayer]);
   const opponentDayRows = useMemo(() => {
     if (!opponentFilter) return [];
@@ -129,6 +124,18 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
     : opponentDayRows.find((row) => row.key === selectedH2HRange);
   const fmtDay = (key) => key ? new Date(`${key}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "-";
   const filterLabel = selectedDay ? fmtDay(selectedDay) : selectedMonth ? monthLabel(selectedMonth) : "Geral";
+  const selectGeneralPeriod = () => {
+    setSelectedMonth("");
+    setSelectedDay("");
+  };
+  const selectMonthPeriod = (value) => {
+    setSelectedMonth(value);
+    setSelectedDay("");
+  };
+  const selectDayPeriod = (value) => {
+    setSelectedDay(value);
+    setSelectedMonth("");
+  };
   const bestDay = (field, direction = "max") => {
     if (!dayRows.length) return null;
     return dayRows.slice().sort((a, b) => direction === "max" ? b[field] - a[field] || b.total - a.total : a[field] - b[field] || b.total - a.total)[0];
@@ -151,7 +158,23 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
         <div className="empty">Cadastre jogadores para ver o raio-x individual.</div>
       ) : (
         <>
-          <label className="fld player-selector"><span>jogador</span><select className="select" value={selectedPlayer} onChange={(event) => setSelectedPlayer(event.target.value)}>{players.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <div className="player-carousel" aria-label="Selecionar jogador">
+            {players.map((item) => {
+              const active = item.id === selectedPlayer;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`player-chip ${active ? "active" : ""}`}
+                  onClick={() => setSelectedPlayer(item.id)}
+                  aria-pressed={active}
+                >
+                  <PlayerBall player={item} size={28} />
+                  <span>{item.name}</span>
+                </button>
+              );
+            })}
+          </div>
 
           <section className="player-hero">
             <PlayerBall player={player} size={70} />
@@ -190,72 +213,48 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
               <section className="player-history-section">
                 <div className="section-head compact">
                   <div>
-                    <div className="eyebrow">confronto direto</div>
-                    <h2>Adversários</h2>
+                    <div className="eyebrow">recorte</div>
+                    <h2>Período</h2>
                   </div>
                   <span className="rank-sub">{filterLabel} · {filteredMatches.length} partida{filteredMatches.length !== 1 ? "s" : ""}</span>
                 </div>
-                <div className="player-history-filters">
-                  <button className={`btn ghost small ${!selectedMonth && !selectedDay ? "active-filter" : ""}`} type="button" onClick={() => {
-                    setSelectedMonth("");
-                    setSelectedDay("");
-                  }}>Geral</button>
-                  <label className="fld"><span>mês</span><select className="select" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}><option value="">Todos</option>{months.map((key) => <option key={key} value={key}>{monthLabel(key)}</option>)}</select></label>
-                  <label className="fld"><span>dia jogado</span><select className="select" value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)}><option value="">Todos</option>{playableDays.map((key) => <option key={key} value={key}>{fmtDay(key)}</option>)}</select></label>
-                  <label className="fld"><span>adversário</span><select className="select" value={opponentFilter} onChange={(event) => setOpponentFilter(event.target.value)}><option value="">Todos</option>{opponentOptions.map((row) => <option key={row.id} value={row.id}>{playerById(row.id)?.name}</option>)}</select></label>
+                <div className="player-period-filters">
+                  <button className={`player-period-filter ${!selectedMonth && !selectedDay ? "active" : ""}`} type="button" onClick={selectGeneralPeriod}>
+                    <span>recorte</span>
+                    <strong>Geral</strong>
+                  </button>
+                  <label className={`player-period-filter ${selectedMonth ? "active" : ""}`}>
+                    <span>mês</span>
+                    <select value={selectedMonth} onChange={(event) => selectMonthPeriod(event.target.value)}>
+                      <option value="">Selecionar</option>
+                      {months.map((key) => <option key={key} value={key}>{monthLabel(key)}</option>)}
+                    </select>
+                  </label>
+                  <label className={`player-period-filter ${selectedDay ? "active" : ""}`}>
+                    <span>dia jogado</span>
+                    <select value={selectedDay} onChange={(event) => selectDayPeriod(event.target.value)}>
+                      <option value="">Selecionar</option>
+                      {playableDays.map((key) => <option key={key} value={key}>{fmtDay(key)}</option>)}
+                    </select>
+                  </label>
                 </div>
-                {opponentFilter ? (
-                  !opponentFilteredMatches.length ? <div className="empty compact-empty">Nenhuma partida contra esse adversário nesse filtro.</div> : (
-                    <>
-                      <div className="player-h2h-score-list">
-                        <PlayerH2HScoreCard
-                          label="histórico do recorte"
-                          player={player}
-                          opponent={playerById(opponentFilter)}
-                          row={opponentTotalRow}
-                          active={selectedH2HRange === "total"}
-                          onClick={() => setSelectedH2HRange(selectedH2HRange === "total" ? "" : "total")}
-                          highlight
-                        />
-                        {opponentDayRows.map((row) => (
-                          <PlayerH2HScoreCard
-                            key={row.key}
-                            label={fmtDay(row.key)}
-                            player={player}
-                            opponent={playerById(opponentFilter)}
-                            row={row}
-                            active={selectedH2HRange === row.key}
-                            onClick={() => setSelectedH2HRange(selectedH2HRange === row.key ? "" : row.key)}
-                          />
-                        ))}
-                      </div>
-
-                      {selectedH2HRow && (
-                        <div className="player-h2h-detail">
-                          <div className="section-head compact">
-                            <div>
-                              <div className="eyebrow">partidas do placar</div>
-                              <h2>{selectedH2HRange === "total" ? "Recorte selecionado" : fmtDay(selectedH2HRow.key)}</h2>
-                            </div>
-                            <span className="rank-sub">{selectedH2HRow.matches.length} partida{selectedH2HRow.matches.length !== 1 ? "s" : ""}</span>
-                          </div>
-                          <PlayerMatchRows matches={selectedH2HRow.matches} selectedPlayer={selectedPlayer} playerById={playerById} clips={clips} openMatch={openMatch} />
-                        </div>
-                      )}
-                    </>
-                  )
-                ) : !confrontationRows.length ? <div className="empty compact-empty">Nenhum confronto nesse filtro.</div> : (
+                {!periodConfrontationRows.length ? <div className="empty compact-empty">Nenhum confronto nesse recorte.</div> : (
                   <>
-                    <div className="player-h2h-list">
-                      {confrontationRows.map((row) => {
+                    <div className="player-h2h-list period-h2h-list">
+                      {periodConfrontationRows.map((row) => {
                         const opponent = playerById(row.id);
-                        const active = selectedOpponent === row.id;
+                        const active = selectedPeriodOpponent === row.id;
                         return (
-                          <button className={`player-h2h-card ${active ? "active" : ""}`} key={row.id} onClick={() => setSelectedOpponent(active ? "" : row.id)}>
+                          <button
+                            className={`player-h2h-card ${active ? "active" : ""}`}
+                            key={row.id}
+                            type="button"
+                            onClick={() => setSelectedPeriodOpponent(active ? "" : row.id)}
+                          >
                             <PlayerBall player={opponent} size={42} />
                             <div className="player-h2h-main">
                               <strong>{opponent?.name}</strong>
-                              <span>{row.total} partida{row.total !== 1 ? "s" : ""} no filtro</span>
+                              <span>{row.total} partida{row.total !== 1 ? "s" : ""} no recorte</span>
                             </div>
                             <div className="player-h2h-score stat-num">
                               <span><b>{row.wins}</b>V</span>
@@ -268,20 +267,89 @@ export function PlayerView({ players, finished, stats, clips = [], playerById, o
                       })}
                     </div>
 
-                    {selectedOpponentRow && (
+                    {selectedPeriodOpponentRow && (
                       <div className="player-h2h-detail">
                         <div className="section-head compact">
                           <div>
-                            <div className="eyebrow">partidas do confronto</div>
-                            <h2>{playerById(selectedOpponentRow.id)?.name}</h2>
+                            <div className="eyebrow">partidas do recorte</div>
+                            <h2>{playerById(selectedPeriodOpponentRow.id)?.name}</h2>
                           </div>
-                          <span className="rank-sub">{selectedOpponentRow.matches.length} partida{selectedOpponentRow.matches.length !== 1 ? "s" : ""}</span>
+                          <span className="rank-sub">{selectedPeriodOpponentRow.matches.length} partida{selectedPeriodOpponentRow.matches.length !== 1 ? "s" : ""}</span>
                         </div>
-                        <PlayerMatchRows matches={selectedOpponentRow.matches} selectedPlayer={selectedPlayer} playerById={playerById} clips={clips} openMatch={openMatch} />
+                        <PlayerMatchRows matches={selectedPeriodOpponentRow.matches} selectedPlayer={selectedPlayer} playerById={playerById} clips={clips} openMatch={openMatch} />
                       </div>
                     )}
                   </>
                 )}
+              </section>
+
+              <section className="player-history-section">
+                <div className="section-head compact">
+                  <div>
+                    <div className="eyebrow">confronto direto</div>
+                    <h2>Adversário</h2>
+                  </div>
+                  <span className="rank-sub">{opponentFilter ? playerById(opponentFilter)?.name : "Selecione um adversário"}</span>
+                </div>
+                <div className="player-carousel opponent-carousel" aria-label="Selecionar adversário">
+                  {opponentOptions.map((row) => {
+                    const opponent = playerById(row.id);
+                    const active = row.id === opponentFilter;
+                    return (
+                      <button
+                        key={row.id}
+                        type="button"
+                        className={`player-chip ${active ? "active" : ""}`}
+                        onClick={() => setOpponentFilter(active ? "" : row.id)}
+                        aria-pressed={active}
+                      >
+                        <PlayerBall player={opponent} size={28} />
+                        <span>{opponent?.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!opponentOptions.length ? <div className="empty compact-empty">Esse jogador ainda não tem adversários no histórico.</div> : opponentFilter ? (
+                  !opponentFilteredMatches.length ? <div className="empty compact-empty">Nenhuma partida contra esse adversário.</div> : (
+                  <>
+                    <div className="player-h2h-score-list">
+                      <PlayerH2HScoreCard
+                        label="histórico total"
+                        player={player}
+                        opponent={playerById(opponentFilter)}
+                        row={opponentTotalRow}
+                        active={selectedH2HRange === "total"}
+                        onClick={() => setSelectedH2HRange(selectedH2HRange === "total" ? "" : "total")}
+                        highlight
+                      />
+                      {opponentDayRows.map((row) => (
+                        <PlayerH2HScoreCard
+                          key={row.key}
+                          label={fmtDay(row.key)}
+                          player={player}
+                          opponent={playerById(opponentFilter)}
+                          row={row}
+                          active={selectedH2HRange === row.key}
+                          onClick={() => setSelectedH2HRange(selectedH2HRange === row.key ? "" : row.key)}
+                        />
+                      ))}
+                    </div>
+
+                    {selectedH2HRow && (
+                      <div className="player-h2h-detail">
+                        <div className="section-head compact">
+                          <div>
+                            <div className="eyebrow">partidas do placar</div>
+                            <h2>{selectedH2HRange === "total" ? "Histórico total" : fmtDay(selectedH2HRow.key)}</h2>
+                          </div>
+                          <span className="rank-sub">{selectedH2HRow.matches.length} partida{selectedH2HRow.matches.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <PlayerMatchRows matches={selectedH2HRow.matches} selectedPlayer={selectedPlayer} playerById={playerById} clips={clips} openMatch={openMatch} />
+                      </div>
+                    )}
+                  </>
+                  )
+                ) : <div className="empty compact-empty">Selecione um adversário para ver o placar geral e os dias jogados.</div>}
               </section>
             </>
           )}
