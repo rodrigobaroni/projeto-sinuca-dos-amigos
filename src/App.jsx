@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Ball } from "./components/balls.jsx";
-import { Sheet, Toast } from "./components/layout.jsx";
+import { ConfirmDialog, Sheet, Toast } from "./components/layout.jsx";
 import { MatchSheet, PlayerSheet } from "./components/sheets.jsx";
 import { NAV } from "./constants.js";
 import { computeStats, rankedFrom } from "./domain/stats.js";
@@ -31,7 +31,9 @@ export function App({ supabaseClient }) {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [sheet, setSheet] = useState(null);
+  const [confirmRequest, setConfirmRequest] = useState(null);
   const toastTimer = useRef(null);
+  const confirmResolver = useRef(null);
 
   const finished = useMemo(() => matches.filter((match) => match.status !== "live" && match.winner_id), [matches]);
   const liveMatch = useMemo(() => matches.find((match) => match.status === "live") || null, [matches]);
@@ -44,6 +46,16 @@ export function App({ supabaseClient }) {
     setToast(message);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(""), 2200);
+  };
+  const requestConfirm = (request) => new Promise((resolve) => {
+    confirmResolver.current?.(false);
+    confirmResolver.current = resolve;
+    setConfirmRequest(request);
+  });
+  const closeConfirm = (confirmed) => {
+    confirmResolver.current?.(confirmed);
+    confirmResolver.current = null;
+    setConfirmRequest(null);
   };
 
   const load = async () => {
@@ -222,7 +234,12 @@ export function App({ supabaseClient }) {
   else if (error) content = <div className="empty">Nao consegui conectar no banco.<br /><small style={{ color: "var(--clay)" }}>{error}</small></div>;
   else if (current === "ranking") content = <RankingView players={players} finished={finished} stats={stats} ranked={ranked} isAdmin={isAdmin} showToast={showToast} playerById={playerById} openPlayer={(id) => setSheet(<PlayerSheet stat={stats[id]} rank={ranked.findIndex((item) => item.id === id) + 1} playerById={playerById} />)} />;
   else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
-    if (!window.confirm("Apagar essa partida? Não dá pra desfazer.")) return;
+    const confirmed = await requestConfirm({
+      title: "Apagar partida?",
+      message: "Essa ação não dá pra desfazer.",
+      confirmLabel: "Apagar",
+    });
+    if (!confirmed) return;
     setMatches((items) => items.filter((match) => match.id !== matchId));
     if (repo) {
       try {
@@ -245,7 +262,12 @@ export function App({ supabaseClient }) {
     showToast("Partida apagada");
   }} />)} />;
   else if (current === "partidas") content = <MatchesView finished={finished} liveMatch={liveMatch} clips={clips} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
-    if (!window.confirm("Apagar essa partida? Não dá pra desfazer.")) return;
+    const confirmed = await requestConfirm({
+      title: "Apagar partida?",
+      message: "Essa ação não dá pra desfazer.",
+      confirmLabel: "Apagar",
+    });
+    if (!confirmed) return;
     setMatches((items) => items.filter((match) => match.id !== matchId));
     if (repo) {
       try {
@@ -269,7 +291,7 @@ export function App({ supabaseClient }) {
   }} />)} go={go} />;
   else if (current === "records") content = <RecordsView players={players} finished={finished} stats={stats} />;
   else if (current === "regras") content = <RulesView />;
-  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} />;
+  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} />;
 
   return (
     <>
@@ -294,6 +316,7 @@ export function App({ supabaseClient }) {
         </div>
       </nav>
       <Sheet onClose={() => setSheet(null)}>{sheet}</Sheet>
+      <ConfirmDialog request={confirmRequest} onCancel={() => closeConfirm(false)} onConfirm={() => closeConfirm(true)} />
       <Toast message={toast} />
     </>
   );

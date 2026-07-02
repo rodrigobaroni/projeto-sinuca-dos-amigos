@@ -22,7 +22,7 @@ function loadGameSettings() {
   }
 }
 
-export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast }) {
+export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -519,12 +519,11 @@ function matchPlayersLabel(liveMatch, playerName) {
   return `${playerName(liveMatch.player_a)} x ${playerName(liveMatch.player_b)}`;
 }
 
-function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules }) {
+function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules, requestConfirm }) {
   const [selectingWinner, setSelectingWinner] = useState(false);
   const playerA = playerById(liveMatch.player_a);
   const playerB = playerById(liveMatch.player_b);
   const finishMatch = async (winnerId) => {
-    if (!window.confirm(`Confirmar vitória de ${playerName(winnerId)}?`)) return;
     await persistMatch(liveMatch.id, { winner_id: winnerId, status: "finished" });
     await auditLog?.({
       action: "match_finished",
@@ -544,7 +543,12 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
         <div className="live-now"><span />Ao vivo</div>
         <div className="live-start-time">iniciada {fmtFull(liveMatch.played_at)}</div>
         <button className="live-cancel" onClick={async () => {
-          if (!window.confirm("Cancelar a partida em andamento?")) return;
+          const confirmed = await requestConfirm?.({
+            title: "Cancelar partida?",
+            message: "A partida em andamento será removida.",
+            confirmLabel: "Cancelar partida",
+          });
+          if (!confirmed) return;
           setMatches((items) => items.filter((match) => match.id !== liveMatch.id));
           if (repo) {
             try {
@@ -602,7 +606,7 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
   );
 }
 
-function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules }) {
+function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules, requestConfirm }) {
   const [pendingDefinition, setPendingDefinition] = useState(null);
   const [pendingPenalty, setPendingPenalty] = useState(false);
   const playerA = playerById(liveMatch.player_a);
@@ -712,7 +716,12 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
         <div className="live-now"><span />Ao vivo</div>
         <div className="live-start-time">iniciada {fmtFull(liveMatch.played_at)}</div>
         <button className="live-cancel" onClick={async () => {
-          if (!window.confirm("Cancelar a partida em andamento? O que já foi marcado será apagado.")) return;
+          const confirmed = await requestConfirm?.({
+            title: "Cancelar partida?",
+            message: "O que já foi marcado será apagado.",
+            confirmLabel: "Cancelar partida",
+          });
+          if (!confirmed) return;
           setMatches((items) => items.filter((match) => match.id !== liveMatch.id));
           if (repo) {
             try {

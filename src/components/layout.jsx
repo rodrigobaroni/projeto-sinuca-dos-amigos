@@ -24,3 +24,20 @@ export function Sheet({ children, onClose }) {
     </div>
   );
 }
+
+export function ConfirmDialog({ request, onCancel, onConfirm }) {
+  if (!request) return null;
+  return (
+    <div className="confirm-bg open" role="presentation" onClick={(event) => event.target.classList.contains("confirm-bg") && onCancel()}>
+      <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+        <div className="eyebrow">{request.eyebrow || "confirmar ação"}</div>
+        <div id="confirm-title" className="confirm-title">{request.title || "Tem certeza?"}</div>
+        <p id="confirm-message">{request.message}</p>
+        <div className="confirm-actions">
+          <button className="btn ghost" type="button" onClick={onCancel}>{request.cancelLabel || "Cancelar"}</button>
+          <button className="btn danger" type="button" onClick={onConfirm}>{request.confirmLabel || "Confirmar"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
