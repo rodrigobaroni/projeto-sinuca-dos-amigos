@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlayerBall, PoolBall, WhiteBall } from "../components/balls.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
@@ -22,7 +22,7 @@ function loadGameSettings() {
   }
 }
 
-export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm }) {
+export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatch, finished, currentPlayerId, onCurrentPlayerChange, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -32,9 +32,9 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
   if (!isAdmin) {
     return (
       <>
-        <ViewHead eyebrow="acesso restrito" title="Admin" />
+        <ViewHead eyebrow="acesso restrito" title="Painel" />
         <div className="card">
-          <p className="admin-help">Faça login pra lançar partidas. Quem não é admin só visualiza.</p>
+          <p className="admin-help">Faça login para acessar o painel. Quem não é admin só visualiza.</p>
           <label className="fld"><span>e-mail</span><input className="search no-margin" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="fld"><span>senha</span><input className="search no-margin" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           <button className="btn chalk" onClick={async () => {
@@ -79,16 +79,47 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
         <AdminLogs logs={auditLogs} refreshAuditLogs={refreshAuditLogs} />
       ) : liveMatch ? (
         <section className="panel live-admin-panel">
-          <LiveMatchRouter adminUser={adminUser} auditLog={auditLog} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} />
+          <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
+          <LiveMatchRouter adminUser={adminUser} auditLog={auditLog} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} requestConfirm={requestConfirm} />
         </section>
       ) : (
         <section className="panel">
           <div className="eyebrow">admin</div>
-          <div className="viewtitle">Iniciar partida</div>
+          <div className="viewtitle">Painel</div>
+          <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
           <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} setMatches={setMatches} repo={repo} load={load} showToast={showToast} preferredPlayerA={lastWinnerId} />
         </section>
       )}
     </>
+  );
+}
+
+function DefaultPlayerPanel({ players, currentPlayerId, onCurrentPlayerChange }) {
+  if (!players.length) return null;
+  return (
+    <section className="default-player-panel">
+      <div>
+        <div className="record-section-title">perfil padrão</div>
+        <p>Escolha qual jogador abre em Meu perfil neste navegador.</p>
+      </div>
+      <div className="player-carousel default-player-carousel" aria-label="Selecionar perfil padrão">
+        {players.map((player) => {
+          const active = player.id === currentPlayerId;
+          return (
+            <button
+              key={player.id}
+              type="button"
+              className={`player-chip ${active ? "active" : ""}`}
+              onClick={() => onCurrentPlayerChange?.(player.id)}
+              aria-pressed={active}
+            >
+              <PlayerBall player={player} size={28} />
+              <span>{player.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -291,6 +322,15 @@ function KnockoutColorPicker({ title, value, disabledValue, onChoose }) {
 }
 
 function AdminLogs({ logs, refreshAuditLogs }) {
+  const [actionFilter, setActionFilter] = useState("all");
+  const actionOptions = useMemo(() => {
+    const actions = [...new Set((logs || []).map((log) => log.action).filter(Boolean))].sort();
+    return actions.map((action) => ({ value: action, label: auditActionLabel(action) }));
+  }, [logs]);
+  const filteredLogs = useMemo(() => {
+    if (actionFilter === "all") return logs || [];
+    return (logs || []).filter((log) => log.action === actionFilter);
+  }, [logs, actionFilter]);
   const fmtLogTime = (ts) => new Date(ts).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -307,19 +347,42 @@ function AdminLogs({ logs, refreshAuditLogs }) {
         </div>
         <button className="btn ghost small" onClick={refreshAuditLogs}>Atualizar</button>
       </div>
+      <label className="settings-field audit-filter">
+        <span>Tipo de log</span>
+        <select className="select no-margin" value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
+          <option value="all">Todos</option>
+          {actionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
       <div className="audit-log-list">
-        {logs?.length ? logs.map((log) => (
+        {filteredLogs.length ? filteredLogs.map((log) => (
           <article className="audit-log-row" key={log.id}>
             <div>
               <strong>{log.message}</strong>
               <span>{log.actor_email} · {fmtLogTime(log.created_at)}</span>
             </div>
-            <em>{log.action}</em>
+            <em>{auditActionLabel(log.action)}</em>
           </article>
-        )) : <div className="empty compact-empty">Nenhum log registrado ainda.</div>}
+        )) : <div className="empty compact-empty">{logs?.length ? "Nenhum log desse tipo." : "Nenhum log registrado ainda."}</div>}
       </div>
     </section>
   );
+}
+
+function auditActionLabel(action) {
+  return {
+    ball_logged: "Bola anotada",
+    ball_removed: "Bola removida",
+    ball_undone: "Jogada desfeita",
+    foul_logged: "Falta anotada",
+    match_cancelled: "Partida cancelada",
+    match_deleted: "Partida apagada",
+    match_finished: "Partida finalizada",
+    match_started: "Partida iniciada",
+    player_created: "Jogador criado",
+    player_updated: "Jogador alterado",
+    settings_updated: "Configuração alterada",
+  }[action] || action;
 }
 
 function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {

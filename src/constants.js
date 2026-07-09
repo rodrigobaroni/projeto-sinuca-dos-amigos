@@ -4,7 +4,7 @@ export const NAV = [
   { key: "partidas", label: "Partidas", hidden: true, icon: '<rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M7 10h10M7 14h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
   { key: "records", label: "Records", icon: '<path d="M8 4h8v4a4 4 0 01-8 0V4zM12 12v4M9 20h6M6 5H4v1a3 3 0 003 3M18 5h2v1a3 3 0 01-3 3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
   { key: "regras", label: "Regras", icon: '<path d="M5 4a2 2 0 012-2h11v16H7a2 2 0 00-2 2V4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M9 6h5M9 9.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
-  { key: "admin", label: "Admin", adminLabel: "Lançar", icon: '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
+  { key: "admin", label: "Painel", adminLabel: "Painel", icon: '<rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' },
 ];
 
 export const POOL_COLORS = ["#f4c430", "#1f6fb2", "#c0392b", "#6c3483", "#e67e22", "#1e8449", "#7b241c", "#1c1c1c"];

@@ -21,7 +21,6 @@ export function RankingView({ players, finished, ranked, isAdmin, showToast, pla
   const periodLeader = periodRanked.find((stat) => stat.total > 0);
   const totalGames = finished.length;
   const totalPlayers = ranked.filter((stat) => stat.total > 0).length;
-  const mostGames = ranked.slice().sort((a, b) => b.total - a.total || b.wins - a.wins)[0];
   const availableDays = useMemo(() => {
     const days = {};
     finished.forEach((match) => {
@@ -37,13 +36,6 @@ export function RankingView({ players, finished, ranked, isAdmin, showToast, pla
   const shareSummary = async () => {
     if (isSharing) return;
     setIsSharing(true);
-    const title = `Placar da jogatina - ${new Date(`${selectedDay}T12:00:00`).toLocaleDateString("pt-BR")}`;
-    const rankingLines = periodRanked
-      .filter((stat) => stat.total > 0)
-      .slice(0, 6)
-      .map((stat, index) => `${index + 1}. ${stat.name}: ${stat.wins}V/${stat.losses}D (${stat.pct}%)`)
-      .join("\n");
-    const text = `${title}\n${fmtPeriod(rangeStart)} até ${fmtPeriod(rangeEnd)}\n\n${periodMatches.length} jogos no período\nVitorioso: ${periodLeader ? `${periodLeader.name} (${periodLeader.wins}V/${periodLeader.losses}D)` : "sem jogos"}\n\n${rankingLines || "Sem partidas nesse recorte."}`;
     try {
       const image = await createWinnerShareImage({
         selectedDay,
@@ -54,7 +46,7 @@ export function RankingView({ players, finished, ranked, isAdmin, showToast, pla
         matches: periodMatches,
       });
       if (navigator.canShare?.({ files: [image] }) && navigator.share) {
-        await navigator.share({ title, text, files: [image] });
+        await navigator.share({ files: [image] });
       } else {
         const url = URL.createObjectURL(image);
         const link = document.createElement("a");
@@ -62,8 +54,7 @@ export function RankingView({ players, finished, ranked, isAdmin, showToast, pla
         link.download = image.name;
         link.click();
         URL.revokeObjectURL(url);
-        await navigator.clipboard.writeText(text);
-        showToast("Imagem baixada e resumo copiado");
+        showToast("Imagem baixada");
       }
     } catch (error) {
       if (error.name !== "AbortError") showToast("Não consegui compartilhar agora");
@@ -76,7 +67,7 @@ export function RankingView({ players, finished, ranked, isAdmin, showToast, pla
     <>
       <ViewHead eyebrow="placar da galera" title="Ranking" />
       {!ranked.length || !finished.length ? (
-        <div className="empty">Nenhuma partida ainda.<br />{isAdmin ? "Va em Lançar e registre o primeiro jogo." : "Peça pro admin lançar a primeira partida."}</div>
+        <div className="empty">Nenhuma partida ainda.<br />{isAdmin ? "Vá no Painel e registre o primeiro jogo." : "Peça pro admin lançar a primeira partida."}</div>
       ) : (
         <div className="ranking-dashboard">
           <section className="ranking-section full-span">
@@ -88,7 +79,6 @@ export function RankingView({ players, finished, ranked, isAdmin, showToast, pla
               <div className="general-kpis">
                 <div><strong>{totalGames}</strong><span>jogos</span></div>
                 <div><strong>{totalPlayers}</strong><span>jogadores</span></div>
-                <div><strong>{mostGames?.name || "-"}</strong><span>mais presente</span></div>
               </div>
             </div>
             <RankingList ranked={ranked.filter((stat) => stat.total > 0)} openPlayer={openPlayer} featured />
@@ -161,14 +151,18 @@ function RankingList({ ranked, openPlayer, featured = false, compact = false }) 
               {featured ? (
                 <div className="rank-season-body">
                   <div className="rank-season-record stat-num">
-                    <strong>{stat.wins}V</strong>
-                    <span>·</span>
-                    <strong>{stat.losses}D</strong>
+                    <span>
+                      <em>vitórias</em>
+                      <strong>{stat.wins}</strong>
+                    </span>
+                    <span className="loss">
+                      <em>derrotas</em>
+                      <strong>{stat.losses}</strong>
+                    </span>
                   </div>
                   <div className="rank-season-meta">
                     <span>{stat.total} jogos</span>
                     <span>melhor seq. {stat.bestStreak}</span>
-                    {stat.curStreak >= 2 && <span className="streak">▲ {stat.curStreak} seguidas</span>}
                   </div>
                 </div>
               ) : (

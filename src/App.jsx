@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ball } from "./components/balls.jsx";
+import { Ball, PlayerBall } from "./components/balls.jsx";
 import { ConfirmDialog, Sheet, Toast } from "./components/layout.jsx";
 import { MatchSheet, PlayerSheet } from "./components/sheets.jsx";
 import { NAV } from "./constants.js";
@@ -13,17 +13,21 @@ import { RankingView } from "./views/RankingView.jsx";
 import { RecordsView } from "./views/RecordsView.jsx";
 import { RulesView } from "./views/RulesView.jsx";
 
+const CURRENT_PLAYER_KEY = "sinuca-current-player";
+
 export function App({ supabaseClient }) {
   const query = useMemo(() => new URLSearchParams(window.location.search), []);
   const demoMode = query.has("demo");
   const demoStartForm = query.get("demo") === "start";
+  const queryPlayerId = query.get("player") || "";
   const sb = demoMode ? null : supabaseClient;
   const repo = useMemo(() => (sb ? createRepository(sb) : null), [sb]);
 
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [clips, setClips] = useState([]);
-  const [current, setCurrent] = useState("ranking");
+  const [currentPlayerId, setCurrentPlayerId] = useState(() => queryPlayerId || window.localStorage.getItem(CURRENT_PLAYER_KEY) || "");
+  const [current, setCurrent] = useState(() => (queryPlayerId || window.localStorage.getItem(CURRENT_PLAYER_KEY)) ? "jogador" : "ranking");
   const [isAdmin, setIsAdmin] = useState(demoMode);
   const [adminUser, setAdminUser] = useState(demoMode ? { id: "demo", email: "demo" } : null);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -42,6 +46,7 @@ export function App({ supabaseClient }) {
 
   const playerById = (id) => players.find((player) => player.id === id);
   const playerName = (id) => playerById(id)?.name || "?";
+  const currentPlayer = playerById(currentPlayerId);
   const showToast = (message) => {
     setToast(message);
     window.clearTimeout(toastTimer.current);
@@ -95,6 +100,16 @@ export function App({ supabaseClient }) {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!players.length || !currentPlayerId) return;
+    if (players.some((player) => player.id === currentPlayerId)) {
+      window.localStorage.setItem(CURRENT_PLAYER_KEY, currentPlayerId);
+      return;
+    }
+    setCurrentPlayerId("");
+    window.localStorage.removeItem(CURRENT_PLAYER_KEY);
+  }, [currentPlayerId, players]);
 
   useEffect(() => {
     if (!repo) return;
@@ -228,12 +243,20 @@ export function App({ supabaseClient }) {
     setCurrent(key);
     window.scrollTo({ top: 0 });
   };
+  const chooseCurrentPlayer = (id, options = {}) => {
+    const { navigate = true } = options;
+    setCurrentPlayerId(id);
+    if (id) window.localStorage.setItem(CURRENT_PLAYER_KEY, id);
+    else window.localStorage.removeItem(CURRENT_PLAYER_KEY);
+    if (id && navigate) setCurrent("jogador");
+  };
+  const showIdentityPicker = !loading && !error && !isAdmin && !currentPlayer && players.length > 0 && current !== "admin";
 
   let content;
   if (loading) content = <div className="loading">engizAndo o taco...</div>;
   else if (error) content = <div className="empty">Nao consegui conectar no banco.<br /><small style={{ color: "var(--clay)" }}>{error}</small></div>;
   else if (current === "ranking") content = <RankingView players={players} finished={finished} stats={stats} ranked={ranked} isAdmin={isAdmin} showToast={showToast} playerById={playerById} openPlayer={(id) => setSheet(<PlayerSheet stat={stats[id]} rank={ranked.findIndex((item) => item.id === id) + 1} playerById={playerById} />)} />;
-  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
+  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} selectedPlayerId={currentPlayerId} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
     const confirmed = await requestConfirm({
       title: "Apagar partida?",
       message: "Essa ação não dá pra desfazer.",
@@ -291,7 +314,7 @@ export function App({ supabaseClient }) {
   }} />)} go={go} />;
   else if (current === "records") content = <RecordsView players={players} finished={finished} stats={stats} />;
   else if (current === "regras") content = <RulesView />;
-  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} />;
+  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatch={liveMatch} finished={finished} currentPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} />;
 
   return (
     <>
@@ -301,16 +324,19 @@ export function App({ supabaseClient }) {
             <span className="ball8"><Ball size={30} color="#1c1c1c" num={8} /></span>
             <h1>Placar da Sinuca<small>RESENHA OFICIAL</small></h1>
           </div>
-          <div className="who">{isAdmin ? <><b>{demoMode ? "demo" : "admin"}</b><br />pode lançar</> : "modo leitura"}</div>
+          <div className="who">{isAdmin ? <><b>{demoMode ? "demo" : "admin"}</b><br />painel</> : currentPlayer ? <><b>{currentPlayer.name}</b><br />meu perfil</> : "modo leitura"}</div>
         </header>
-        <main id="view">{content}</main>
+        <main id="view">
+          {showIdentityPicker && <PlayerIdentityPicker players={players} stats={stats} onChoose={chooseCurrentPlayer} />}
+          {content}
+        </main>
       </div>
       <nav>
         <div className="nav-in">
           {NAV.filter((item) => !item.hidden).map((item) => (
             <button key={item.key} className={`nav-btn ${item.key === "admin" ? "admin" : ""} ${current === item.key ? "active" : ""}`} onClick={() => go(item.key)}>
               <svg viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: item.icon }} />
-              {item.key === "admin" && isAdmin ? item.adminLabel : item.label}
+              {item.key === "admin" && isAdmin ? item.adminLabel : item.key === "jogador" && currentPlayer ? "Meu perfil" : item.label}
             </button>
           ))}
         </div>
@@ -319,5 +345,34 @@ export function App({ supabaseClient }) {
       <ConfirmDialog request={confirmRequest} onCancel={() => closeConfirm(false)} onConfirm={() => closeConfirm(true)} />
       <Toast message={toast} />
     </>
+  );
+}
+
+function PlayerIdentityPicker({ players, stats, onChoose }) {
+  const orderedPlayers = players.slice().sort((a, b) => {
+    const totalA = stats[a.id]?.total || 0;
+    const totalB = stats[b.id]?.total || 0;
+    return totalB - totalA || a.name.localeCompare(b.name);
+  });
+  return (
+    <section className="identity-panel">
+      <div className="section-head compact">
+        <div>
+          <div className="eyebrow">perfil</div>
+          <div className="viewtitle no-margin">Quem é você?</div>
+        </div>
+      </div>
+      <div className="identity-grid" aria-label="Selecionar meu perfil">
+        {orderedPlayers.map((player) => (
+          <button className="identity-player" key={player.id} type="button" onClick={() => onChoose(player.id)}>
+            <PlayerBall player={player} size={40} />
+            <span>
+              <strong>{player.name}</strong>
+              <em>{stats[player.id]?.total || 0} partida{stats[player.id]?.total === 1 ? "" : "s"}</em>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
