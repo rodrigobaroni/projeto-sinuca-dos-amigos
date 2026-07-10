@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayerBall } from "../components/balls.jsx";
+import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { fmtPeriod, gameDayKey, monthKey, monthLabel } from "../utils/date.js";
 
-export function PlayerView({ players, finished, stats, clips = [], selectedPlayerId = "", playerById, openMatch }) {
+export function PlayerView({ players, finished, stats, clips = [], selectedPlayerId = "", onCurrentPlayerChange, playerById, openMatch }) {
   const firstActive = useMemo(() => players.find((player) => stats[player.id]?.total > 0)?.id || players[0]?.id || "", [players, stats]);
   const preferredPlayer = useMemo(
     () => players.some((player) => player.id === selectedPlayerId) ? selectedPlayerId : firstActive,
@@ -169,7 +170,13 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
                 <span><strong>{playerStats.pct}%</strong> aproveitamento</span>
                 </div>
               </div>
-            </section>
+          </section>
+
+          <DefaultPlayerPanel
+            players={players}
+            currentPlayerId={selectedPlayerId}
+            onCurrentPlayerChange={onCurrentPlayerChange}
+          />
 
           {!playerMatches.length ? (
             <div className="empty">Esse jogador ainda não tem partidas finalizadas.</div>

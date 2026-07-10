@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayerBall, PoolBall, WhiteBall } from "../components/balls.jsx";
+import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
 import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
@@ -91,35 +92,6 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
         </section>
       )}
     </>
-  );
-}
-
-function DefaultPlayerPanel({ players, currentPlayerId, onCurrentPlayerChange }) {
-  if (!players.length) return null;
-  return (
-    <section className="default-player-panel">
-      <div>
-        <div className="record-section-title">perfil padrão</div>
-        <p>Escolha qual jogador abre em Meu perfil neste navegador.</p>
-      </div>
-      <div className="player-carousel default-player-carousel" aria-label="Selecionar perfil padrão">
-        {players.map((player) => {
-          const active = player.id === currentPlayerId;
-          return (
-            <button
-              key={player.id}
-              type="button"
-              className={`player-chip ${active ? "active" : ""}`}
-              onClick={() => onCurrentPlayerChange?.(player.id)}
-              aria-pressed={active}
-            >
-              <PlayerBall player={player} size={28} />
-              <span>{player.name}</span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 

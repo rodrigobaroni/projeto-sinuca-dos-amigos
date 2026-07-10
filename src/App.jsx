@@ -250,13 +250,22 @@ export function App({ supabaseClient }) {
     else window.localStorage.removeItem(CURRENT_PLAYER_KEY);
     if (id && navigate) setCurrent("jogador");
   };
-  const showIdentityPicker = !loading && !error && !isAdmin && !currentPlayer && players.length > 0 && current !== "admin";
+  const showIdentityPicker = !loading && !error && !currentPlayer && players.length > 0;
+
+  useEffect(() => {
+    if (!showIdentityPicker) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showIdentityPicker]);
 
   let content;
   if (loading) content = <div className="loading">engizAndo o taco...</div>;
   else if (error) content = <div className="empty">Nao consegui conectar no banco.<br /><small style={{ color: "var(--clay)" }}>{error}</small></div>;
   else if (current === "ranking") content = <RankingView players={players} finished={finished} stats={stats} ranked={ranked} isAdmin={isAdmin} showToast={showToast} playerById={playerById} openPlayer={(id) => setSheet(<PlayerSheet stat={stats[id]} rank={ranked.findIndex((item) => item.id === id) + 1} playerById={playerById} />)} />;
-  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} selectedPlayerId={currentPlayerId} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
+  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} selectedPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
     const confirmed = await requestConfirm({
       title: "Apagar partida?",
       message: "Essa ação não dá pra desfazer.",
@@ -327,7 +336,6 @@ export function App({ supabaseClient }) {
           <div className="who">{isAdmin ? <><b>{demoMode ? "demo" : "admin"}</b><br />painel</> : currentPlayer ? <><b>{currentPlayer.name}</b><br />meu perfil</> : "modo leitura"}</div>
         </header>
         <main id="view">
-          {showIdentityPicker && <PlayerIdentityPicker players={players} stats={stats} onChoose={chooseCurrentPlayer} />}
           {content}
         </main>
       </div>
@@ -343,6 +351,7 @@ export function App({ supabaseClient }) {
       </nav>
       <Sheet onClose={() => setSheet(null)}>{sheet}</Sheet>
       <ConfirmDialog request={confirmRequest} onCancel={() => closeConfirm(false)} onConfirm={() => closeConfirm(true)} />
+      {showIdentityPicker && <PlayerIdentityPicker players={players} stats={stats} onChoose={chooseCurrentPlayer} />}
       <Toast message={toast} />
     </>
   );
@@ -355,24 +364,38 @@ function PlayerIdentityPicker({ players, stats, onChoose }) {
     return totalB - totalA || a.name.localeCompare(b.name);
   });
   return (
-    <section className="identity-panel">
-      <div className="section-head compact">
-        <div>
-          <div className="eyebrow">perfil</div>
-          <div className="viewtitle no-margin">Quem é você?</div>
+    <div className="identity-alert-bg">
+      <section
+        className="identity-alert"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="identity-alert-title"
+        aria-describedby="identity-alert-description"
+      >
+        <div className="eyebrow">usuário padrão</div>
+        <div id="identity-alert-title" className="confirm-title">Quem é você?</div>
+        <p id="identity-alert-description">
+          Selecione seu nome. Este jogador ficará salvo como o usuário padrão neste navegador.
+        </p>
+        <div className="identity-grid" aria-label="Selecionar usuário padrão">
+          {orderedPlayers.map((player, index) => (
+            <button
+              className="identity-player"
+              key={player.id}
+              type="button"
+              autoFocus={index === 0}
+              onClick={() => onChoose(player.id)}
+            >
+              <PlayerBall player={player} size={40} />
+              <span>
+                <strong>{player.name}</strong>
+                <em>{stats[player.id]?.total || 0} partida{stats[player.id]?.total === 1 ? "" : "s"}</em>
+              </span>
+            </button>
+          ))}
         </div>
-      </div>
-      <div className="identity-grid" aria-label="Selecionar meu perfil">
-        {orderedPlayers.map((player) => (
-          <button className="identity-player" key={player.id} type="button" onClick={() => onChoose(player.id)}>
-            <PlayerBall player={player} size={40} />
-            <span>
-              <strong>{player.name}</strong>
-              <em>{stats[player.id]?.total || 0} partida{stats[player.id]?.total === 1 ? "" : "s"}</em>
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
+        <small className="identity-alert-note">Você poderá alterar essa escolha depois no seu perfil.</small>
+      </section>
+    </div>
   );
 }
