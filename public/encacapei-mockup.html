@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Encaçapei — Mockup Navegável</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --forest:#262824;
+  --forest-2:#31342e;
+  --lime:#C1E778;
+  --lime-dark:#a8d15a;
+  --white:#fff;
+  --lgray:#F5F5F5;
+  --gray:#999;
+  --border:#e2e2e0;
+  --red:#FF6B6B;
+  --green-bg:#D4EDDA; --green-tx:#155724;
+  --gray-bg:#ECEDEA; --gray-tx:#6C757D;
+  --yellow-bg:#FFF3CD; --yellow-tx:#856404;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:#171815;
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px 0;
+  background-image:radial-gradient(circle at 20% 10%, #22251f 0%, #171815 60%);
+}
+.phone{
+  width:380px;height:780px;background:var(--forest);
+  border-radius:36px;overflow:hidden;position:relative;
+  box-shadow:0 30px 80px rgba(0,0,0,.6), 0 0 0 10px #0e0f0d, 0 0 0 12px #2c2e29;
+  display:flex;flex-direction:column;
+}
+@media (max-width:420px){
+  body{padding:0}
+  .phone{width:100vw;height:100vh;height:100dvh;border-radius:0;box-shadow:none}
+}
+/* status bar */
+.statusbar{
+  height:34px;flex:none;display:flex;justify-content:space-between;align-items:center;
+  padding:0 22px;color:#fff;font-size:12px;font-weight:600;z-index:50;
+}
+.statusbar .batt{display:flex;gap:5px;align-items:center;font-size:11px}
+/* screens */
+.stage{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.screen{
+  position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden;
+  background:var(--forest);
+}
+.screen.active{display:flex;animation:fadein .18s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.scroll{flex:1;overflow-y:auto;padding:16px 16px 90px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.scroll.no-tab{padding-bottom:24px}
+
+/* typography */
+.h1{font-family:'Sora';font-size:22px;font-weight:800;color:#fff}
+.h2{font-family:'Sora';font-size:18px;font-weight:700;color:#fff}
+.h3{font-size:16px;font-weight:700;color:#fff}
+.sub{font-size:12px;color:var(--gray)}
+.section-label{font-size:12px;font-weight:600;color:#b9bdb2;text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px}
+
+/* cards */
+.card{
+  background:var(--white);border:.5px solid var(--border);border-radius:8px;
+  padding:12px;color:var(--forest);
+}
+.card + .card{margin-top:12px}
+.card.dark{background:var(--forest-2);border-color:#3d4038;color:#fff}
+.clickable{cursor:pointer;transition:transform .1s}
+.clickable:active{transform:scale(.98)}
+
+/* buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  font-family:'Inter';font-weight:700;font-size:14px;
+  padding:12px 24px;border-radius:8px;border:none;cursor:pointer;width:100%;
+  transition:filter .12s, transform .1s;
+}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--lime);color:var(--forest)}
+.btn.primary:hover{filter:brightness(.95)}
+.btn.secondary{background:transparent;border:.5px solid var(--gray);color:#fff}
+.btn.secondary.on-white{color:var(--forest);border-color:#bbb}
+.btn.danger{background:var(--red);color:#fff}
+.btn.sm{padding:8px 14px;font-size:12px;width:auto}
+.btn.ghost{background:transparent;color:var(--lime);width:auto;padding:8px}
+
+/* inputs */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:#b9bdb2;margin-bottom:6px;font-weight:600}
+.input{
+  width:100%;padding:12px;border-radius:8px;border:.5px solid #4a4d45;
+  background:var(--forest-2);color:#fff;font-size:14px;font-family:'Inter';outline:none;
+}
+.input::placeholder{color:#777}
+.input:focus{border-color:var(--lime);box-shadow:0 0 0 3px rgba(193,231,120,.12)}
+.search-wrap{position:relative;margin-bottom:14px}
+.search-wrap .input{padding-left:38px}
+.search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%)}
+
+/* badges */
+.badge{display:inline-block;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700}
+.badge.ativa{background:var(--green-bg);color:var(--green-tx)}
+.badge.encerrada{background:var(--gray-bg);color:var(--gray-tx)}
+.badge.pendente{background:var(--yellow-bg);color:var(--yellow-tx)}
+
+/* avatar */
+.avatar{
+  border-radius:50%;background:var(--lime);color:var(--forest);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-weight:800;font-family:'Sora';flex:none;
+}
+.avatar.a2{background:#8ecae6}
+.avatar.a3{background:#f4a261}
+.avatar.a4{background:#e9c46a}
+.avatar.a5{background:#c8b6ff}
+
+/* bottom tab nav */
+.tabbar{
+  position:absolute;bottom:0;left:0;right:0;height:64px;flex:none;
+  background:#1d1f1b;border-top:.5px solid #3a3d36;
+  display:flex;z-index:40;
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:#8a8d84;font-size:10px;font-weight:600;cursor:pointer;
+}
+.tab svg{stroke:#8a8d84}
+.tab.active{color:var(--lime)}
+.tab.active svg{stroke:var(--lime)}
+
+/* header with back */
+.topbar{
+  flex:none;display:flex;align-items:center;gap:12px;padding:10px 16px;
+  border-bottom:.5px solid #3a3d36;background:var(--forest);
+}
+.topbar .back{
+  width:34px;height:34px;border-radius:8px;background:var(--forest-2);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;
+}
+.topbar .title{font-family:'Sora';font-weight:700;font-size:16px;color:#fff}
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.kpi{background:var(--white);border:.5px solid var(--border);border-radius:8px;padding:12px}
+.kpi .lbl{font-size:12px;color:var(--gray)}
+.kpi .num{font-family:'Sora';font-size:22px;font-weight:800;color:var(--forest);margin-top:4px}
+.kpi .num.lime{color:#6d9c1f}
+
+/* expandable */
+.expander{background:var(--forest-2);border:.5px solid #3d4038;border-radius:8px;overflow:hidden}
+.expander-head{display:flex;justify-content:space-between;align-items:center;padding:14px;cursor:pointer;color:#fff;font-weight:700;font-size:14px}
+.expander-head svg{transition:transform .2s}
+.expander.open .expander-head svg{transform:rotate(180deg)}
+.expander-body{display:none;padding:0 14px 14px}
+.expander.open .expander-body{display:block}
+.chart-card{background:#fff;border-radius:8px;padding:12px;margin-top:10px}
+.chart-card .ct{font-size:12px;font-weight:700;color:var(--forest);margin-bottom:8px}
+
+/* liga list */
+.liga-card{display:flex;flex-direction:column;gap:6px}
+.liga-card .row1{display:flex;justify-content:space-between;align-items:center}
+.liga-card .name{font-weight:700;font-size:15px}
+.liga-card .meta{font-size:12px;color:var(--gray)}
+
+/* fab */
+.fab{
+  position:absolute;right:16px;bottom:80px;z-index:39;
+  background:var(--lime);color:var(--forest);border:none;border-radius:14px;
+  padding:14px 18px;font-weight:800;font-family:'Sora';font-size:14px;cursor:pointer;
+  box-shadow:0 8px 20px rgba(193,231,120,.25);display:flex;align-items:center;gap:8px;
+}
+.fab:active{transform:scale(.97)}
+
+/* tabs inline */
+.seg{display:flex;background:var(--forest-2);border-radius:10px;padding:4px;margin-bottom:14px}
+.seg button{
+  flex:1;border:none;background:transparent;color:#9a9d94;font-weight:700;font-size:13px;
+  padding:9px 0;border-radius:8px;cursor:pointer;font-family:'Inter';
+}
+.seg button.active{background:var(--lime);color:var(--forest)}
+
+/* list rows */
+.person-row{display:flex;align-items:center;gap:12px;padding:12px;background:#fff;border:.5px solid var(--border);border-radius:8px;margin-bottom:10px}
+.person-row .info{flex:1}
+.person-row .nm{font-weight:700;font-size:14px;color:var(--forest)}
+.person-row .nick{font-size:12px;color:var(--gray)}
+
+/* ranking table */
+.rank-table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;font-size:13px}
+.rank-table th{background:var(--forest-2);color:#cfd2c9;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:10px 8px;text-align:left}
+.rank-table td{padding:11px 8px;color:var(--forest);border-top:.5px solid #eee}
+.rank-table tr:nth-child(even) td{background:#fafaf8}
+.rank-table .pos{font-family:'Sora';font-weight:800}
+
+/* match / balls */
+.balls{display:flex;gap:7px;justify-content:center;margin:14px 0}
+.ball{
+  width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:13px;font-family:'Sora';cursor:pointer;border:2px solid transparent;
+  color:#fff;box-shadow:inset -4px -5px 8px rgba(0,0,0,.35), inset 3px 4px 6px rgba(255,255,255,.25);
+}
+.ball.b1{background:#f2c744;color:#5c4a00}.ball.b2{background:#3a6ea5}.ball.b3{background:#c0392b}
+.ball.b4{background:#6c3fa0}.ball.b5{background:#e67e22}.ball.b6{background:#1e8f5a}
+.ball.b7{background:#8e3b2f}.ball.b8{background:#1b1b1b}
+.ball.pocketed{opacity:.22;filter:grayscale(1)}
+.vs-big{font-family:'Sora';font-weight:800;color:var(--lime);font-size:16px;text-align:center;margin:8px 0}
+
+/* modal */
+.modal-overlay{
+  position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:60;
+  display:none;align-items:flex-end;justify-content:center;
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:#fff;border-radius:16px 16px 0 0;width:100%;padding:20px 16px 26px;
+  animation:slideup .22s ease;max-height:82%;overflow-y:auto;
+}
+@keyframes slideup{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.modal .mh{font-family:'Sora';font-weight:800;font-size:18px;color:var(--forest);margin-bottom:6px}
+
+/* wizard */
+.wizard-dots{display:flex;gap:6px;justify-content:center;margin:12px 0 18px}
+.wizard-dots span{width:8px;height:8px;border-radius:50%;background:#4a4d45}
+.wizard-dots span.on{background:var(--lime);width:22px;border-radius:6px}
+.wstep{display:none}
+.wstep.active{display:block}
+.check-item{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px}
+.check-item .dot{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex:none}
+.check-item.ok{color:#7fc84a}.check-item.ok .dot{background:#7fc84a;color:#fff}
+.check-item.bad{color:#e07070}.check-item.bad .dot{background:#e07070;color:#fff}
+.toggle{
+  width:44px;height:26px;border-radius:14px;background:#4a4d45;position:relative;cursor:pointer;flex:none;transition:background .15s;
+}
+.toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .15s}
+.toggle.on{background:var(--lime)}
+.toggle.on::after{left:21px}
+.opt-row{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:.5px solid #3a3d36;color:#fff;font-size:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:8px 14px;border-radius:20px;border:.5px solid #4a4d45;color:#b9bdb2;font-size:13px;cursor:pointer;font-weight:600}
+.chip.on{background:var(--lime);color:var(--forest);border-color:var(--lime)}
+
+/* map */
+.map{
+  flex:1;position:relative;border-radius:12px;overflow:hidden;margin:16px;margin-bottom:90px;
+  background:
+    linear-gradient(rgba(38,40,36,.04),rgba(38,40,36,.04)),
+    repeating-linear-gradient(0deg,#e8ecdf 0 46px,#dfe4d4 46px 48px),
+    repeating-linear-gradient(90deg,transparent 0 60px,#d8ddcc 60px 63px);
+}
+.map .road{position:absolute;background:#f7f8f2;box-shadow:0 0 0 1.5px #cfd4c2}
+.map .pin{
+  position:absolute;width:38px;height:38px;border-radius:50% 50% 50% 6px;transform:rotate(-45deg);
+  background:var(--forest);display:flex;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:0 4px 10px rgba(0,0,0,.3);border:2px solid var(--lime);
+}
+.map .pin span{transform:rotate(45deg);font-size:16px}
+.map .pin:hover{background:#3a3d34}
+
+/* h2h */
+.h2h-score{display:flex;align-items:center;justify-content:center;gap:14px;margin:18px 0}
+.h2h-score .n{font-family:'Sora';font-size:34px;font-weight:800}
+.h2h-score .you{color:var(--lime)}
+.h2h-score .them{color:#9a9d94}
+.h2h-score .x{color:#666;font-size:14px;font-weight:700}
+.progress{height:8px;border-radius:5px;background:#3d4038;overflow:hidden;margin:6px 0 2px}
+.progress i{display:block;height:100%;background:var(--lime)}
+
+/* notif */
+.notif{display:flex;gap:12px;padding:12px;background:#fff;border:.5px solid var(--border);border-radius:8px;margin-bottom:10px}
+.notif .ic{width:38px;height:38px;border-radius:10px;background:var(--lgray);display:flex;align-items:center;justify-content:center;flex:none;font-size:17px}
+.notif .tx{flex:1;font-size:13px;color:var(--forest)}
+.notif .tm{font-size:11px;color:var(--gray);margin-top:2px}
+.notif .acts{display:flex;gap:8px;margin-top:8px}
+
+/* splash / onboarding */
+.center-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center}
+.logo-mark{
+  width:96px;height:96px;border-radius:26px;background:var(--lime);
+  display:flex;align-items:center;justify-content:center;margin-bottom:20px;
+  box-shadow:0 16px 40px rgba(193,231,120,.25);
+  position:relative;
+}
+.logo-mark::after{
+  content:'8';font-family:'Sora';font-weight:800;font-size:20px;color:#fff;
+  position:absolute;width:40px;height:40px;border-radius:50%;background:#1b1b1b;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:inset -4px -5px 8px rgba(0,0,0,.5), inset 3px 4px 6px rgba(255,255,255,.25);
+}
+.logo-type{font-family:'Sora';font-weight:800;font-size:30px;color:#fff;letter-spacing:-0.02em}
+.logo-type em{color:var(--lime);font-style:normal}
+.spinner{width:26px;height:26px;border:3px solid #3d4038;border-top-color:var(--lime);border-radius:50%;animation:spin 1s linear infinite;margin-top:28px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ob-icon{font-size:56px;margin-bottom:18px}
+.ob-dots{display:flex;gap:6px;margin:22px 0}
+.ob-dots span{width:8px;height:8px;border-radius:50%;background:#4a4d45}
+.ob-dots span.on{background:var(--lime);width:22px;border-radius:6px}
+.divider{height:.5px;background:#3a3d36;margin:16px 0}
+.link{color:var(--lime);font-weight:600;cursor:pointer;font-size:13px}
+.mock-note{
+  position:fixed;left:12px;bottom:12px;color:#5f625a;font-size:11px;max-width:180px;line-height:1.5;
+}
+@media (max-width:760px){.mock-note{display:none}}
+.match-day-card{background:#fff;border:.5px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;cursor:pointer}
+.filters{display:flex;gap:8px;margin-bottom:12px}
+.filters select{
+  flex:1;padding:9px 10px;border-radius:8px;border:.5px solid #4a4d45;background:var(--forest-2);
+  color:#fff;font-size:12px;font-family:'Inter';outline:none;
+}
+.share-preview{background:var(--forest);border-radius:12px;padding:18px;text-align:center;color:#fff;margin:14px 0}
+.share-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.share-btns .btn{font-size:13px;padding:11px}
+.win-count{font-size:11px;color:var(--gray);margin-top:2px}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="statusbar">
+    <span>21:47</span>
+    <span class="batt">
+      <svg width="16" height="10" viewBox="0 0 16 10" fill="none"><rect x="0.5" y="0.5" width="12" height="9" rx="2" stroke="#fff"/><rect x="2" y="2" width="8" height="6" rx="1" fill="#C1E778"/><rect x="14" y="3" width="2" height="4" rx="1" fill="#fff"/></svg>
+      82%
+    </span>
+  </div>
+
+  <div class="stage" id="stage">
+
+    <!-- ============ SPLASH ============ -->
+    <div class="screen active" id="scr-splash">
+      <div class="center-col">
+        <div class="logo-mark"></div>
+        <div class="logo-type">Enca<em>çapei</em></div>
+        <div class="sub" style="margin-top:8px">Sua liga de sinuca, organizada.</div>
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <!-- ============ ONBOARDING ============ -->
+    <div class="screen" id="scr-onboarding">
+      <div class="center-col">
+        <div class="ob-icon" id="ob-icon">🏆</div>
+        <div class="h1" id="ob-title">Organize suas ligas</div>
+        <p class="sub" style="margin-top:10px;max-width:250px;line-height:1.6" id="ob-text">
+          Crie ligas com seus amigos, defina regras e acompanhe o ranking automaticamente.
+        </p>
+        <div class="ob-dots" id="ob-dots"><span class="on"></span><span></span><span></span></div>
+        <button class="btn primary" style="max-width:240px" onclick="obNext()" id="ob-btn">Próximo</button>
+        <div class="link" style="margin-top:14px" onclick="go('scr-login')">Pular</div>
+      </div>
+    </div>
+
+    <!-- ============ LOGIN ============ -->
+    <div class="screen" id="scr-login">
+      <div class="scroll no-tab">
+        <div style="text-align:center;margin:30px 0 24px">
+          <div class="logo-mark" style="width:64px;height:64px;border-radius:18px;margin:0 auto 12px"></div>
+          <div class="logo-type" style="font-size:24px">Enca<em>çapei</em></div>
+        </div>
+        <div class="seg">
+          <button class="active" onclick="loginTab(this,'login')">Login</button>
+          <button onclick="loginTab(this,'signup')">Cadastro</button>
+        </div>
+        <div id="login-pane">
+          <div class="field"><label>Email</label><input class="input" placeholder="nome@email.com" value="baroni@email.com"></div>
+          <div class="field"><label>Senha</label><input class="input" type="password" value="••••••••"></div>
+          <div class="link" style="text-align:right;margin:-6px 0 18px">Esqueceu a senha?</div>
+          <button class="btn primary" onclick="go('scr-home')">Entrar</button>
+          <div class="sub" style="text-align:center;margin-top:16px">Não tem conta? <span class="link" onclick="loginTab(document.querySelectorAll('.seg button')[1],'signup')">Cadastre-se</span></div>
+        </div>
+        <div id="signup-pane" style="display:none">
+          <div class="sub" style="margin-bottom:12px">Etapa 5 de 6 — Crie sua senha</div>
+          <div class="field"><label>Senha</label><input class="input" type="text" value="Sinuca@2026"></div>
+          <div style="background:var(--forest-2);border-radius:8px;padding:12px;margin-bottom:16px">
+            <div class="check-item ok"><span class="dot">✓</span> Letra maiúscula</div>
+            <div class="check-item ok"><span class="dot">✓</span> Letra minúscula</div>
+            <div class="check-item ok"><span class="dot">✓</span> Número</div>
+            <div class="check-item ok"><span class="dot">✓</span> Caractere especial</div>
+            <div class="check-item ok"><span class="dot">✓</span> Mínimo 8 caracteres</div>
+          </div>
+          <button class="btn primary" onclick="go('scr-home')">Criar conta</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ HOME ============ -->
+    <div class="screen" id="scr-home">
+      <div class="scroll">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;cursor:pointer" onclick="tab('perfil')">
+          <div class="avatar" style="width:48px;height:48px;font-size:17px">RB</div>
+          <div>
+            <div class="h3">Rodrigo Baroni</div>
+            <div class="sub">Desde jan 2025</div>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi"><div class="lbl">Partidas jogadas</div><div class="num">47</div></div>
+          <div class="kpi"><div class="lbl">Taxa de vitória</div><div class="num lime">62%</div></div>
+          <div class="kpi"><div class="lbl">Vitórias consecutivas</div><div class="num">5</div></div>
+          <div class="kpi"><div class="lbl">Maiores derrotas</div><div class="num">2</div></div>
+        </div>
+
+        <div class="section-label">Evolução</div>
+        <div class="expander" id="charts-exp">
+          <div class="expander-head" onclick="this.parentElement.classList.toggle('open')">
+            Gráficos de evolução
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#C1E778" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="expander-body">
+            <div class="chart-card">
+              <div class="ct">Taxa de vitória — últimos 30 dias</div>
+              <svg width="100%" height="130" viewBox="0 0 300 130">
+                <line x1="0" y1="32" x2="300" y2="32" stroke="#eee"/><line x1="0" y1="64" x2="300" y2="64" stroke="#eee"/><line x1="0" y1="96" x2="300" y2="96" stroke="#eee"/>
+                <polyline points="0,90 40,78 80,84 120,60 160,66 200,48 240,40 280,30 300,26" fill="none" stroke="#C1E778" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="300" cy="26" r="4" fill="#262824" stroke="#C1E778" stroke-width="3"/>
+                <text x="4" y="26" font-size="9" fill="#999">80%</text>
+                <text x="4" y="122" font-size="9" fill="#999">40%</text>
+              </svg>
+            </div>
+            <div class="chart-card">
+              <div class="ct">Vitórias e derrotas por semana</div>
+              <svg width="100%" height="120" viewBox="0 0 300 120">
+                <!-- Sem1 -->
+                <rect x="20" y="45" width="18" height="55" rx="3" fill="#3a6ea5"/><rect x="42" y="70" width="18" height="30" rx="3" fill="#cfcfcf"/>
+                <!-- Sem2 -->
+                <rect x="90" y="60" width="18" height="40" rx="3" fill="#3a6ea5"/><rect x="112" y="55" width="18" height="45" rx="3" fill="#cfcfcf"/>
+                <!-- Sem3 -->
+                <rect x="160" y="35" width="18" height="65" rx="3" fill="#3a6ea5"/><rect x="182" y="80" width="18" height="20" rx="3" fill="#cfcfcf"/>
+                <!-- Sem4 -->
+                <rect x="230" y="50" width="18" height="50" rx="3" fill="#3a6ea5"/><rect x="252" y="75" width="18" height="25" rx="3" fill="#cfcfcf"/>
+                <text x="26" y="114" font-size="9" fill="#999">Sem 1</text><text x="96" y="114" font-size="9" fill="#999">Sem 2</text>
+                <text x="166" y="114" font-size="9" fill="#999">Sem 3</text><text x="236" y="114" font-size="9" fill="#999">Sem 4</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+          Ligas ativas <span style="color:var(--lime);text-transform:none;letter-spacing:0">3 ligas</span>
+        </div>
+        <div class="card clickable liga-card" onclick="go('scr-liga-det')">
+          <div class="row1"><span class="name">Liga da Terça</span><span class="badge ativa">Ativa</span></div>
+          <div class="meta">5 amigos • 32 partidas</div>
+          <div class="meta" style="color:#6d9c1f;font-weight:600">Próxima: terça, 20h</div>
+        </div>
+        <div class="card clickable liga-card" onclick="go('scr-liga-det')">
+          <div class="row1"><span class="name">Ranking do Bar do Zé</span><span class="badge ativa">Ativa</span></div>
+          <div class="meta">8 amigos • 61 partidas</div>
+        </div>
+        <div class="card clickable liga-card" onclick="go('scr-liga-det')">
+          <div class="row1"><span class="name">Copa Fim de Ano</span><span class="badge encerrada">Encerrada</span></div>
+          <div class="meta">6 amigos • 18 partidas</div>
+        </div>
+        <button class="btn ghost" style="margin:8px auto 0;display:block" onclick="tab('liga')">Ver todas as ligas</button>
+      </div>
+    </div>
+
+    <!-- ============ AMIGOS ============ -->
+    <div class="screen" id="scr-amigos">
+      <div class="scroll">
+        <div class="h1" style="margin-bottom:16px">Amigos</div>
+        <div class="search-wrap">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#999" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="#999" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <input class="input" placeholder="Buscar amigos...">
+        </div>
+        <div class="seg">
+          <button class="active" onclick="amigosTab(this,'lista')">Seus amigos</button>
+          <button onclick="amigosTab(this,'convites')">Convites <span style="background:var(--red);color:#fff;border-radius:8px;padding:1px 6px;font-size:10px">2</span></button>
+        </div>
+
+        <div id="amigos-lista">
+          <div class="person-row clickable" onclick="go('scr-h2h')">
+            <div class="avatar a2" style="width:36px;height:36px;font-size:13px">JO</div>
+            <div class="info"><div class="nm">João Pereira</div><div class="nick">@joaop</div></div>
+            <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#bbb" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="person-row clickable" onclick="go('scr-h2h')">
+            <div class="avatar a3" style="width:36px;height:36px;font-size:13px">FE</div>
+            <div class="info"><div class="nm">Felipe Costa</div><div class="nick">@felipao</div></div>
+            <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#bbb" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="person-row clickable" onclick="go('scr-h2h')">
+            <div class="avatar a4" style="width:36px;height:36px;font-size:13px">AN</div>
+            <div class="info"><div class="nm">Anderson Lima</div><div class="nick">@ander</div></div>
+            <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#bbb" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="person-row clickable" onclick="go('scr-h2h')">
+            <div class="avatar a5" style="width:36px;height:36px;font-size:13px">MA</div>
+            <div class="info"><div class="nm">Marcos Silva</div><div class="nick">@marcao</div></div>
+            <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1l6 6-6 6" stroke="#bbb" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+
+        <div id="amigos-convites" style="display:none">
+          <div class="person-row">
+            <div class="avatar a5" style="width:36px;height:36px;font-size:13px">CA</div>
+            <div class="info"><div class="nm">Carlos Mota</div><div class="nick">quer ser seu amigo</div></div>
+            <button class="btn primary sm">Aceitar</button>
+            <button class="btn secondary on-white sm">Recusar</button>
+          </div>
+          <div class="person-row">
+            <div class="avatar a2" style="width:36px;height:36px;font-size:13px">PE</div>
+            <div class="info"><div class="nm">Pedro Nunes</div><div class="nick">quer ser seu amigo</div></div>
+            <button class="btn primary sm">Aceitar</button>
+            <button class="btn secondary on-white sm">Recusar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ H2H ============ -->
+    <div class="screen" id="scr-h2h">
+      <div class="topbar">
+        <div class="back" onclick="go('scr-amigos')"><svg width="9" height="15" viewBox="0 0 9 15" fill="none"><path d="M8 1L2 7.5 8 14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="avatar a2" style="width:34px;height:34px;font-size:12px">JO</div>
+          <div><div class="title" style="font-size:15px">João Pereira</div><div class="sub">Histórico com você</div></div>
+        </div>
+      </div>
+      <div class="scroll no-tab">
+        <div class="h2h-score">
+          <div style="text-align:center"><div class="n you">5</div><div class="sub">Você</div></div>
+          <div class="x">VS</div>
+          <div style="text-align:center"><div class="n them">3</div><div class="sub">João</div></div>
+        </div>
+        <div class="progress"><i style="width:62%"></i></div>
+        <div class="sub" style="text-align:center;margin-bottom:16px">62% de aproveitamento no confronto</div>
+
+        <div class="filters">
+          <select><option>Todas as ligas</option><option>Liga da Terça</option><option>Bar do Zé</option></select>
+          <select><option>Últimos 90 dias</option><option>Últimos 30 dias</option><option>Tudo</option></select>
+        </div>
+
+        <div class="section-label" style="margin-top:6px">Dias de jogatina</div>
+        <div class="match-day-card">
+          <div style="display:flex;justify-content:space-between"><strong style="font-size:14px">7 de julho, 2026</strong><span class="badge ativa">Você 2 × 1</span></div>
+          <div class="sub" style="margin-top:4px">Liga da Terça • Bar do Zé</div>
+        </div>
+        <div class="match-day-card">
+          <div style="display:flex;justify-content:space-between"><strong style="font-size:14px">30 de junho, 2026</strong><span class="badge encerrada">João 2 × 0</span></div>
+          <div class="sub" style="margin-top:4px">Liga da Terça • Bar do Zé</div>
+        </div>
+        <div class="match-day-card">
+          <div style="display:flex;justify-content:space-between"><strong style="font-size:14px">23 de junho, 2026</strong><span class="badge ativa">Você 3 × 0</span></div>
+          <div class="sub" style="margin-top:4px">Ranking do Bar do Zé</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LIGA (lista) ============ -->
+    <div class="screen" id="scr-liga">
+      <div class="scroll">
+        <div class="h1" style="margin-bottom:16px">Ligas</div>
+
+        <div class="card" style="background:var(--yellow-bg);border-color:#ecd98a">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="font-size:14px;color:#7a6414">Liga do Churrasco</strong>
+            <span class="sub" style="color:#a08a2e">há 2 dias</span>
+          </div>
+          <div class="sub" style="color:#8a7420;margin:4px 0 10px">Convidado por Felipe Costa</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary sm">Aceitar</button>
+            <button class="btn secondary on-white sm" style="border-color:#c9b25a;color:#7a6414">Recusar</button>
+          </div>
+        </div>
+
+        <div class="search-wrap" style="margin-top:16px">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#999" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="#999" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <input class="input" placeholder="Buscar ligas públicas...">
+        </div>
+
+        <div class="section-label">Ativas</div>
+        <div class="card clickable liga-card" onclick="go('scr-liga-det')">
+          <div class="row1"><span class="name">Liga da Terça</span><span class="badge ativa">Ativa</span></div>
+          <div class="meta">5 amigos • 32 partidas</div>
+          <div class="meta" style="color:#6d9c1f;font-weight:600">Próxima: terça, 20h</div>
+        </div>
+        <div class="card clickable liga-card" onclick="go('scr-liga-det')">
+          <div class="row1"><span class="name">Ranking do Bar do Zé</span><span class="badge ativa">Ativa</span></div>
+          <div class="meta">8 amigos • 61 partidas</div>
+          <div class="meta" style="color:#6d9c1f;font-weight:600">Próxima: sexta, 21h</div>
+        </div>
+
+        <div class="section-label">Encerradas</div>
+        <div class="card clickable liga-card" onclick="go('scr-liga-det')">
+          <div class="row1"><span class="name">Copa Fim de Ano</span><span class="badge encerrada">Encerrada</span></div>
+          <div class="meta">6 amigos • 18 partidas</div>
+        </div>
+      </div>
+      <button class="fab" onclick="openWizard()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="#262824" stroke-width="2.4" stroke-linecap="round"/></svg>
+        Criar liga
+      </button>
+    </div>
+
+    <!-- ============ LIGA DETALHE ============ -->
+    <div class="screen" id="scr-liga-det">
+      <div class="topbar">
+        <div class="back" onclick="tab('liga')"><svg width="9" height="15" viewBox="0 0 9 15" fill="none"><path d="M8 1L2 7.5 8 14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div style="flex:1"><div class="title">Liga da Terça</div><div class="sub">Bar do Zé • terças 20h–00h</div></div>
+        <span class="badge ativa">Ativa</span>
+      </div>
+      <div class="scroll">
+        <div class="seg" style="margin-top:4px">
+          <button class="active" onclick="ligaTab(this,'ranking')">Ranking</button>
+          <button onclick="ligaTab(this,'hist')">Histórico</button>
+          <button onclick="ligaTab(this,'config')">Config</button>
+        </div>
+
+        <div id="liga-ranking">
+          <table class="rank-table">
+            <tr><th>#</th><th>Jogador</th><th>V</th><th>D</th><th>%</th></tr>
+            <tr><td class="pos">1</td><td>Felipe</td><td>8</td><td>2</td><td><strong>80%</strong></td></tr>
+            <tr><td class="pos">2</td><td>Você</td><td>7</td><td>4</td><td><strong>64%</strong></td></tr>
+            <tr><td class="pos">3</td><td>João</td><td>5</td><td>4</td><td><strong>55%</strong></td></tr>
+            <tr><td class="pos">4</td><td>Marcos</td><td>4</td><td>6</td><td><strong>40%</strong></td></tr>
+            <tr><td class="pos">5</td><td>Anderson</td><td>3</td><td>7</td><td><strong>30%</strong></td></tr>
+          </table>
+          <button class="btn primary" style="margin-top:18px" onclick="go('scr-partida-sel')">Iniciar partida</button>
+        </div>
+
+        <div id="liga-hist" style="display:none">
+          <div class="filters">
+            <select><option>Todos os dias</option><option>7 de julho</option><option>30 de junho</option></select>
+            <select><option>Todos os resultados</option><option>Vitórias</option><option>Derrotas</option></select>
+          </div>
+          <div class="match-day-card">
+            <div style="display:flex;justify-content:space-between"><strong style="font-size:13px">Você vs João</strong><span class="badge ativa">Vitória</span></div>
+            <div class="sub" style="margin-top:3px">7 jul • 21:32</div>
+          </div>
+          <div class="match-day-card">
+            <div style="display:flex;justify-content:space-between"><strong style="font-size:13px">Você vs Felipe</strong><span class="badge encerrada">Derrota</span></div>
+            <div class="sub" style="margin-top:3px">7 jul • 21:04</div>
+          </div>
+          <div class="match-day-card">
+            <div style="display:flex;justify-content:space-between"><strong style="font-size:13px">Você vs Anderson</strong><span class="badge ativa">Vitória</span></div>
+            <div class="sub" style="margin-top:3px">7 jul • 20:20</div>
+          </div>
+        </div>
+
+        <div id="liga-config" style="display:none">
+          <div class="field"><label>Nome da liga</label><input class="input" value="Liga da Terça"></div>
+          <div class="field"><label>Local</label><input class="input" value="Bar do Zé"></div>
+          <div class="field"><label>Estilo de jogo</label>
+            <div class="chips"><span class="chip on">1v1</span><span class="chip">Duplas</span></div>
+          </div>
+          <div class="opt-row">Marca bola caída? <span class="toggle on" onclick="this.classList.toggle('on')"></span></div>
+          <div class="opt-row">Marca falta? <span class="toggle on" onclick="this.classList.toggle('on')"></span></div>
+          <div class="opt-row" style="border:none">Horário <span class="sub">20:00 – 00:00</span></div>
+          <button class="btn primary" style="margin-top:8px">Salvar</button>
+          <button class="btn secondary" style="margin-top:10px">Convidar mais amigos</button>
+          <button class="btn secondary" style="margin-top:10px">Gerar código de convite</button>
+          <button class="btn danger" style="margin-top:10px">Encerrar liga</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PARTIDA: seleção ============ -->
+    <div class="screen" id="scr-partida-sel">
+      <div class="topbar">
+        <div class="back" onclick="go('scr-liga-det')"><svg width="9" height="15" viewBox="0 0 9 15" fill="none"><path d="M8 1L2 7.5 8 14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div class="title">Nova partida</div>
+      </div>
+      <div class="scroll no-tab">
+        <div class="card dark" style="display:flex;align-items:center;gap:12px">
+          <div class="avatar" style="width:40px;height:40px;font-size:14px">RB</div>
+          <div style="flex:1"><strong style="font-size:14px">Rodrigo Baroni</strong><div class="sub">Jogador 1 • 3 vitórias hoje</div></div>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" fill="#C1E778"/><path d="M5.5 9l2.4 2.4L12.6 6.7" stroke="#262824" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="vs-big">VS</div>
+        <div class="search-wrap">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#999" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="#999" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <input class="input" placeholder="Quem vai jogar contra?">
+        </div>
+        <div class="person-row clickable" style="border:2px solid var(--lime)">
+          <div class="avatar a2" style="width:36px;height:36px;font-size:13px">JO</div>
+          <div class="info"><div class="nm">João Pereira</div><div class="nick">1 vitória hoje</div></div>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" fill="#C1E778"/><path d="M5.5 9l2.4 2.4L12.6 6.7" stroke="#262824" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="person-row clickable">
+          <div class="avatar a3" style="width:36px;height:36px;font-size:13px">FE</div>
+          <div class="info"><div class="nm">Felipe Costa</div><div class="nick">4 vitórias hoje</div></div>
+        </div>
+        <div class="person-row clickable">
+          <div class="avatar a4" style="width:36px;height:36px;font-size:13px">AN</div>
+          <div class="info"><div class="nm">Anderson Lima</div><div class="nick">0 vitórias hoje</div></div>
+        </div>
+        <button class="btn primary" style="margin-top:10px" onclick="go('scr-partida')">Começar partida</button>
+      </div>
+    </div>
+
+    <!-- ============ PARTIDA em andamento ============ -->
+    <div class="screen" id="scr-partida">
+      <div class="topbar">
+        <div class="back" onclick="go('scr-partida-sel')"><svg width="9" height="15" viewBox="0 0 9 15" fill="none"><path d="M8 1L2 7.5 8 14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div><div class="title" style="font-size:15px">Liga da Terça</div><div class="sub">Jogatina de 14 jul • 21:47</div></div>
+      </div>
+      <div class="scroll no-tab" style="text-align:center">
+        <div style="display:flex;justify-content:center;gap:24px;margin-top:18px">
+          <div>
+            <div class="avatar" style="width:72px;height:72px;font-size:24px">RB</div>
+            <div class="h3" style="margin-top:8px">Rodrigo</div>
+            <div class="win-count">3 vitórias hoje</div>
+          </div>
+          <div class="vs-big" style="align-self:center">VS</div>
+          <div>
+            <div class="avatar a2" style="width:72px;height:72px;font-size:24px">JO</div>
+            <div class="h3" style="margin-top:8px">João</div>
+            <div class="win-count">1 vitória hoje</div>
+          </div>
+        </div>
+
+        <div class="section-label" style="text-align:left">Bolas na mesa</div>
+        <div class="card dark">
+          <div class="sub" style="margin-bottom:4px">Toque na bola quando ela for encaçapada</div>
+          <div class="balls">
+            <div class="ball b1" onclick="this.classList.toggle('pocketed')">1</div>
+            <div class="ball b2 pocketed" onclick="this.classList.toggle('pocketed')">2</div>
+            <div class="ball b3" onclick="this.classList.toggle('pocketed')">3</div>
+            <div class="ball b4 pocketed" onclick="this.classList.toggle('pocketed')">4</div>
+            <div class="ball b5" onclick="this.classList.toggle('pocketed')">5</div>
+            <div class="ball b6" onclick="this.classList.toggle('pocketed')">6</div>
+            <div class="ball b7" onclick="this.classList.toggle('pocketed')">7</div>
+            <div class="ball b8" onclick="this.classList.toggle('pocketed')">8</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:20px">
+          <button class="btn primary" onclick="openModal('modal-share')">Venceu</button>
+          <button class="btn secondary" onclick="go('scr-partida-sel')">Perdeu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LOCAIS ============ -->
+    <div class="screen" id="scr-locais">
+      <div style="padding:16px 16px 0"><div class="h1">Locais</div><div class="sub" style="margin-top:4px">Bares com mesa de sinuca perto de você</div></div>
+      <div class="map">
+        <div class="road" style="top:0;bottom:0;left:38%;width:26px"></div>
+        <div class="road" style="left:0;right:0;top:32%;height:22px"></div>
+        <div class="road" style="left:0;right:0;top:68%;height:16px;transform:rotate(-4deg)"></div>
+        <div class="pin" style="top:22%;left:20%" onclick="openModal('modal-local')"><span>🎱</span></div>
+        <div class="pin" style="top:48%;left:60%" onclick="openModal('modal-local')"><span>🎱</span></div>
+        <div class="pin" style="top:74%;left:32%" onclick="openModal('modal-local')"><span>🎱</span></div>
+      </div>
+    </div>
+
+    <!-- ============ PERFIL ============ -->
+    <div class="screen" id="scr-perfil">
+      <div class="scroll">
+        <div class="h1" style="margin-bottom:16px">Perfil</div>
+        <div class="card dark" style="display:flex;align-items:center;gap:14px">
+          <div class="avatar" style="width:56px;height:56px;font-size:19px">RB</div>
+          <div style="flex:1">
+            <div class="h3">Rodrigo Baroni</div>
+            <div class="sub">@baroni</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'Sora';font-weight:800;font-size:18px;color:var(--lime)">62%</div>
+            <div class="sub">47 partidas</div>
+          </div>
+        </div>
+
+        <div class="seg" style="margin-top:16px">
+          <button class="active" onclick="perfilTab(this,'config')">Configurações</button>
+          <button onclick="perfilTab(this,'notif')">Notificações <span style="background:var(--red);color:#fff;border-radius:8px;padding:1px 6px;font-size:10px">3</span></button>
+        </div>
+
+        <div id="perfil-config">
+          <button class="btn secondary" style="margin-bottom:10px">Editar perfil</button>
+          <button class="btn secondary" style="margin-bottom:10px">Alterar senha</button>
+          <div class="divider"></div>
+          <button class="btn danger" onclick="go('scr-login')">Sair da conta</button>
+        </div>
+
+        <div id="perfil-notif" style="display:none">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span class="link">Limpar histórico</span></div>
+          <div class="section-label" style="margin-top:0">Convites de liga</div>
+          <div class="notif">
+            <div class="ic">✉️</div>
+            <div class="tx"><strong>Liga do Churrasco</strong> te convidou<div class="tm">há 2 horas</div>
+              <div class="acts"><button class="btn primary sm">Aceitar</button><button class="btn secondary on-white sm">Recusar</button></div>
+            </div>
+          </div>
+          <div class="section-label">Convites de amigos</div>
+          <div class="notif">
+            <div class="ic">👥</div>
+            <div class="tx"><strong>Carlos Mota</strong> quer ser seu amigo<div class="tm">há 5 horas</div>
+              <div class="acts"><button class="btn primary sm">Aceitar</button><button class="btn secondary on-white sm">Recusar</button></div>
+            </div>
+          </div>
+          <div class="section-label">Avisos de jogatina</div>
+          <div class="notif">
+            <div class="ic">⏰</div>
+            <div class="tx">Sua jogatina da <strong>Liga da Terça</strong> começa em 1 hora<div class="tm">hoje, 19:00</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ TAB BAR ============ -->
+    <div class="tabbar" id="tabbar" style="display:none">
+      <div class="tab" data-tab="home" onclick="tab('home')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.7"><path d="M3 9l7-6 7 6v8a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1V9z" stroke-linejoin="round"/></svg>
+        Home
+      </div>
+      <div class="tab" data-tab="amigos" onclick="tab('amigos')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.7"><circle cx="7" cy="7" r="3"/><path d="M1.5 17c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5M14 10.2a3 3 0 100-6M18.5 17c0-2.4-1.6-3.8-3.7-4.3" stroke-linecap="round"/></svg>
+        Amigos
+      </div>
+      <div class="tab" data-tab="liga" onclick="tab('liga')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.7"><path d="M5 3h10v3a5 5 0 01-10 0V3z" stroke-linejoin="round"/><path d="M5 4H2.5v1A3.5 3.5 0 006 8.5M15 4h2.5v1A3.5 3.5 0 0114 8.5M10 11v3m-3 3h6" stroke-linecap="round"/></svg>
+        Liga
+      </div>
+      <div class="tab" data-tab="locais" onclick="tab('locais')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.7"><path d="M10 18s6-5.2 6-9.6A6 6 0 004 8.4C4 12.8 10 18 10 18z" stroke-linejoin="round"/><circle cx="10" cy="8.4" r="2.2"/></svg>
+        Locais
+      </div>
+      <div class="tab" data-tab="perfil" onclick="tab('perfil')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke-width="1.7"><circle cx="10" cy="6.5" r="3.5"/><path d="M3 18c.6-3.7 3.4-5.5 7-5.5s6.4 1.8 7 5.5" stroke-linecap="round"/></svg>
+        Perfil
+      </div>
+    </div>
+
+    <!-- ============ MODAL: Local ============ -->
+    <div class="modal-overlay" id="modal-local" onclick="if(event.target===this)closeModal('modal-local')">
+      <div class="modal">
+        <div style="height:110px;border-radius:10px;background:linear-gradient(135deg,#2f4a2c,#1c2a1a);display:flex;align-items:center;justify-content:center;font-size:42px;margin-bottom:12px">🎱</div>
+        <div class="mh">Bar do Zé</div>
+        <div style="font-size:13px;color:#c78a1e;font-weight:700;margin-bottom:2px">⭐ 4.5 <span style="color:#999;font-weight:400">(128 avaliações)</span></div>
+        <div class="sub" style="margin-bottom:2px">Seg–Dom, 20h–04h • R$ 30/hora</div>
+        <div class="sub" style="margin-bottom:10px">📍 2,4 km de você</div>
+        <div class="sub" style="margin-bottom:14px"><strong style="color:var(--forest)">Ligas que jogam aqui:</strong> Liga da Terça, Ranking do Bar do Zé</div>
+        <button class="btn primary" style="margin-bottom:10px">Traçar rota</button>
+        <button class="btn secondary on-white" onclick="closeModal('modal-local')">Atrelar liga a este local</button>
+      </div>
+    </div>
+
+    <!-- ============ MODAL: Compartilhar resultado ============ -->
+    <div class="modal-overlay" id="modal-share" onclick="if(event.target===this)closeModal('modal-share')">
+      <div class="modal">
+        <div class="mh">Parabéns! 🎉</div>
+        <div class="sub" style="color:#666">Você ficou em <strong style="color:var(--forest)">1º lugar</strong> na jogatina de hoje da Liga da Terça.</div>
+        <div class="share-preview">
+          <div style="font-family:'Sora';font-weight:800;font-size:15px;color:var(--lime);margin-bottom:10px">Jogatina de 14 jul — Liga da Terça</div>
+          <div style="font-size:13px;line-height:2;text-align:left;max-width:210px;margin:0 auto">
+            🥇 Rodrigo — 4 vitórias<br>
+            🥈 Felipe — 3 vitórias<br>
+            🥉 João — 2 vitórias<br>
+            <span style="opacity:.6">4º Anderson — 0 vitórias</span>
+          </div>
+        </div>
+        <div class="share-btns">
+          <button class="btn secondary on-white sm" style="width:100%">Instagram</button>
+          <button class="btn secondary on-white sm" style="width:100%">TikTok</button>
+          <button class="btn secondary on-white sm" style="width:100%">WhatsApp</button>
+          <button class="btn secondary on-white sm" style="width:100%">Copiar</button>
+        </div>
+        <button class="btn primary" style="margin-top:14px" onclick="closeModal('modal-share');go('scr-partida-sel')">Próxima partida</button>
+      </div>
+    </div>
+
+    <!-- ============ MODAL: Criar liga (wizard) ============ -->
+    <div class="modal-overlay" id="modal-wizard" onclick="if(event.target===this)closeModal('modal-wizard')">
+      <div class="modal" style="background:var(--forest);border:1px solid #3a3d36">
+        <div class="mh" style="color:#fff">Criar liga</div>
+        <div class="wizard-dots" id="wdots"><span class="on"></span><span></span><span></span></div>
+
+        <div class="wstep active" data-step="1">
+          <div class="field"><label>Nome da liga</label><input class="input" placeholder="ex: Liga da Terça"></div>
+          <div class="field"><label>Local</label><input class="input" placeholder="Buscar local..." value="Bar do Zé"></div>
+          <div class="field"><label>Duração</label>
+            <div class="chips"><span class="chip" onclick="chip(this)">Um dia</span><span class="chip on" onclick="chip(this)">6 meses</span><span class="chip" onclick="chip(this)">Infinita</span></div>
+          </div>
+          <div class="field"><label>Dias de jogatina</label>
+            <div class="chips">
+              <span class="chip" onclick="chip(this,true)">Seg</span><span class="chip on" onclick="chip(this,true)">Ter</span>
+              <span class="chip" onclick="chip(this,true)">Qua</span><span class="chip" onclick="chip(this,true)">Qui</span>
+              <span class="chip on" onclick="chip(this,true)">Sex</span><span class="chip" onclick="chip(this,true)">Sáb</span>
+              <span class="chip" onclick="chip(this,true)">Dom</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wstep" data-step="2">
+          <div class="field"><label>Estilo de jogo</label>
+            <div class="chips"><span class="chip on" onclick="chip(this)">1v1</span><span class="chip" onclick="chip(this)">Duplas</span></div>
+          </div>
+          <div class="opt-row">Marca bola caída? <span class="toggle on" onclick="this.classList.toggle('on')"></span></div>
+          <div class="opt-row">Marca falta? <span class="toggle" onclick="this.classList.toggle('on')"></span></div>
+          <div class="opt-row" style="border:none">Horário <span class="sub">20:00 – 00:00</span></div>
+        </div>
+
+        <div class="wstep" data-step="3">
+          <div class="sub" style="margin-bottom:14px;color:#b9bdb2">Convide os amigos agora ou comece sozinho e convide depois.</div>
+          <button class="btn secondary" style="margin-bottom:10px">Convidar amigos</button>
+          <button class="btn secondary" style="margin-bottom:10px">Gerar código de convite</button>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button class="btn secondary" id="wback" onclick="wizNav(-1)" style="display:none">Voltar</button>
+          <button class="btn primary" id="wnext" onclick="wizNav(1)">Próximo</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /stage -->
+</div><!-- /phone -->
+
+<div class="mock-note">
+  Encaçapei — mockup navegável<br>
+  Dados de exemplo. Clique nos cards, abas e pins para navegar.
+</div>
+
+<script>
+/* ---------- navegação ---------- */
+const TAB_SCREENS = {home:'scr-home', amigos:'scr-amigos', liga:'scr-liga', locais:'scr-locais', perfil:'scr-perfil'};
+
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const tabbar = document.getElementById('tabbar');
+  const tabKey = Object.keys(TAB_SCREENS).find(k=>TAB_SCREENS[k]===id);
+  const showTab = !!tabKey || id==='scr-liga-det';
+  tabbar.style.display = showTab ? 'flex' : 'none';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  if(tabKey) document.querySelector(`.tab[data-tab="${tabKey}"]`).classList.add('active');
+  if(id==='scr-liga-det') document.querySelector('.tab[data-tab="liga"]').classList.add('active');
+}
+function tab(name){ go(TAB_SCREENS[name]); }
+
+/* splash -> onboarding */
+setTimeout(()=>{ if(document.getElementById('scr-splash').classList.contains('active')) go('scr-onboarding'); }, 2200);
+
+/* ---------- onboarding ---------- */
+const OB = [
+  {icon:'🏆', title:'Organize suas ligas', text:'Crie ligas com seus amigos, defina regras e acompanhe o ranking automaticamente.'},
+  {icon:'👥', title:'Acompanhe amigos', text:'Histórico de confrontos, taxa de vitória e evolução de cada jogador da galera.'},
+  {icon:'📲', title:'Compartilhe resultados', text:'Fechou a jogatina? Compartilhe o pódio do dia direto no grupo do WhatsApp.'}
+];
+let obi = 0;
+function obNext(){
+  obi++;
+  if(obi >= OB.length){ go('scr-login'); return; }
+  document.getElementById('ob-icon').textContent = OB[obi].icon;
+  document.getElementById('ob-title').textContent = OB[obi].title;
+  document.getElementById('ob-text').textContent = OB[obi].text;
+  document.getElementById('ob-btn').textContent = obi===OB.length-1 ? 'Começar' : 'Próximo';
+  [...document.getElementById('ob-dots').children].forEach((d,i)=>d.classList.toggle('on', i===obi));
+}
+
+/* ---------- segmented tabs ---------- */
+function segSwitch(btn, panes, key){
+  [...btn.parentElement.children].forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  Object.entries(panes).forEach(([k,id])=>{
+    document.getElementById(id).style.display = (k===key)?'block':'none';
+  });
+}
+function loginTab(b,k){ segSwitch(b,{login:'login-pane',signup:'signup-pane'},k); }
+function amigosTab(b,k){ segSwitch(b,{lista:'amigos-lista',convites:'amigos-convites'},k); }
+function ligaTab(b,k){ segSwitch(b,{ranking:'liga-ranking',hist:'liga-hist',config:'liga-config'},k); }
+function perfilTab(b,k){ segSwitch(b,{config:'perfil-config',notif:'perfil-notif'},k); }
+
+/* ---------- modais ---------- */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+/* ---------- wizard criar liga ---------- */
+let wstep = 1;
+function openWizard(){ wstep=1; renderWiz(); openModal('modal-wizard'); }
+function wizNav(dir){
+  if(wstep===3 && dir===1){ closeModal('modal-wizard'); go('scr-liga-det'); return; }
+  wstep = Math.max(1, Math.min(3, wstep+dir));
+  renderWiz();
+}
+function renderWiz(){
+  document.querySelectorAll('.wstep').forEach(s=>s.classList.toggle('active', +s.dataset.step===wstep));
+  [...document.getElementById('wdots').children].forEach((d,i)=>d.classList.toggle('on', i===wstep-1));
+  document.getElementById('wback').style.display = wstep>1 ? 'inline-flex':'none';
+  document.getElementById('wnext').textContent = wstep===3 ? 'Criar liga' : 'Próximo';
+}
+function chip(el, multi){
+  if(!multi) [...el.parentElement.children].forEach(c=>c.classList.remove('on'));
+  el.classList.toggle('on');
+}
+</script>
+</body>
+</html>

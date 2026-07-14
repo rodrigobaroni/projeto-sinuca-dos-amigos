@@ -338,6 +338,11 @@ export function App({ supabaseClient }) {
         <main id="view">
           {content}
         </main>
+        <footer className="app-footer">
+          <a className="encacapei-link" href="/encacapei-mockup.html">
+            Acessar Encaçapei
+          </a>
+        </footer>
       </div>
       <nav>
         <div className="nav-in">
