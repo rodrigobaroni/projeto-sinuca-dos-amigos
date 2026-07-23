@@ -17,6 +17,7 @@ create table if not exists players (
 create table if not exists matches (
   id          uuid primary key default gen_random_uuid(),
   played_at   timestamptz not null default now(),
+  ended_at    timestamptz,
   player_a    uuid not null references players(id) on delete cascade,
   player_b    uuid not null references players(id) on delete cascade,
   winner_id   uuid references players(id) on delete cascade,
@@ -37,6 +38,7 @@ create table if not exists matches (
 -- Migração segura para bancos criados com a versão HTML inicial.
 alter table matches add column if not exists status text not null default 'finished';
 alter table matches add column if not exists updated_at timestamptz not null default now();
+alter table matches add column if not exists ended_at timestamptz;
 alter table matches alter column winner_id drop not null;
 do $$
 begin
@@ -71,9 +73,23 @@ begin
 end $$;
 
 create index if not exists matches_played_at_idx on matches (played_at desc);
-create unique index if not exists matches_single_live_idx
-  on matches ((status))
-  where status = 'live';
+
+-- Antes só existia uma mesa de sinuca, então só podia haver 1 partida "live"
+-- por vez. Hoje há mais de uma mesa, então essa trava foi removida (o app
+-- passou a suportar múltiplas partidas ao vivo simultâneas).
+drop index if exists matches_single_live_idx;
+
+-- Realtime na tabela matches: cada tela (por mesa) reflete o que acontece
+-- nas outras sem precisar de reload manual.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'matches'
+  ) then
+    alter publication supabase_realtime add table public.matches;
+  end if;
+end $$;
 
 create or replace function touch_matches_updated_at()
 returns trigger

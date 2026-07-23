@@ -1,0 +1,200 @@
+@startuml final-classes
+!theme plain
+title Encaçapei (projeto final idealizado) — Diagrama de Classes «modelo proposto»
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+note as N1
+  Modelo PROPOSTO, derivado do mockup navegável
+  (public/encacapei-mockup.html). Ainda não implementado.
+end note
+
+package "Identidade" {
+  class Usuario {
+    +id: UUID
+    +nome: String
+    +username: String {unique} «@handle»
+    +email: String {unique}
+    +senhaHash: String
+    +avatarUrl: String [0..1]
+    +criadoEm: DateTime
+  }
+
+  enum StatusAmizade {
+    PENDENTE
+    ACEITA
+    RECUSADA
+  }
+
+  class Amizade {
+    +id: UUID
+    +status: StatusAmizade
+    +criadoEm: DateTime
+  }
+
+  class PerfilStats <<derivado>> {
+    +partidasJogadas: Integer
+    +taxaVitoria: Integer
+    +vitoriasConsecutivas: Integer
+    +maioresDerrotas: Integer
+    +evolucaoSemanal: Object[]
+  }
+}
+
+package "Ligas" {
+  enum DuracaoLiga {
+    UM_DIA
+    SEIS_MESES
+    INFINITA
+  }
+
+  enum EstiloDeJogo {
+    UM_CONTRA_UM
+    DUPLAS
+  }
+
+  enum StatusLiga {
+    ATIVA
+    ENCERRADA
+  }
+
+  enum PapelMembro {
+    DONO
+    MEMBRO
+  }
+
+  enum StatusConvite {
+    PENDENTE
+    ACEITO
+    RECUSADO
+  }
+
+  class Liga {
+    +id: UUID
+    +nome: String
+    +duracao: DuracaoLiga
+    +diasDeJogatina: DiaSemana[]
+    +estiloDeJogo: EstiloDeJogo
+    +marcaBolaCaida: Boolean
+    +marcaFalta: Boolean
+    +horarioInicio: Time
+    +horarioFim: Time
+    +status: StatusLiga
+    +criadoEm: DateTime
+  }
+
+  class LigaMembro {
+    +id: UUID
+    +papel: PapelMembro
+    +entrouEm: DateTime
+  }
+
+  class LigaConvite {
+    +id: UUID
+    +status: StatusConvite
+    +criadoEm: DateTime
+    --
+    +aceitar(): void
+    +recusar(): void
+  }
+}
+
+package "Partidas" {
+  enum StatusPartida {
+    EM_ANDAMENTO
+    FINALIZADA
+  }
+
+  class Partida {
+    +id: UUID
+    +dataHora: DateTime
+    +status: StatusPartida
+    --
+    +marcarBola(numero: Integer): void
+    +finalizar(vencedorId: UUID): void
+  }
+
+  class EstadoBola <<value object>> {
+    +numero: Integer
+    +encacapada: Boolean
+  }
+}
+
+package "Locais" {
+  class Local {
+    +id: UUID
+    +nome: String
+    +latitude: Double
+    +longitude: Double
+    +avaliacaoMedia: Double
+    +totalAvaliacoes: Integer
+    +horarioFuncionamento: String
+    +precoPorHora: Decimal [0..1]
+  }
+}
+
+package "Notificações" {
+  enum TipoNotificacao {
+    CONVITE_LIGA
+    CONVITE_AMIGO
+    AVISO_JOGATINA
+  }
+
+  class Notificacao {
+    +id: UUID
+    +tipo: TipoNotificacao
+    +referenciaId: UUID
+    +lida: Boolean
+    +criadaEm: DateTime
+  }
+}
+
+' ---------- Relacionamentos ----------
+Usuario "1" --> "1" PerfilStats : possui (derivado)
+Usuario "*" -- "*" Usuario : amizade >
+(Usuario, Usuario) .. Amizade
+Amizade "*" --> "1" Usuario : solicitante
+Amizade "*" --> "1" Usuario : destinatario
+Amizade::status --> StatusAmizade
+
+Liga "1" *-- "*" LigaMembro : membros
+LigaMembro "*" --> "1" Usuario
+LigaMembro::papel --> PapelMembro
+Liga::duracao --> DuracaoLiga
+Liga::estiloDeJogo --> EstiloDeJogo
+Liga::status --> StatusLiga
+
+Liga "1" *-- "*" LigaConvite : convites
+LigaConvite "*" --> "1" Usuario : convidadoPor
+LigaConvite "*" --> "1" Usuario : convidado
+LigaConvite::status --> StatusConvite
+
+Liga "0..1" --> "1" Local : jogada em
+Liga "1" o-- "*" Partida : partidas
+
+Partida "*" --> "2" Usuario : jogador1 / jogador2
+Partida "*" --> "0..1" Usuario : vencedor
+Partida "1" *-- "*" EstadoBola : bolas
+Partida::status --> StatusPartida
+
+Usuario "1" --> "*" Notificacao : recebe
+Notificacao::tipo --> TipoNotificacao
+Notificacao "*" ..> LigaConvite : referencia (quando CONVITE_LIGA)
+Notificacao "*" ..> Amizade : referencia (quando CONVITE_AMIGO)
+
+note right of Liga
+  Wizard de criação (mockup): nome, local,
+  duração, dias de jogatina (passo 1),
+  estilo + regras + horário (passo 2),
+  convite de amigos (passo 3).
+end note
+
+note right of Partida
+  "Jogar partida ao vivo" no mockup é simplificado
+  (Venceu / Perdeu, bolas 1–8 apenas tocáveis),
+  diferente do controle detalhado de faltas/grupos
+  do projeto base (GameRules).
+end note
+
+@enduml

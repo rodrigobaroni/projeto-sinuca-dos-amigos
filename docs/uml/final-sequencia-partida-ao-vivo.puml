@@ -1,0 +1,49 @@
+@startuml final-sequencia-partida-ao-vivo
+!theme plain
+title Encaçapei (projeto final) — Sequência: Jogar partida ao vivo «modelo proposto»
+
+actor "Jogador 1" as J1
+participant "App\n(scr-partida-sel)" as SelUI
+participant "App\n(scr-partida)" as PartidaUI
+participant "PartidaService" as PartidaSvc
+database "Banco" as DB
+participant "ShareService" as ShareSvc
+
+J1 -> SelUI : abre "Iniciar partida" (dentro da Liga da Terça)
+SelUI -> DB : busca amigos da liga + vitórias de hoje
+DB --> SelUI : lista de adversários
+J1 -> SelUI : seleciona "João Pereira"
+J1 -> SelUI : clica "Começar partida"
+
+SelUI -> PartidaSvc : iniciarPartida(liga.id, jogador1 = J1, jogador2 = João)
+PartidaSvc -> DB : insert Partida(status = EM_ANDAMENTO)
+DB --> PartidaSvc : partida.id
+PartidaSvc --> SelUI : partida criada
+SelUI -> PartidaUI : navega para tela da partida
+
+== Durante o jogo ==
+loop enquanto houver bola na mesa
+  J1 -> PartidaUI : toca na bola N
+  PartidaUI -> PartidaSvc : marcarBola(partida.id, numero = N, encacapada = true)
+  PartidaSvc -> DB : update EstadoBola
+  DB --> PartidaSvc : ok
+end
+
+== Encerramento ==
+J1 -> PartidaUI : clica "Venceu"
+PartidaUI -> PartidaSvc : finalizarPartida(partida.id, vencedor = J1)
+PartidaSvc -> DB : update Partida(status = FINALIZADA, vencedorId = J1)
+DB --> PartidaSvc : ok
+PartidaSvc --> PartidaUI : resultado confirmado
+PartidaUI --> J1 : modal "Parabéns! 1º lugar na jogatina de hoje"\ncom pódio atualizado
+
+opt compartilhar
+  J1 -> PartidaUI : escolhe "WhatsApp" / "Instagram" / "TikTok"
+  PartidaUI -> ShareSvc : gerarImagemResumo(jogatina)
+  ShareSvc --> PartidaUI : imagem pronta
+  PartidaUI --> J1 : abre app de compartilhamento
+end
+
+PartidaUI --> J1 : volta para seleção de próxima partida
+
+@enduml

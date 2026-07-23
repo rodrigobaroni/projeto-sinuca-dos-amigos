@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:hml": "vite --mode hml --host 127.0.0.1",
     "build": "vite build",
+    "build:hml": "vite build --mode hml",
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1"
   },

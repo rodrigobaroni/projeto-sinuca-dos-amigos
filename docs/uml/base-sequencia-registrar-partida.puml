@@ -1,0 +1,46 @@
+@startuml base-sequencia-registrar-partida
+!theme plain
+title Placar da Sinuca (projeto base) — Sequência: Registrar partida (Admin)
+
+actor Admin
+participant "AdminView\n(StartMatchPanel)" as StartPanel
+participant "AdminView\n(LiveMatchPanel)" as LivePanel
+participant "App\n(controller)" as App
+participant "GameRules" as Rules
+participant "SupabaseRepository" as Repo
+database "Supabase\n(matches / audit_logs)" as DB
+
+== Iniciar partida ==
+Admin -> StartPanel : seleciona Jogador A, Jogador B e horário
+Admin -> StartPanel : clica "Iniciar partida"
+StartPanel -> Repo : startMatch({player_a, player_b, played_at,\nstatus: "live", ball_log: []})
+Repo -> DB : insert into matches
+DB --> Repo : match criado (id)
+Repo --> StartPanel : match
+StartPanel -> App : setMatches([...matches, match])
+App --> Admin : mostra painel de partida ao vivo
+
+== Marcar bolas / faltas (repete a cada bola) ==
+loop enquanto houver bolas na mesa
+  Admin -> LivePanel : toca na bola N encaçapada
+  LivePanel -> Rules : classifyPot({ball: N, by: jogador, groups, log})
+  Rules --> LivePanel : { type: "pot" | "foul", reason? }
+  LivePanel -> App : persistMatch(matchId, { ball_log: [...log, novaEntrada] })
+  App -> Repo : updateMatch(matchId, patch)
+  Repo -> DB : update matches set ball_log = ...
+  DB --> Repo : ok
+end
+
+== Finalizar partida ==
+Admin -> LivePanel : declara vencedor
+LivePanel -> App : persistMatch(matchId, { winner_id, status: "finished" })
+App -> Repo : updateMatch(matchId, patch)
+Repo -> DB : update matches\n(constraint exige winner_id quando finished)
+DB --> Repo : ok
+App -> App : auditLog({ action: "match_finished", ... })
+App -> Repo : createAuditLog(entry)
+Repo -> DB : insert into audit_logs
+DB --> Repo : ok
+App --> Admin : ranking e histórico atualizados
+
+@enduml

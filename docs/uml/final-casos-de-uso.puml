@@ -1,0 +1,92 @@
+@startuml final-casos-de-uso
+!theme plain
+title Encaçapei (projeto final idealizado) — Diagrama de Casos de Uso «modelo proposto»
+
+left to right direction
+skinparam packageStyle rect
+
+actor "Visitante\n(não autenticado)" as Visitante
+actor "Usuário" as Usuario
+actor "Dono da liga" as Dono
+Usuario --|> Visitante
+Dono --|> Usuario
+
+rectangle "Encaçapei" {
+  usecase "Ver onboarding" as UC1
+  usecase "Criar conta" as UC2
+  usecase "Login" as UC3
+
+  usecase "Ver perfil e estatísticas\n(gráficos de evolução)" as UC4
+  usecase "Editar perfil / alterar senha" as UC5
+  usecase "Gerenciar notificações" as UC6
+
+  usecase "Buscar amigos" as UC7
+  usecase "Enviar convite de amizade" as UC8
+  usecase "Aceitar / recusar convite\nde amizade" as UC9
+  usecase "Consultar confronto direto (H2H)" as UC10
+
+  usecase "Consultar ligas ativas\n/ encerradas" as UC11
+  usecase "Buscar ligas públicas" as UC12
+  usecase "Consultar ranking da liga" as UC13
+  usecase "Consultar histórico da liga" as UC14
+
+  usecase "Criar liga (wizard)" as UC15
+  usecase "Convidar amigos para a liga" as UC16
+  usecase "Gerar código de convite" as UC17
+  usecase "Aceitar / recusar convite de liga" as UC18
+  usecase "Configurar regras da liga\n(estilo, bola caída, falta, horário)" as UC19
+  usecase "Encerrar liga" as UC20
+
+  usecase "Iniciar partida\n(selecionar adversário)" as UC21
+  usecase "Marcar bola encaçapada" as UC22
+  usecase "Registrar resultado\n(venceu / perdeu)" as UC23
+  usecase "Compartilhar resultado\n(Instagram / TikTok / WhatsApp)" as UC24
+
+  usecase "Consultar locais no mapa" as UC25
+  usecase "Vincular liga a um local" as UC26
+}
+
+Visitante --> UC1
+Visitante --> UC2
+Visitante --> UC3
+
+Usuario --> UC4
+Usuario --> UC5
+Usuario --> UC6
+Usuario --> UC7
+Usuario --> UC8
+Usuario --> UC9
+Usuario --> UC10
+Usuario --> UC11
+Usuario --> UC12
+Usuario --> UC13
+Usuario --> UC14
+Usuario --> UC15
+Usuario --> UC18
+Usuario --> UC21
+Usuario --> UC22
+Usuario --> UC23
+Usuario --> UC24
+Usuario --> UC25
+
+Dono --> UC16
+Dono --> UC17
+Dono --> UC19
+Dono --> UC20
+Dono --> UC26
+
+UC15 ..> UC16 : <<include>>
+UC15 ..> UC17 : <<extend>>
+UC15 ..> UC19 : <<include>>
+UC21 ..> UC22 : <<include>>
+UC22 ..> UC23 : <<extend>>
+UC23 ..> UC24 : <<extend>>
+UC13 ..> UC10 : <<extend>>\n(quando filtra por 1 amigo)
+
+note bottom of Dono
+  Papel assumido pelo Usuário que criou a liga
+  (LigaMembro.papel = DONO). Um mesmo usuário
+  pode ser Dono em uma liga e Membro comum em outra.
+end note
+
+@enduml

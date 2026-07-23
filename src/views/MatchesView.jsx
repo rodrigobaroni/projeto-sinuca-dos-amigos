@@ -3,7 +3,7 @@ import { PlayerBall } from "../components/balls.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { fmtDate } from "../utils/date.js";
 
-export function MatchesView({ finished, liveMatch, clips = [], isAdmin, playerById, openMatch, go }) {
+export function MatchesView({ finished, liveMatches = [], clips = [], isAdmin, playerById, openMatch, go }) {
   const [filter, setFilter] = useState("");
   const list = finished.slice().reverse().filter((match) => {
     const query = filter.trim().toLowerCase();
@@ -13,15 +13,15 @@ export function MatchesView({ finished, liveMatch, clips = [], isAdmin, playerBy
   return (
     <>
       <ViewHead eyebrow="histórico" title="Partidas" />
-      {liveMatch && (
-        <button className="card live-card" onClick={() => (isAdmin ? go("admin") : openMatch(liveMatch.id))}>
+      {liveMatches.map((liveMatch) => (
+        <button key={liveMatch.id} className="card live-card" onClick={() => (isAdmin ? go("admin") : openMatch(liveMatch.id))}>
           <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
           <div className="live-row">
             <strong>{playerById(liveMatch.player_a)?.name} <span>vs</span> {playerById(liveMatch.player_b)?.name}</strong>
             <span className="rank-sub">{(liveMatch.ball_log || []).length} bolas</span>
           </div>
         </button>
-      )}
+      ))}
       <input className="search" placeholder="filtrar por nome..." value={filter} onChange={(event) => setFilter(event.target.value)} />
       {!list.length ? <div className="empty">{finished.length ? "Nenhuma partida com esse nome." : "Nenhuma partida finalizada ainda."}</div> : (
         <div className="match-list">

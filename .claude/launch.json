@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev-hml",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:hml"],
+      "port": 5173
+    }
+  ]
+}

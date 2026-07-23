@@ -91,5 +91,13 @@ export function createRepository(sb) {
       const { data } = sb.auth.onAuthStateChange((_event, session) => callback(session));
       return () => data.subscription.unsubscribe();
     },
+
+    onMatchesChange(callback) {
+      const channel = sb
+        .channel("matches-changes")
+        .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, callback)
+        .subscribe();
+      return () => sb.removeChannel(channel);
+    },
   };
 }

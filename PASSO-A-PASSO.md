@@ -41,7 +41,6 @@ Faça na ordem abaixo.
    ```
 
 3. Substitua pelo seu **Project URL** e sua **chave anon**. Salve.
-4. Para testar com dados fictícios, rode o projeto e abra com `?demo=1`.
 
 ---
 

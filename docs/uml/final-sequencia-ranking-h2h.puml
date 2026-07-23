@@ -1,0 +1,31 @@
+@startuml final-sequencia-ranking-h2h
+!theme plain
+title Encaçapei (projeto final) — Sequência: Consultar ranking da liga e H2H «modelo proposto»
+
+actor Usuario
+participant "App\n(scr-liga-det)" as LigaUI
+participant "App\n(scr-h2h)" as H2hUI
+participant "RankingService" as RankSvc
+participant "H2HService" as H2hSvc
+database "Banco" as DB
+
+== Ranking da liga ==
+Usuario -> LigaUI : abre "Liga da Terça" > aba Ranking
+LigaUI -> RankSvc : calcularRanking(liga.id)
+RankSvc -> DB : busca Partida(liga.id, status = FINALIZADA)
+DB --> RankSvc : partidas finalizadas
+RankSvc -> RankSvc : agrupa vitórias/derrotas por jogador,\ncalcula % de aproveitamento
+RankSvc --> LigaUI : ranking ordenado [Felipe 80%, Você 64%, ...]
+LigaUI --> Usuario : exibe tabela de posições
+
+== Confronto direto (H2H) ==
+Usuario -> H2hUI : abre perfil de "João Pereira" > Histórico
+Usuario -> H2hUI : aplica filtro (liga = todas, período = 90 dias)
+H2hUI -> H2hSvc : buscarConfrontoDireto(usuario.id, joao.id, filtros)
+H2hSvc -> DB : busca Partida onde\n(jogador1, jogador2) = (usuario, joao) [ou invertido]
+DB --> H2hSvc : lista de partidas filtradas
+H2hSvc -> H2hSvc : conta vitórias de cada lado,\ncalcula % e agrupa por dia de jogatina
+H2hSvc --> H2hUI : { vocë: 5, joao: 3, pct: 62,\ndiasDeJogatina: [...] }
+H2hUI --> Usuario : exibe placar 5x3, barra de 62%\ne lista de dias de jogatina
+
+@enduml

@@ -791,7 +791,7 @@ hr.brass{border:none;border-top:1px solid var(--line);margin:16px 0}
 }
 
 #root{min-height:100dvh}
-button.card,button.rank-row,button.match{font:inherit;color:inherit;text-align:inherit}
+button.card,button.rank-row,button.match,button.select{font:inherit;color:inherit;text-align:inherit;cursor:pointer}
 .live-card{display:block;width:100%;margin-bottom:14px;cursor:pointer;border-color:var(--chalk-line);background:linear-gradient(100deg,var(--surface-chalk),var(--surface-1) 50%)}
 .live-label{display:flex;align-items:center;gap:8px}
 .live-label span:first-child{width:8px;height:8px;border-radius:50%;background:var(--chalk);box-shadow:0 0 8px var(--chalk)}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PlayerBall, PoolBall, WhiteBall } from "../components/balls.jsx";
 import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
 import { ViewHead } from "../components/layout.jsx";
+import { PlayerPickerModal } from "../components/PlayerPickerModal.jsx";
 import { GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
 import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
 
@@ -23,12 +24,14 @@ function loadGameSettings() {
   }
 }
 
-export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatch, finished, currentPlayerId, onCurrentPlayerChange, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm }) {
+export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatches, finished, currentPlayerId, onCurrentPlayerChange, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [adminTab, setAdminTab] = useState("partida");
   const [lastWinnerId, setLastWinnerId] = useState("");
+  const [selectedLiveMatchId, setSelectedLiveMatchId] = useState("");
+  const selectedLiveMatch = liveMatches.find((match) => match.id === selectedLiveMatchId) || null;
 
   if (!isAdmin) {
     return (
@@ -39,10 +42,6 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
           <label className="fld"><span>e-mail</span><input className="search no-margin" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="fld"><span>senha</span><input className="search no-margin" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           <button className="btn chalk" onClick={async () => {
-            if (!repo) {
-              setIsAdmin(true);
-              return;
-            }
             try {
               await repo.signIn(email.trim(), password);
               setIsAdmin(true);
@@ -67,7 +66,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
           refreshAuditLogs?.();
         }}>Logs</button>
         <button className="logout-mini" onClick={async () => {
-          if (repo) await repo.signOut();
+          await repo.signOut();
           setIsAdmin(false);
           showToast("Saiu do admin");
         }}>Sair</button>
@@ -78,17 +77,29 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
         <AdminSettings adminUser={adminUser} auditLog={auditLog} showToast={showToast} />
       ) : adminTab === "logs" ? (
         <AdminLogs logs={auditLogs} refreshAuditLogs={refreshAuditLogs} />
-      ) : liveMatch ? (
+      ) : selectedLiveMatch ? (
         <section className="panel live-admin-panel">
+          {liveMatches.length > 1 && (
+            <button className="btn ghost small" onClick={() => setSelectedLiveMatchId("")}>← outras partidas ao vivo ({liveMatches.length - 1})</button>
+          )}
           <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
-          <LiveMatchRouter adminUser={adminUser} auditLog={auditLog} liveMatch={liveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} requestConfirm={requestConfirm} />
+          <LiveMatchRouter adminUser={adminUser} auditLog={auditLog} liveMatch={selectedLiveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} requestConfirm={requestConfirm} />
         </section>
       ) : (
         <section className="panel">
           <div className="eyebrow">admin</div>
           <div className="viewtitle">Painel</div>
           <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
-          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} setMatches={setMatches} repo={repo} load={load} showToast={showToast} preferredPlayerA={lastWinnerId} />
+          {liveMatches.map((match) => (
+            <button key={match.id} className="card live-card" onClick={() => setSelectedLiveMatchId(match.id)}>
+              <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
+              <div className="live-row">
+                <strong>{playerName(match.player_a)} <span>vs</span> {playerName(match.player_b)}</strong>
+                <span className="rank-sub">{(match.ball_log || []).length} bolas</span>
+              </div>
+            </button>
+          ))}
+          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} repo={repo} load={load} showToast={showToast} preferredPlayerA={lastWinnerId} />
         </section>
       )}
     </>
@@ -441,11 +452,16 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ adminUser, auditLog, players, setMatches, repo, load, showToast, preferredPlayerA = "" }) {
-  const initialPlayerA = preferredPlayerA && players.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : players[0]?.id || "";
-  const initialPlayerB = players.find((player) => player.id !== initialPlayerA)?.id || "";
+function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo, load, showToast, preferredPlayerA = "" }) {
+  const busyPlayerIds = new Set(liveMatches.flatMap((match) => [match.player_a, match.player_b]));
+  const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
+  const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
+
+  const initialPlayerA = preferredPlayerA && availablePlayers.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : availablePlayers[0]?.id || "";
+  const initialPlayerB = availablePlayers.find((player) => player.id !== initialPlayerA)?.id || "";
   const [playerA, setPlayerA] = useState(initialPlayerA);
   const [playerB, setPlayerB] = useState(initialPlayerB);
+  const [pickerFor, setPickerFor] = useState(null);
   const [when, setWhen] = useState(() => {
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -453,39 +469,41 @@ function StartMatchPanel({ adminUser, auditLog, players, setMatches, repo, load,
   });
 
   useEffect(() => {
-    const nextA = preferredPlayerA && players.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : players[0]?.id || "";
+    const nextA = preferredPlayerA && availablePlayers.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : availablePlayers[0]?.id || "";
     if (!nextA) return;
     setPlayerA(nextA);
-    setPlayerB((current) => current && current !== nextA ? current : players.find((player) => player.id !== nextA)?.id || "");
-  }, [preferredPlayerA, players]);
+    setPlayerB((current) => current && current !== nextA && availablePlayers.some((player) => player.id === current) ? current : availablePlayers.find((player) => player.id !== nextA)?.id || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferredPlayerA, players, liveMatches]);
 
   if (players.length < 2) return <div className="empty small-empty">Cadastre pelo menos 2 jogadores acima pra iniciar uma partida.</div>;
+  if (availablePlayers.length < 2) return <div className="empty small-empty">Todo mundo cadastrado já está em partida ao vivo agora.</div>;
   return (
     <div className="card">
-      <label className="fld"><span>jogador A (quebra)</span><select className="select" value={playerA} onChange={(event) => setPlayerA(event.target.value)}>{players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}</select></label>
-      <label className="fld"><span>jogador B</span><select className="select" value={playerB} onChange={(event) => setPlayerB(event.target.value)}>{players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}</select></label>
+      {busyPlayers.length > 0 && (
+        <p className="admin-help">
+          Ocultamos da lista (já em partida ao vivo): {busyPlayers.map((player) => player.name).join(", ")}.
+        </p>
+      )}
+      <label className="fld"><span>jogador A (quebra)</span><button type="button" className="select" onClick={() => setPickerFor("a")}>{availablePlayers.find((player) => player.id === playerA)?.name || "Selecionar jogador"}</button></label>
+      <label className="fld"><span>jogador B</span><button type="button" className="select" onClick={() => setPickerFor("b")}>{availablePlayers.find((player) => player.id === playerB)?.name || "Selecionar jogador"}</button></label>
       <label className="fld"><span>data e hora</span><input className="search no-margin" type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)} /></label>
+      {pickerFor && (
+        <PlayerPickerModal
+          title={pickerFor === "a" ? "Quem começa (quebra)?" : "Contra quem?"}
+          players={availablePlayers.filter((player) => player.id !== (pickerFor === "a" ? playerB : playerA))}
+          onChoose={(id) => {
+            if (pickerFor === "a") setPlayerA(id);
+            else setPlayerB(id);
+            setPickerFor(null);
+          }}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
       <button className="btn chalk" onClick={async () => {
-        if (playerA === playerB) {
-          showToast("Jogador A e B não podem ser a mesma pessoa");
-          return;
-        }
         const match = { player_a: playerA, player_b: playerB, played_at: new Date(when).toISOString(), ball_log: [], status: "live" };
         const playerAName = players.find((player) => player.id === playerA)?.name;
         const playerBName = players.find((player) => player.id === playerB)?.name;
-        if (!repo) {
-          const createdMatch = { ...match, id: `demo-live-${Date.now()}` };
-          setMatches((items) => [...items, createdMatch]);
-          await auditLog?.({
-            action: "match_started",
-            entityType: "match",
-            entityId: createdMatch.id,
-            message: `${adminUser?.email || "admin"} iniciou a partida ${playerAName} x ${playerBName}`,
-            metadata: { match: createdMatch, players: [playerAName, playerBName] },
-          });
-          showToast("Partida iniciada");
-          return;
-        }
         try {
           const createdMatch = await repo.startMatch(match);
           await auditLog?.({
@@ -559,7 +577,7 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
   const playerA = playerById(liveMatch.player_a);
   const playerB = playerById(liveMatch.player_b);
   const finishMatch = async (winnerId) => {
-    await persistMatch(liveMatch.id, { winner_id: winnerId, status: "finished" });
+    await persistMatch(liveMatch.id, { winner_id: winnerId, status: "finished", ended_at: new Date().toISOString() });
     await auditLog?.({
       action: "match_finished",
       entityType: "match",
@@ -585,15 +603,13 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
           });
           if (!confirmed) return;
           setMatches((items) => items.filter((match) => match.id !== liveMatch.id));
-          if (repo) {
-            try {
-              await repo.deleteMatch(liveMatch.id);
-            } catch (deleteError) {
-              showToast(`Erro: ${deleteError.message}`);
-              await load();
-              return;
-            }
-          } else await load();
+          try {
+            await repo.deleteMatch(liveMatch.id);
+          } catch (deleteError) {
+            showToast(`Erro: ${deleteError.message}`);
+            await load();
+            return;
+          }
           await auditLog?.({
             action: "match_cancelled",
             entityType: "match",
@@ -711,7 +727,7 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
       { n: cleanLog.length + 1, ball: String(penaltyBall), by, type: canWin ? "pot" : "foul", reason: "trunfo" },
     ].map((entry, index) => ({ ...entry, n: index + 1 }));
     setPendingPenalty(false);
-    await persistMatch(liveMatch.id, { ball_log: nextLog, winner_id: winnerId, status: "finished" });
+    await persistMatch(liveMatch.id, { ball_log: nextLog, winner_id: winnerId, status: "finished", ended_at: new Date().toISOString() });
     await auditLog?.({
       action: "match_finished",
       entityType: "match",
@@ -758,15 +774,13 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
           });
           if (!confirmed) return;
           setMatches((items) => items.filter((match) => match.id !== liveMatch.id));
-          if (repo) {
-            try {
-              await repo.deleteMatch(liveMatch.id);
-            } catch (deleteError) {
-              showToast(`Erro: ${deleteError.message}`);
-              await load();
-              return;
-            }
-          } else await load();
+          try {
+            await repo.deleteMatch(liveMatch.id);
+          } catch (deleteError) {
+            showToast(`Erro: ${deleteError.message}`);
+            await load();
+            return;
+          }
           await auditLog?.({
             action: "match_cancelled",
             entityType: "match",

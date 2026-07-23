@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ball, PlayerBall } from "./components/balls.jsx";
+import { Ball } from "./components/balls.jsx";
 import { ConfirmDialog, Sheet, Toast } from "./components/layout.jsx";
+import { PlayerPickerModal } from "./components/PlayerPickerModal.jsx";
 import { MatchSheet, PlayerSheet } from "./components/sheets.jsx";
 import { NAV } from "./constants.js";
 import { computeStats, rankedFrom } from "./domain/stats.js";
-import { demoData } from "./fixtures/demoData.js";
 import { createRepository } from "./services/supabaseRepository.js";
 import { AdminView } from "./views/AdminView.jsx";
 import { MatchesView } from "./views/MatchesView.jsx";
@@ -17,19 +17,16 @@ const CURRENT_PLAYER_KEY = "sinuca-current-player";
 
 export function App({ supabaseClient }) {
   const query = useMemo(() => new URLSearchParams(window.location.search), []);
-  const demoMode = query.has("demo");
-  const demoStartForm = query.get("demo") === "start";
   const queryPlayerId = query.get("player") || "";
-  const sb = demoMode ? null : supabaseClient;
-  const repo = useMemo(() => (sb ? createRepository(sb) : null), [sb]);
+  const repo = useMemo(() => (supabaseClient ? createRepository(supabaseClient) : null), [supabaseClient]);
 
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [clips, setClips] = useState([]);
   const [currentPlayerId, setCurrentPlayerId] = useState(() => queryPlayerId || window.localStorage.getItem(CURRENT_PLAYER_KEY) || "");
   const [current, setCurrent] = useState(() => (queryPlayerId || window.localStorage.getItem(CURRENT_PLAYER_KEY)) ? "jogador" : "ranking");
-  const [isAdmin, setIsAdmin] = useState(demoMode);
-  const [adminUser, setAdminUser] = useState(demoMode ? { id: "demo", email: "demo" } : null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminUser, setAdminUser] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,7 +37,7 @@ export function App({ supabaseClient }) {
   const confirmResolver = useRef(null);
 
   const finished = useMemo(() => matches.filter((match) => match.status !== "live" && match.winner_id), [matches]);
-  const liveMatch = useMemo(() => matches.find((match) => match.status === "live") || null, [matches]);
+  const liveMatches = useMemo(() => matches.filter((match) => match.status === "live"), [matches]);
   const stats = useMemo(() => computeStats(players, finished), [players, finished]);
   const ranked = useMemo(() => rankedFrom(stats), [stats]);
 
@@ -66,16 +63,8 @@ export function App({ supabaseClient }) {
   const load = async () => {
     setLoading(true);
     setError("");
-    if (demoMode) {
-      const data = demoData(demoStartForm);
-      setPlayers(data.players);
-      setMatches(data.matches);
-      setClips([]);
-      setLoading(false);
-      return;
-    }
     if (!repo) {
-      setError("Configure o Supabase nas variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON, ou abra com ?demo=1.");
+      setError("Configure o Supabase nas variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON.");
       setLoading(false);
       return;
     }
@@ -126,6 +115,18 @@ export function App({ supabaseClient }) {
     });
   }, [repo]);
 
+  useEffect(() => {
+    if (!repo) return;
+    return repo.onMatchesChange(({ eventType, new: newRow, old: oldRow }) => {
+      setMatches((items) => {
+        if (eventType === "DELETE") return items.filter((match) => match.id !== oldRow.id);
+        const exists = items.some((match) => match.id === newRow.id);
+        if (exists) return items.map((match) => (match.id === newRow.id ? newRow : match));
+        return [...items, newRow];
+      });
+    });
+  }, [repo]);
+
   const refreshAuditLogs = async () => {
     if (!repo) return;
     try {
@@ -136,7 +137,7 @@ export function App({ supabaseClient }) {
   };
 
   const auditLog = async ({ action, entityType, entityId, message, metadata = {} }) => {
-    const actor = adminUser || { id: demoMode ? "demo" : null, email: demoMode ? "demo" : "admin" };
+    const actor = adminUser || { id: null, email: "admin" };
     const localEntry = {
       id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       actor_id: actor.id,
@@ -149,10 +150,9 @@ export function App({ supabaseClient }) {
       created_at: new Date().toISOString(),
     };
     setAuditLogs((items) => [localEntry, ...items].slice(0, 100));
-    if (!repo) return localEntry;
     try {
       const saved = await repo.createAuditLog({
-        actor_id: actor.id && actor.id !== "demo" ? actor.id : null,
+        actor_id: actor.id,
         actor_email: actor.email || "admin",
         action,
         entity_type: entityType,
@@ -170,7 +170,6 @@ export function App({ supabaseClient }) {
 
   const persistMatch = async (id, patch) => {
     setMatches((items) => items.map((match) => (match.id === id ? { ...match, ...patch } : match)));
-    if (!repo) return;
     try {
       await repo.updateMatch(id, patch);
     } catch (updateError) {
@@ -184,18 +183,6 @@ export function App({ supabaseClient }) {
     if (!cleanName) throw new Error("Digite um nome");
     const existing = players.find((player) => player.name.toLowerCase() === cleanName.toLowerCase());
     if (existing) return existing;
-    if (!repo) {
-      const player = { id: `demo-${cleanName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`, name: cleanName };
-      setPlayers((items) => [...items, player].sort((a, b) => a.name.localeCompare(b.name)));
-      await auditLog({
-        action: "player_created",
-        entityType: "player",
-        entityId: player.id,
-        message: `${adminUser?.email || "admin"} adicionou o jogador ${player.name}`,
-        metadata: { player },
-      });
-      return player;
-    }
     const player = await repo.addPlayer(cleanName);
     setPlayers((items) => [...items, player].sort((a, b) => a.name.localeCompare(b.name)));
     await auditLog({
@@ -213,20 +200,6 @@ export function App({ supabaseClient }) {
     if (!cleanName) throw new Error("Digite um nome");
     const existing = players.find((player) => player.id !== id && player.name.toLowerCase() === cleanName.toLowerCase());
     if (existing) throw new Error("Já existe um jogador com esse nome");
-    if (!repo) {
-      const updated = players.find((player) => player.id === id);
-      if (!updated) throw new Error("Jogador não encontrado");
-      const player = { ...updated, name: cleanName };
-      setPlayers((items) => items.map((item) => (item.id === id ? player : item)).sort((a, b) => a.name.localeCompare(b.name)));
-      await auditLog({
-        action: "player_updated",
-        entityType: "player",
-        entityId: player.id,
-        message: `${adminUser?.email || "admin"} alterou o jogador para ${player.name}`,
-        metadata: { player, previousName: updated.name },
-      });
-      return player;
-    }
     const player = await repo.updatePlayer(id, { name: cleanName });
     setPlayers((items) => items.map((item) => (item.id === id ? player : item)).sort((a, b) => a.name.localeCompare(b.name)));
     await auditLog({
@@ -273,14 +246,12 @@ export function App({ supabaseClient }) {
     });
     if (!confirmed) return;
     setMatches((items) => items.filter((match) => match.id !== matchId));
-    if (repo) {
-      try {
-        await repo.deleteMatch(matchId);
-      } catch (deleteError) {
-        showToast(`Erro: ${deleteError.message}`);
-        await load();
-        return;
-      }
+    try {
+      await repo.deleteMatch(matchId);
+    } catch (deleteError) {
+      showToast(`Erro: ${deleteError.message}`);
+      await load();
+      return;
     }
     setSheet(null);
     const deleted = matches.find((item) => item.id === matchId);
@@ -293,7 +264,7 @@ export function App({ supabaseClient }) {
     });
     showToast("Partida apagada");
   }} />)} />;
-  else if (current === "partidas") content = <MatchesView finished={finished} liveMatch={liveMatch} clips={clips} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
+  else if (current === "partidas") content = <MatchesView finished={finished} liveMatches={liveMatches} clips={clips} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
     const confirmed = await requestConfirm({
       title: "Apagar partida?",
       message: "Essa ação não dá pra desfazer.",
@@ -301,14 +272,12 @@ export function App({ supabaseClient }) {
     });
     if (!confirmed) return;
     setMatches((items) => items.filter((match) => match.id !== matchId));
-    if (repo) {
-      try {
-        await repo.deleteMatch(matchId);
-      } catch (deleteError) {
-        showToast(`Erro: ${deleteError.message}`);
-        await load();
-        return;
-      }
+    try {
+      await repo.deleteMatch(matchId);
+    } catch (deleteError) {
+      showToast(`Erro: ${deleteError.message}`);
+      await load();
+      return;
     }
     setSheet(null);
     const deleted = matches.find((item) => item.id === matchId);
@@ -323,7 +292,7 @@ export function App({ supabaseClient }) {
   }} />)} go={go} />;
   else if (current === "records") content = <RecordsView players={players} finished={finished} stats={stats} />;
   else if (current === "regras") content = <RulesView />;
-  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatch={liveMatch} finished={finished} currentPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} />;
+  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatches={liveMatches} finished={finished} currentPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} />;
 
   return (
     <>
@@ -333,7 +302,7 @@ export function App({ supabaseClient }) {
             <span className="ball8"><Ball size={30} color="#1c1c1c" num={8} /></span>
             <h1>Placar da Sinuca<small>RESENHA OFICIAL</small></h1>
           </div>
-          <div className="who">{isAdmin ? <><b>{demoMode ? "demo" : "admin"}</b><br />painel</> : currentPlayer ? <><b>{currentPlayer.name}</b><br />meu perfil</> : "modo leitura"}</div>
+          <div className="who">{isAdmin ? <><b>admin</b><br />painel</> : currentPlayer ? <><b>{currentPlayer.name}</b><br />meu perfil</> : "modo leitura"}</div>
         </header>
         <main id="view">
           {content}
@@ -363,44 +332,21 @@ export function App({ supabaseClient }) {
 }
 
 function PlayerIdentityPicker({ players, stats, onChoose }) {
-  const orderedPlayers = players.slice().sort((a, b) => {
-    const totalA = stats[a.id]?.total || 0;
-    const totalB = stats[b.id]?.total || 0;
-    return totalB - totalA || a.name.localeCompare(b.name);
-  });
+  const orderedPlayers = players
+    .slice()
+    .sort((a, b) => (stats[b.id]?.total || 0) - (stats[a.id]?.total || 0) || a.name.localeCompare(b.name))
+    .map((player) => {
+      const total = stats[player.id]?.total || 0;
+      return { ...player, meta: `${total} partida${total === 1 ? "" : "s"}` };
+    });
   return (
-    <div className="identity-alert-bg">
-      <section
-        className="identity-alert"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="identity-alert-title"
-        aria-describedby="identity-alert-description"
-      >
-        <div className="eyebrow">usuário padrão</div>
-        <div id="identity-alert-title" className="confirm-title">Quem é você?</div>
-        <p id="identity-alert-description">
-          Selecione seu nome. Este jogador ficará salvo como o usuário padrão neste navegador.
-        </p>
-        <div className="identity-grid" aria-label="Selecionar usuário padrão">
-          {orderedPlayers.map((player, index) => (
-            <button
-              className="identity-player"
-              key={player.id}
-              type="button"
-              autoFocus={index === 0}
-              onClick={() => onChoose(player.id)}
-            >
-              <PlayerBall player={player} size={40} />
-              <span>
-                <strong>{player.name}</strong>
-                <em>{stats[player.id]?.total || 0} partida{stats[player.id]?.total === 1 ? "" : "s"}</em>
-              </span>
-            </button>
-          ))}
-        </div>
-        <small className="identity-alert-note">Você poderá alterar essa escolha depois no seu perfil.</small>
-      </section>
-    </div>
+    <PlayerPickerModal
+      eyebrow="usuário padrão"
+      title="Quem é você?"
+      subtitle="Selecione seu nome. Este jogador ficará salvo como o usuário padrão neste navegador."
+      note="Você poderá alterar essa escolha depois no seu perfil."
+      players={orderedPlayers}
+      onChoose={onChoose}
+    />
   );
 }

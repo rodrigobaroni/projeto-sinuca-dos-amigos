@@ -1,0 +1,221 @@
+@startuml base-classes
+!theme plain
+title Placar da Sinuca (projeto base) — Diagrama de Classes
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "Domínio (src/domain)" {
+
+  enum MatchStatus {
+    live
+    finished
+  }
+
+  enum GameModel {
+    even_odd
+    solids_stripes
+    high_low
+    knockout
+    three_balls
+  }
+
+  class Player {
+    +id: UUID
+    +name: String {unique}
+    +created_at: DateTime
+  }
+
+  class Match {
+    +id: UUID
+    +played_at: DateTime
+    +status: MatchStatus
+    +notes: String [0..1]
+    +created_at: DateTime
+    +updated_at: DateTime
+    --
+    +isFinished(): Boolean
+  }
+
+  class BallLogEntry <<value object>> {
+    +n: Integer
+    +ball: String
+    +by: UUID «Player.id»
+    +type: String [0..1] «pot|foul»
+    +reason: String [0..1] «oponente|trunfo»
+    +brk: Boolean [0..1]
+  }
+
+  class GameSettings <<value object>> {
+    +trackBalls: Boolean
+    +gameModel: GameModel
+    +penaltyBall: String
+    +knockoutColorA: String
+    +knockoutColorB: String
+  }
+
+  class GameRules {
+    -settings: GameSettings
+    -modelKey: GameModel
+    -model: Object
+    --
+    +label(): String
+    +simpleOnly(): Boolean
+    +penaltyOptions(): String[]
+    +colorOptions(): Object[]
+    +knockoutColors(): Object
+    +penaltyBall(): String
+    +hasPenalty(): Boolean
+    +groups(): Map<String,Integer[]>
+    +groupLabel(group: String): String
+    +groupFromBall(ball: String): String
+    +oppositeGroup(group: String): String
+    +groupBalls(group: String): Integer[]
+    +setupBalls(): Integer[]
+    +deriveGroups(match: Match, log: BallLogEntry[]): Map
+    +isGroupCleared(playerId: UUID, groups: Map, log: BallLogEntry[]): Boolean
+    +classifyPot(ball, by, groups, log): {type, reason}
+  }
+
+  class PlayerStats <<derived>> {
+    +id: UUID
+    +name: String
+    +wins: Integer
+    +losses: Integer
+    +total: Integer
+    +pct: Integer
+    +curStreak: Integer
+    +bestStreak: Integer
+    +history: Object[]
+  }
+
+  class StatsModule <<module>> {
+    +{static} computeStats(players, matches): Map<UUID,PlayerStats>
+    +{static} rankedFrom(stats): PlayerStats[]
+    +{static} ballRunRecord(players, matches): Object
+    +{static} foulCounts(players, matches): Object[]
+    +{static} breakCounts(players, matches): Object[]
+    +{static} bestLosingStreak(stats): Object
+    +{static} h2hRecords(players, matches): Object
+    +{static} specialRecordCounts(players, matches): Object[]
+    +{static} marathonRecord(players, matches): Object
+  }
+}
+
+package "Persistência (schema.sql)" {
+
+  class AuditLog {
+    +id: UUID
+    +actor_id: UUID [0..1]
+    +actor_email: String
+    +action: String
+    +entity_type: String
+    +entity_id: String [0..1]
+    +message: String
+    +metadata: JSON
+    +created_at: DateTime
+  }
+
+  class MatchClip {
+    +id: UUID
+    +storage_path: String
+    +duration_seconds: Integer
+    +label: String [0..1]
+    +file_name: String [0..1]
+    +mime_type: String = "video/mp4"
+    +created_by: UUID [0..1]
+    +created_at: DateTime
+  }
+}
+
+package "Serviços (src/services)" {
+  class SupabaseRepository {
+    -sb: SupabaseClient
+    --
+    +loadScoreboard(): {players, matches, clips}
+    +getClipPublicUrl(path): String
+    +listAuditLogs(limit): AuditLog[]
+    +createAuditLog(entry): AuditLog
+    +addPlayer(name): Player
+    +updatePlayer(id, patch): Player
+    +startMatch(match): Match
+    +updateMatch(id, patch): void
+    +deleteMatch(id): void
+    +signIn(email, password): void
+    +signOut(): void
+    +getSession(): Session
+    +onAuthStateChange(callback): Unsubscribe
+  }
+}
+
+package "Aplicação (src)" {
+  class App <<controller/root>> {
+    -players: Player[]
+    -matches: Match[]
+    -clips: MatchClip[]
+    -currentPlayerId: UUID
+    -isAdmin: Boolean
+    -adminUser: Object [0..1]
+    -auditLogs: AuditLog[]
+    --
+    +load(): void
+    +addPlayer(name): Player
+    +updatePlayer(id, name): Player
+    +persistMatch(id, patch): void
+    +auditLog(entry): AuditLog
+  }
+
+  class RankingView
+  class MatchesView
+  class PlayerView
+  class RecordsView
+  class RulesView
+  class AdminView {
+    +StartMatchPanel
+    +LiveMatchPanel
+    +AdminSettings
+    +AdminLogs
+    +PlayerAdmin
+  }
+}
+
+' ---------- Relacionamentos ----------
+Match "0..*" -- "2" Player : player_a / player_b >
+Match "0..*" --> "0..1" Player : winner_id >
+Match "1" *-- "0..*" BallLogEntry : ball_log
+Match "1" -- "0..*" MatchClip : match_id >
+Match::status --> MatchStatus
+GameSettings::gameModel --> GameModel
+GameRules "1" *-- "1" GameSettings
+AuditLog "0..*" ..> Player : actor_id (opcional)
+
+App "1" --> "1" SupabaseRepository : usa
+App ..> StatsModule : computeStats() / rankedFrom()
+App ..> GameRules : classifyPot() durante partida ao vivo
+App --> Player
+App --> Match
+App --> MatchClip
+App --> AuditLog
+
+App --> RankingView
+App --> MatchesView
+App --> PlayerView
+App --> RecordsView
+App --> RulesView
+App --> AdminView
+AdminView ..> GameRules : configura / aplica regras
+AdminView ..> Match : inicia / atualiza / finaliza (via App)
+
+SupabaseRepository ..> Player : persiste
+SupabaseRepository ..> Match : persiste
+SupabaseRepository ..> AuditLog : persiste
+SupabaseRepository ..> MatchClip : lê (URL pública)
+
+note right of Match
+  status = 'live' representa a partida
+  em andamento sendo marcada pelo Admin;
+  ao finalizar, winner_id é obrigatório
+  (constraint matches_finished_has_winner).
+end note
+
+@enduml

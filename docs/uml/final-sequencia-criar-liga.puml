@@ -1,0 +1,49 @@
+@startuml final-sequencia-criar-liga
+!theme plain
+title Encaçapei (projeto final) — Sequência: Criar liga + convidar amigos «modelo proposto»
+
+actor "Usuário\n(futuro Dono)" as Dono
+participant "App\n(Wizard criar liga)" as Wizard
+participant "LigaService" as LigaSvc
+participant "NotificacaoService" as NotifSvc
+database "Banco" as DB
+actor "Amigo\nconvidado" as Amigo
+participant "App\n(Central de notificações)" as NotifUI
+
+== Passo 1–2: dados da liga ==
+Dono -> Wizard : nome, local, duração, dias de jogatina
+Dono -> Wizard : estilo de jogo, marca bola caída?,\nmarca falta?, horário
+Dono -> Wizard : clica "Próximo"
+
+== Passo 3: criação + convites ==
+Wizard -> LigaSvc : criarLiga(dadosLiga, donoId)
+LigaSvc -> DB : insert Liga(status = ATIVA)
+DB --> LigaSvc : liga.id
+LigaSvc -> DB : insert LigaMembro(liga, dono, papel = DONO)
+LigaSvc --> Wizard : liga criada
+
+Dono -> Wizard : seleciona amigos e clica\n"Convidar amigos"
+Wizard -> LigaSvc : convidarParaLiga(liga.id, [amigoIds])
+
+loop para cada amigo selecionado
+  LigaSvc -> DB : insert LigaConvite(liga, convidadoPor = dono,\nconvidado = amigo, status = PENDENTE)
+  LigaSvc -> NotifSvc : notificar(amigo, tipo = CONVITE_LIGA, referencia = convite.id)
+  NotifSvc -> DB : insert Notificacao(usuario = amigo, lida = false)
+end
+
+LigaSvc --> Wizard : convites enviados
+Wizard --> Dono : liga "Liga da Terça" criada,\naguardando confirmação dos amigos
+
+== Amigo aceita (assíncrono) ==
+Amigo -> NotifUI : abre notificações
+NotifUI -> DB : lista Notificacao(usuario = amigo)
+DB --> NotifUI : [convite de liga, ...]
+Amigo -> NotifUI : clica "Aceitar"
+NotifUI -> LigaSvc : aceitarConvite(convite.id)
+LigaSvc -> DB : update LigaConvite set status = ACEITO
+LigaSvc -> DB : insert LigaMembro(liga, amigo, papel = MEMBRO)
+DB --> LigaSvc : ok
+LigaSvc --> NotifUI : liga adicionada às "Ligas ativas" do amigo
+NotifUI --> Amigo : confirma entrada na liga
+
+@enduml

@@ -1,0 +1,68 @@
+@startuml base-casos-de-uso
+!theme plain
+title Placar da Sinuca (projeto base) — Diagrama de Casos de Uso
+
+left to right direction
+skinparam packageStyle rect
+
+actor "Visitante\n(leitura pública)" as Visitante
+actor "Admin\n(autenticado via Supabase Auth)" as Admin
+Admin --|> Visitante
+
+rectangle "Placar da Sinuca" {
+  usecase "Ver ranking geral" as UC1
+  usecase "Ver ranking do dia\n(recorte 12h–12h)" as UC2
+  usecase "Ver histórico de partidas" as UC3
+  usecase "Ver detalhe da partida\n(bolas, notas, clipe)" as UC4
+  usecase "Ver confronto direto (H2H)" as UC5
+  usecase "Ver records" as UC6
+  usecase "Ver regras do jogo" as UC7
+  usecase "Escolher jogador padrão\n(perfil local no navegador)" as UC8
+  usecase "Compartilhar resumo\ndo dia" as UC9
+
+  usecase "Login administrativo" as UC10
+  usecase "Gerenciar jogadores\n(adicionar / editar)" as UC11
+  usecase "Configurar regras da partida\n(modelo, penalidade, cores)" as UC12
+  usecase "Iniciar partida ao vivo" as UC13
+  usecase "Registrar bola encaçapada\n/ falta durante a partida" as UC14
+  usecase "Finalizar partida\n(definir vencedor)" as UC15
+  usecase "Apagar partida" as UC16
+  usecase "Consultar logs de auditoria" as UC17
+  usecase "Fazer logout" as UC18
+}
+
+Visitante --> UC1
+Visitante --> UC2
+Visitante --> UC3
+Visitante --> UC4
+Visitante --> UC5
+Visitante --> UC6
+Visitante --> UC7
+Visitante --> UC8
+Visitante --> UC9
+
+Admin --> UC10
+Admin --> UC11
+Admin --> UC12
+Admin --> UC13
+Admin --> UC14
+Admin --> UC15
+Admin --> UC16
+Admin --> UC17
+Admin --> UC18
+
+UC13 ..> UC14 : <<include>>
+UC14 ..> UC15 : <<extend>>\n(quando grupo do jogador\né zerado / falta grave)
+UC13 ..> UC12 : <<include>>\n(carrega regras ativas)
+UC11 ..> UC17 : <<extend>>\n(gera log)
+UC15 ..> UC17 : <<extend>>\n(gera log)
+UC16 ..> UC17 : <<extend>>\n(gera log)
+
+note bottom of Admin
+  Único usuário administrador por instância
+  (criado manualmente no Supabase Auth).
+  Não existe conceito de múltiplas contas
+  ou múltiplos grupos nesta versão.
+end note
+
+@enduml
