@@ -99,7 +99,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
               </div>
             </button>
           ))}
-          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} repo={repo} load={load} showToast={showToast} preferredPlayerA={lastWinnerId} />
+          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} repo={repo} setMatches={setMatches} showToast={showToast} preferredPlayerA={lastWinnerId} onStarted={setSelectedLiveMatchId} />
         </section>
       )}
     </>
@@ -452,7 +452,7 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo, load, showToast, preferredPlayerA = "" }) {
+function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo, setMatches, showToast, preferredPlayerA = "", onStarted }) {
   const busyPlayerIds = new Set(liveMatches.flatMap((match) => [match.player_a, match.player_b]));
   const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
   const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
@@ -506,14 +506,15 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
         const playerBName = players.find((player) => player.id === playerB)?.name;
         try {
           const createdMatch = await repo.startMatch(match);
+          setMatches((items) => [...items, createdMatch]);
           await auditLog?.({
             action: "match_started",
             entityType: "match",
             entityId: createdMatch?.id,
             message: `${adminUser?.email || "admin"} iniciou a partida ${playerAName} x ${playerBName}`,
-            metadata: { match: createdMatch || match, players: [playerAName, playerBName] },
+            metadata: { match: createdMatch, players: [playerAName, playerBName] },
           });
-          await load();
+          onStarted?.(createdMatch.id);
           showToast("Partida iniciada");
         } catch (startError) {
           showToast(`Erro: ${startError.message}`);
