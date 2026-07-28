@@ -4,7 +4,7 @@ import { ConfirmDialog, Sheet, Toast } from "./components/layout.jsx";
 import { PlayerPickerModal } from "./components/PlayerPickerModal.jsx";
 import { MatchSheet, PlayerSheet } from "./components/sheets.jsx";
 import { NAV } from "./constants.js";
-import { computeStats, rankedFrom } from "./domain/stats.js";
+import { computeDoublesStats, computeStats, rankedFrom } from "./domain/stats.js";
 import { createRepository } from "./services/supabaseRepository.js";
 import { AdminView } from "./views/AdminView.jsx";
 import { MatchesView } from "./views/MatchesView.jsx";
@@ -36,10 +36,11 @@ export function App({ supabaseClient }) {
   const toastTimer = useRef(null);
   const confirmResolver = useRef(null);
 
-  const finished = useMemo(() => matches.filter((match) => match.status !== "live" && match.winner_id), [matches]);
+  const finished = useMemo(() => matches.filter((match) => match.status !== "live" && (match.winner_id || match.winner_side)), [matches]);
   const liveMatches = useMemo(() => matches.filter((match) => match.status === "live"), [matches]);
   const stats = useMemo(() => computeStats(players, finished), [players, finished]);
   const ranked = useMemo(() => rankedFrom(stats), [stats]);
+  const doublesRanked = useMemo(() => rankedFrom(computeDoublesStats(players, finished)), [players, finished]);
 
   const playerById = (id) => players.find((player) => player.id === id);
   const playerName = (id) => playerById(id)?.name || "?";
@@ -237,7 +238,7 @@ export function App({ supabaseClient }) {
   let content;
   if (loading) content = <div className="loading">engizAndo o taco...</div>;
   else if (error) content = <div className="empty">Nao consegui conectar no banco.<br /><small style={{ color: "var(--clay)" }}>{error}</small></div>;
-  else if (current === "ranking") content = <RankingView players={players} finished={finished} stats={stats} ranked={ranked} isAdmin={isAdmin} showToast={showToast} playerById={playerById} openPlayer={(id) => setSheet(<PlayerSheet stat={stats[id]} rank={ranked.findIndex((item) => item.id === id) + 1} playerById={playerById} />)} />;
+  else if (current === "ranking") content = <RankingView players={players} finished={finished} stats={stats} ranked={ranked} doublesRanked={doublesRanked} isAdmin={isAdmin} showToast={showToast} playerById={playerById} openPlayer={(id) => setSheet(<PlayerSheet stat={stats[id]} rank={ranked.findIndex((item) => item.id === id) + 1} playerById={playerById} />)} />;
   else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} selectedPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
     const confirmed = await requestConfirm({
       title: "Apagar partida?",

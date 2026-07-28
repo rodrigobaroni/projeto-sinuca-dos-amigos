@@ -3,6 +3,10 @@ import { PlayerBall } from "../components/balls.jsx";
 import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { fmtPeriod, gameDayKey, monthKey, monthLabel } from "../utils/date.js";
+import { matchMode, matchPlayerIds, matchSides, playerSide, playerWon, sideLabel, winnerSide } from "../domain/match.js";
+import { doublesPlayerStats } from "../domain/stats.js";
+
+const PROFILE_MODE_KEY = "sinuca-profile-mode";
 
 export function PlayerView({ players, finished, stats, clips = [], selectedPlayerId = "", onCurrentPlayerChange, playerById, openMatch }) {
   const firstActive = useMemo(() => players.find((player) => stats[player.id]?.total > 0)?.id || players[0]?.id || "", [players, stats]);
@@ -15,6 +19,8 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedPeriodOpponent, setSelectedPeriodOpponent] = useState("");
   const [selectedPeriodRange, setSelectedPeriodRange] = useState("");
+  const [profileMode, setProfileMode] = useState(() => window.localStorage.getItem(PROFILE_MODE_KEY) === "2x2" ? "2x2" : "1x1");
+  const [showAllOpponents, setShowAllOpponents] = useState(false);
 
   useEffect(() => {
     if (preferredPlayer && selectedPlayer !== preferredPlayer) setSelectedPlayer(preferredPlayer);
@@ -25,6 +31,7 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
     setSelectedDay("");
     setSelectedPeriodOpponent("");
     setSelectedPeriodRange("");
+    setShowAllOpponents(false);
   }, [selectedPlayer]);
 
   useEffect(() => {
@@ -39,7 +46,7 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
   const player = playerById(selectedPlayer);
   const playerStats = stats[selectedPlayer] || { wins: 0, losses: 0, total: 0, pct: 0, bestStreak: 0 };
   const playerMatches = useMemo(
-    () => finished.filter((match) => match.player_a === selectedPlayer || match.player_b === selectedPlayer),
+    () => finished.filter((match) => matchMode(match) === "1x1" && (match.player_a === selectedPlayer || match.player_b === selectedPlayer)),
     [finished, selectedPlayer],
   );
   const playerMatchesDesc = useMemo(
@@ -146,10 +153,14 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
     ? selectedPeriodTotalRow
     : selectedPeriodDayRows.find((row) => row.key === selectedPeriodRange);
   const evolution = useMemo(() => buildPlayerEvolution({
-    allMatches: finished,
+    allMatches: finished.filter((match) => matchMode(match) === "1x1"),
     playerId: selectedPlayer,
     players,
   }), [finished, players, selectedPlayer]);
+  const chooseProfileMode = (mode) => {
+    setProfileMode(mode);
+    window.localStorage.setItem(PROFILE_MODE_KEY, mode);
+  };
 
   return (
     <section className="player-page">
@@ -164,24 +175,28 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
                 <div className="eyebrow">perfil</div>
                 <h2>{player?.name || "Jogador"}</h2>
                 <div className="player-hero-stats">
-                <span><strong>{playerStats.total}</strong> partidas</span>
-                <span><strong>{playerStats.wins}</strong> vitórias</span>
-                <span><strong>{playerStats.losses}</strong> derrotas</span>
-                <span><strong>{playerStats.pct}%</strong> aproveitamento</span>
+                  <span>{profileMode === "1x1" ? "Individual 1x1" : "Duplas 2x2"}</span>
                 </div>
               </div>
           </section>
 
-          <DefaultPlayerPanel
-            players={players}
-            currentPlayerId={selectedPlayerId}
-            onCurrentPlayerChange={onCurrentPlayerChange}
-          />
+          <details className="profile-player-switcher">
+            <summary>Trocar jogador</summary>
+            <DefaultPlayerPanel players={players} currentPlayerId={selectedPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
+          </details>
 
-          {!playerMatches.length ? (
+          <div className="mode-switch profile-mode-switch" role="group" aria-label="Modalidade do perfil">
+            <button className={profileMode === "1x1" ? "active" : ""} onClick={() => chooseProfileMode("1x1")}>Individual 1x1</button>
+            <button className={profileMode === "2x2" ? "active" : ""} onClick={() => chooseProfileMode("2x2")}>Duplas 2x2</button>
+          </div>
+
+          {profileMode === "2x2" ? (
+            <DoublesProfile player={player} playerId={selectedPlayer} players={players} finished={finished} clips={clips} playerById={playerById} openMatch={openMatch} />
+          ) : !playerMatches.length ? (
             <div className="empty">Esse jogador ainda não tem partidas finalizadas.</div>
           ) : (
             <>
+              <ProfileKpis total={playerStats.total} wins={playerStats.wins} losses={playerStats.losses} pct={playerStats.pct} />
               <PlayerMetricsSection metrics={playerMetrics} />
               <PlayerEvolutionSection evolution={evolution} />
 
@@ -259,7 +274,7 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
                   </div>
                 ) : (
                   <div className="period-matchup-list">
-                    {periodConfrontationRows.map((row) => (
+                    {(showAllOpponents ? periodConfrontationRows : periodConfrontationRows.slice(0, 3)).map((row) => (
                       <PeriodMatchupRow
                         key={row.id}
                         row={row}
@@ -268,6 +283,11 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
                         onDetails={() => setSelectedPeriodOpponent(row.id)}
                       />
                     ))}
+                    {periodConfrontationRows.length > 3 && (
+                      <button className="btn ghost small period-show-all" type="button" onClick={() => setShowAllOpponents(!showAllOpponents)}>
+                        {showAllOpponents ? "Mostrar principais" : `Ver todos os ${periodConfrontationRows.length} confrontos`}
+                      </button>
+                    )}
                   </div>
                 )}
               </section>
@@ -277,6 +297,178 @@ export function PlayerView({ players, finished, stats, clips = [], selectedPlaye
         </>
       )}
     </section>
+  );
+}
+
+function ProfileKpis({ total, wins, losses, pct, extra }) {
+  return (
+    <section className="profile-kpi-grid">
+      <div><span>partidas</span><strong>{total}</strong></div>
+      <div><span>vitórias</span><strong>{wins}</strong></div>
+      <div><span>derrotas</span><strong>{losses}</strong></div>
+      <div><span>aproveitamento</span><strong>{pct}%</strong></div>
+      {extra}
+    </section>
+  );
+}
+
+function DoublesProfile({ player, playerId, players, finished, clips, playerById, openMatch }) {
+  const [partnerFilter, setPartnerFilter] = useState("");
+  const [resultFilter, setResultFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
+  const matches = useMemo(() => finished
+    .filter((match) => matchMode(match) === "2x2" && matchPlayerIds(match).includes(playerId))
+    .sort((a, b) => new Date(b.played_at) - new Date(a.played_at)), [finished, playerId]);
+  const partners = useMemo(() => doublesPlayerStats(players, matches, playerId), [matches, playerId, players]);
+  const wins = matches.filter((match) => playerWon(match, playerId)).length;
+  const losses = matches.length - wins;
+  const pct = matches.length ? Math.round((wins / matches.length) * 100) : 0;
+  const streaks = doublesWinStreaks(matches, playerId);
+  const mostUsed = partners.slice().sort((a, b) => b.total - a.total || b.wins - a.wins)[0];
+  const qualifiedPartners = partners.filter((row) => row.total >= 2);
+  const bestPartner = (qualifiedPartners.length ? qualifiedPartners : partners).slice().sort((a, b) => b.pct - a.pct || b.total - a.total)[0];
+  const months = [...new Set(matches.map((match) => monthKey(`${gameDayKey(match.played_at)}T12:00:00`)))].sort().reverse();
+  const opponentTeams = useMemo(() => {
+    const rows = {};
+    matches.forEach((match) => {
+      const ownSide = playerSide(match, playerId);
+      const opponentSide = ownSide === "a" ? "b" : "a";
+      const ids = matchSides(match)[opponentSide].slice().sort();
+      const key = ids.join("|");
+      if (!rows[key]) rows[key] = { id: key, ids, total: 0, wins: 0, losses: 0 };
+      rows[key].total += 1;
+      if (playerWon(match, playerId)) rows[key].wins += 1;
+      else rows[key].losses += 1;
+    });
+    return Object.values(rows).sort((a, b) => b.total - a.total || b.wins - a.wins);
+  }, [matches, playerId]);
+  const filtered = matches.filter((match) => {
+    if (partnerFilter) {
+      const ownSide = playerSide(match, playerId);
+      if (!matchSides(match)[ownSide].includes(partnerFilter)) return false;
+    }
+    if (resultFilter && (playerWon(match, playerId) ? "win" : "loss") !== resultFilter) return false;
+    if (monthFilter && monthKey(`${gameDayKey(match.played_at)}T12:00:00`) !== monthFilter) return false;
+    return true;
+  });
+
+  return (
+    <div className="doubles-profile">
+      <ProfileKpis
+        total={matches.length}
+        wins={wins}
+        losses={losses}
+        pct={pct}
+        extra={<div><span>parceiros</span><strong>{partners.length}</strong></div>}
+      />
+
+      {!matches.length ? <div className="empty">Esse jogador ainda não disputou partidas 2x2.</div> : (
+        <>
+          <section className="doubles-highlights">
+            <article>
+              <span>parceria mais frequente</span>
+              <strong>{mostUsed?.name}</strong>
+              <small>{mostUsed?.total} jogos · {mostUsed?.wins}V–{mostUsed?.losses}D</small>
+            </article>
+            <article>
+              <span>melhor aproveitamento</span>
+              <strong>{bestPartner?.name}</strong>
+              <small>{bestPartner?.pct}% em {bestPartner?.total} jogos</small>
+            </article>
+            <article>
+              <span>melhor sequência</span>
+              <strong>{streaks.best || "-"}</strong>
+              <small>vitórias seguidas em duplas</small>
+            </article>
+          </section>
+
+          <section className="player-history-section">
+            <div className="section-head compact">
+              <div><div className="eyebrow">entrosamento</div><h2>Minhas parcerias</h2></div>
+              <span className="rank-sub">{partners.length} parceiro{partners.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="doubles-partner-grid">
+              {partners.map((row) => (
+                <button className={partnerFilter === row.id ? "active" : ""} type="button" key={row.id} onClick={() => setPartnerFilter(partnerFilter === row.id ? "" : row.id)}>
+                  <PlayerBall player={playerById(row.id)} size={44} />
+                  <div><span>com</span><strong>{row.name}</strong><small>{row.total} jogos</small></div>
+                  <div><strong>{row.wins}V–{row.losses}D</strong><span>{row.pct}%</span></div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="player-history-section">
+            <div className="section-head compact">
+              <div><div className="eyebrow">do outro lado</div><h2>Duplas mais enfrentadas</h2></div>
+            </div>
+            <div className="opponent-team-list">
+              {opponentTeams.slice(0, 5).map((row) => (
+                <div key={row.id}>
+                  <span>{row.ids.map((id) => playerById(id)?.name).join(" + ")}</span>
+                  <strong>{row.wins}V–{row.losses}D</strong>
+                  <small>{row.total} jogo{row.total !== 1 ? "s" : ""}</small>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="player-history-section">
+            <div className="section-head compact">
+              <div><div className="eyebrow">jogo a jogo</div><h2>Histórico 2x2</h2></div>
+              <span className="rank-sub">{filtered.length} partida{filtered.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="doubles-history-filters">
+              <label><span>parceiro</span><select value={partnerFilter} onChange={(event) => setPartnerFilter(event.target.value)}><option value="">Todos</option>{partners.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+              <label><span>resultado</span><select value={resultFilter} onChange={(event) => setResultFilter(event.target.value)}><option value="">Todos</option><option value="win">Vitórias</option><option value="loss">Derrotas</option></select></label>
+              <label><span>mês</span><select value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)}><option value="">Todos</option>{months.map((key) => <option key={key} value={key}>{monthLabel(key)}</option>)}</select></label>
+            </div>
+            {!filtered.length ? <div className="empty compact-empty">Nenhuma partida corresponde aos filtros.</div> : (
+              <div className="doubles-match-list">
+                {filtered.map((match) => <DoublesMatchRow key={match.id} match={match} player={player} playerId={playerId} playerById={playerById} clips={clips} openMatch={openMatch} />)}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
+
+function doublesWinStreaks(matches, playerId) {
+  let current = 0;
+  let best = 0;
+  matches.slice().reverse().forEach((match) => {
+    if (playerWon(match, playerId)) {
+      current += 1;
+      best = Math.max(best, current);
+    } else current = 0;
+  });
+  return { current, best };
+}
+
+function DoublesMatchRow({ match, player, playerId, playerById, clips, openMatch }) {
+  const ownSide = playerSide(match, playerId);
+  const opponentSide = ownSide === "a" ? "b" : "a";
+  const ownIds = matchSides(match)[ownSide];
+  const partnerId = ownIds.find((id) => id !== playerId);
+  const won = winnerSide(match) === ownSide;
+  const clipCount = clips.filter((clip) => clip.match_id === match.id).length;
+  return (
+    <button type="button" className={`doubles-match-row ${won ? "win" : "loss"}`} onClick={() => openMatch(match.id)}>
+      <div className="doubles-match-result"><strong>{won ? "Vitória" : "Derrota"}</strong><span>{fmtPeriod(match.played_at)}</span></div>
+      <div className="doubles-match-sides">
+        <div><span>sua dupla</span><strong>{player?.name} + {playerById(partnerId)?.name}</strong></div>
+        <em>VS</em>
+        <div><span>adversários</span><strong>{sideLabel(match, opponentSide, (id) => playerById(id)?.name)}</strong></div>
+      </div>
+      <div className="doubles-match-meta">
+        <span>{match.breaker_id === playerId ? "Você quebrou" : `${playerById(match.breaker_id)?.name || "Jogador"} quebrou`}</span>
+        {(match.ball_log || []).length > 0 && <span>{match.ball_log.length} bolas</span>}
+        {clipCount > 0 && <span>{clipCount} clipe{clipCount !== 1 ? "s" : ""}</span>}
+      </div>
+      <b>Ver detalhes →</b>
+    </button>
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeStats, rankedFrom, specialRecordCounts } from "./stats.js";
+import { computeDoublesStats, computeStats, doublesPlayerStats, rankedFrom, specialRecordCounts } from "./stats.js";
 
 const players = [
   { id: "a", name: "Ana" },
@@ -18,6 +18,17 @@ describe("stats domain", () => {
 
     expect(stats.a).toMatchObject({ wins: 3, losses: 1, total: 4, pct: 75, curStreak: 1, bestStreak: 2 });
     expect(stats.b).toMatchObject({ wins: 1, losses: 1, total: 2, pct: 50, curStreak: 1, bestStreak: 1 });
+  });
+
+  it("keeps doubles outside the individual ranking and ranks the partnership", () => {
+    const allPlayers = [...players, { id: "d", name: "Dani" }];
+    const matches = [{
+      id: "d1", mode: "2x2", player_a: "a", player_b: "c",
+      team_a: ["a", "b"], team_b: ["c", "d"], winner_side: "a",
+    }];
+    expect(computeStats(allPlayers, matches).a.total).toBe(0);
+    expect(computeDoublesStats(allPlayers, matches)["a|b"]).toMatchObject({ wins: 1, losses: 0, total: 1 });
+    expect(doublesPlayerStats(allPlayers, matches, "a")[0]).toMatchObject({ id: "b", wins: 1 });
   });
 
   it("ranks by wins, percentage, fewer losses and name", () => {

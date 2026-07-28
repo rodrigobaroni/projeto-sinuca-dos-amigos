@@ -1,3 +1,5 @@
+import { matchMode, matchSides, playerWon, teamKey, winnerSide } from "./match.js";
+
 export function computeStats(players, matches) {
   const stats = Object.fromEntries(players.map((player) => [player.id, {
     id: player.id,
@@ -11,7 +13,7 @@ export function computeStats(players, matches) {
     history: [],
   }]));
 
-  matches.forEach((match) => {
+  matches.filter((match) => matchMode(match) === "1x1").forEach((match) => {
     const loser = match.winner_id === match.player_a ? match.player_b : match.player_a;
     if (stats[match.winner_id]) {
       stats[match.winner_id].wins += 1;
@@ -43,6 +45,60 @@ export function computeStats(players, matches) {
   });
 
   return stats;
+}
+
+export function computeDoublesStats(players, matches) {
+  const playerName = (id) => players.find((player) => player.id === id)?.name || "?";
+  const teams = {};
+  matches.filter((match) => matchMode(match) === "2x2").forEach((match) => {
+    const sides = matchSides(match);
+    const winningSide = winnerSide(match);
+    ["a", "b"].forEach((side) => {
+      const ids = sides[side].slice().sort();
+      if (ids.length !== 2) return;
+      const key = teamKey(ids);
+      if (!teams[key]) {
+        teams[key] = {
+          id: key,
+          playerIds: ids,
+          name: ids.map(playerName).join(" + "),
+          wins: 0,
+          losses: 0,
+          total: 0,
+          pct: 0,
+          history: [],
+        };
+      }
+      teams[key].total += 1;
+      const won = side === winningSide;
+      if (won) teams[key].wins += 1;
+      else teams[key].losses += 1;
+      teams[key].history.push({ match, won });
+    });
+  });
+  Object.values(teams).forEach((team) => {
+    team.pct = team.total ? Math.round((team.wins / team.total) * 100) : 0;
+  });
+  return teams;
+}
+
+export function doublesPlayerStats(players, matches, playerId) {
+  const playerName = (id) => players.find((player) => player.id === id)?.name || "?";
+  const rows = {};
+  matches.filter((match) => matchMode(match) === "2x2").forEach((match) => {
+    const sides = matchSides(match);
+    const side = sides.a.includes(playerId) ? "a" : sides.b.includes(playerId) ? "b" : null;
+    if (!side) return;
+    const partnerId = sides[side].find((id) => id !== playerId);
+    if (!partnerId) return;
+    if (!rows[partnerId]) rows[partnerId] = { id: partnerId, name: playerName(partnerId), total: 0, wins: 0, losses: 0 };
+    rows[partnerId].total += 1;
+    if (playerWon(match, playerId)) rows[partnerId].wins += 1;
+    else rows[partnerId].losses += 1;
+  });
+  return Object.values(rows)
+    .map((row) => ({ ...row, pct: row.total ? Math.round((row.wins / row.total) * 100) : 0 }))
+    .sort((a, b) => b.wins - a.wins || b.total - a.total || a.name.localeCompare(b.name));
 }
 
 export function rankedFrom(stats) {
@@ -114,7 +170,7 @@ export function bestLosingStreak(stats) {
 export function h2hRecords(players, matches) {
   const name = (id) => players.find((player) => player.id === id)?.name || "-";
   const pairs = {};
-  matches.forEach((match) => {
+  matches.filter((match) => matchMode(match) === "1x1").forEach((match) => {
     const ids = [match.player_a, match.player_b].sort();
     const key = ids.join("|");
     const loser = match.winner_id === match.player_a ? match.player_b : match.player_a;
@@ -152,7 +208,7 @@ export function specialRecordCounts(players, matches) {
     earlyOne: 0,
     donated: 0,
   }]));
-  matches.forEach((match) => {
+  matches.filter((match) => matchMode(match) === "1x1").forEach((match) => {
     const loser = match.winner_id === match.player_a ? match.player_b : match.player_a;
     const one = (match.ball_log || []).find((entry) => Number(entry.ball) === 1);
     if (one?.by === match.winner_id && one.type !== "foul" && counts[match.winner_id]) counts[match.winner_id].oneWins += 1;
@@ -173,7 +229,8 @@ export function marathonRecord(players, matches) {
   const perPlayerDay = {};
   matches.forEach((match) => {
     const day = new Date(match.played_at).toISOString().slice(0, 10);
-    [match.player_a, match.player_b].forEach((id) => {
+    const sides = matchSides(match);
+    [...sides.a, ...sides.b].forEach((id) => {
       const key = `${id}|${day}`;
       perPlayerDay[key] = (perPlayerDay[key] || 0) + 1;
     });

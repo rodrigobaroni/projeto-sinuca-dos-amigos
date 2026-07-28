@@ -64,7 +64,7 @@ function drawShareBall(ctx, x, y, size, player, fallbackColor = "#1c1c1c") {
   ctx.restore();
 }
 
-export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd, leader, ranked, matches }) {
+export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd, individualLeader, doublesLeader, individualRanked = [], doublesRanked = [], matches }) {
   await document.fonts?.ready;
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -76,7 +76,16 @@ export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd
     month: "2-digit",
     year: "numeric",
   });
-  const activeRanked = ranked.filter((stat) => stat.total > 0).slice(0, 6);
+  const hasSingles = individualRanked.some((stat) => stat.total > 0);
+  const hasDoubles = doublesRanked.some((team) => team.total > 0);
+  const mixed = hasSingles && hasDoubles;
+  const shareTitle = mixed ? "RESUMO DA JOGATINA" : hasDoubles ? "DUPLA DA JOGATINA" : "VITORIOSO DO DIA";
+  const activeRanked = mixed
+    ? [
+      ...individualRanked.filter((stat) => stat.total > 0).slice(0, 3).map((stat) => ({ ...stat, name: `1x1 · ${stat.name}` })),
+      ...doublesRanked.filter((team) => team.total > 0).slice(0, 3).map((team) => ({ ...team, name: `2x2 · ${team.name}` })),
+    ]
+    : (hasDoubles ? doublesRanked : individualRanked).filter((stat) => stat.total > 0).slice(0, 6);
 
   const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
   bg.addColorStop(0, "#11583f");
@@ -109,7 +118,7 @@ export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd
   ctx.fillText("JOGATINA", 92, 250);
   ctx.fillStyle = DS.cream;
   ctx.font = "400 74px Anton, sans-serif";
-  ctx.fillText("VITORIOSO DO DIA", 92, 324);
+  ctx.fillText(shareTitle, 92, 324);
 
   ctx.fillStyle = DS.muted;
   ctx.font = "400 25px Space Mono, monospace";
@@ -127,11 +136,32 @@ export async function createWinnerShareImage({ selectedDay, rangeStart, rangeEnd
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  if (leader) {
-    drawShareBall(ctx, 132, 542, 112, leader);
+  if (mixed) {
+    ctx.fillStyle = DS.brass;
+    ctx.font = "700 23px Space Mono, monospace";
+    ctx.fillText("REI DO 1X1", 132, 535);
+    ctx.fillStyle = DS.gold;
+    ctx.font = "400 48px Anton, sans-serif";
+    ctx.fillText(fitCanvasText(ctx, individualLeader?.name || "-", 360), 132, 592);
+    ctx.fillStyle = DS.muted;
+    ctx.font = "400 24px Archivo, sans-serif";
+    ctx.fillText(`${individualLeader?.wins || 0}V · ${individualLeader?.losses || 0}D · ${individualLeader?.pct || 0}%`, 132, 633);
+
+    ctx.fillStyle = DS.brass;
+    ctx.font = "700 23px Space Mono, monospace";
+    ctx.fillText("DUPLA DA JOGATINA", 550, 535);
+    ctx.fillStyle = DS.gold;
+    ctx.font = "400 43px Anton, sans-serif";
+    ctx.fillText(fitCanvasText(ctx, doublesLeader?.name || "-", 390), 550, 592);
+    ctx.fillStyle = DS.muted;
+    ctx.font = "400 24px Archivo, sans-serif";
+    ctx.fillText(`${doublesLeader?.wins || 0}V · ${doublesLeader?.losses || 0}D · ${doublesLeader?.pct || 0}%`, 550, 633);
+  } else if (individualLeader || doublesLeader) {
+    const leader = hasDoubles ? doublesLeader : individualLeader;
+    drawShareBall(ctx, 132, 542, 112, hasDoubles ? null : leader);
     ctx.fillStyle = DS.brass;
     ctx.font = "700 25px Space Mono, monospace";
-    ctx.fillText("LIDER DO RECORTE", 284, 548);
+    ctx.fillText(hasDoubles ? "MELHOR DUPLA" : "LIDER DO RECORTE", 284, 548);
     ctx.fillStyle = DS.gold;
     ctx.font = "400 68px Anton, sans-serif";
     ctx.fillText(fitCanvasText(ctx, leader.name, 650), 284, 620);

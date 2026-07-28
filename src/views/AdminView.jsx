@@ -4,6 +4,7 @@ import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { PlayerPickerModal } from "../components/PlayerPickerModal.jsx";
 import { GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
+import { matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
 import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
 
 const GAME_SETTINGS_KEY = "sinuca-game-settings";
@@ -94,7 +95,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
             <button key={match.id} className="card live-card" onClick={() => setSelectedLiveMatchId(match.id)}>
               <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
               <div className="live-row">
-                <strong>{playerName(match.player_a)} <span>vs</span> {playerName(match.player_b)}</strong>
+                <strong>{sideLabel(match, "a", playerName)} <span>vs</span> {sideLabel(match, "b", playerName)}</strong>
                 <span className="rank-sub">{(match.ball_log || []).length} bolas</span>
               </div>
             </button>
@@ -453,14 +454,17 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
 }
 
 function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo, setMatches, showToast, preferredPlayerA = "", onStarted }) {
-  const busyPlayerIds = new Set(liveMatches.flatMap((match) => [match.player_a, match.player_b]));
+  const busyPlayerIds = new Set(liveMatches.flatMap(matchPlayerIds));
   const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
   const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
 
   const initialPlayerA = preferredPlayerA && availablePlayers.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : availablePlayers[0]?.id || "";
   const initialPlayerB = availablePlayers.find((player) => player.id !== initialPlayerA)?.id || "";
+  const [mode, setMode] = useState("1x1");
   const [playerA, setPlayerA] = useState(initialPlayerA);
+  const [playerA2, setPlayerA2] = useState("");
   const [playerB, setPlayerB] = useState(initialPlayerB);
+  const [playerB2, setPlayerB2] = useState("");
   const [pickerFor, setPickerFor] = useState(null);
   const [when, setWhen] = useState(() => {
     const now = new Date();
@@ -478,6 +482,15 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
 
   if (players.length < 2) return <div className="empty small-empty">Cadastre pelo menos 2 jogadores acima pra iniciar uma partida.</div>;
   if (availablePlayers.length < 2) return <div className="empty small-empty">Todo mundo cadastrado já está em partida ao vivo agora.</div>;
+  const selections = { a: playerA, a2: playerA2, b: playerB, b2: playerB2 };
+  const requiredSlots = mode === "2x2" ? ["a", "a2", "b", "b2"] : ["a", "b"];
+  const valid = requiredSlots.every((slot) => selections[slot]) && new Set(requiredSlots.map((slot) => selections[slot])).size === requiredSlots.length;
+  const pickerLabels = {
+    a: "Quem começa (quebra)?",
+    a2: "Parceiro de quem quebra",
+    b: "Primeiro adversário",
+    b2: "Parceiro adversário",
+  };
   return (
     <div className="card">
       {busyPlayers.length > 0 && (
@@ -485,23 +498,46 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
           Ocultamos da lista (já em partida ao vivo): {busyPlayers.map((player) => player.name).join(", ")}.
         </p>
       )}
-      <label className="fld"><span>jogador A (quebra)</span><button type="button" className="select" onClick={() => setPickerFor("a")}>{availablePlayers.find((player) => player.id === playerA)?.name || "Selecionar jogador"}</button></label>
-      <label className="fld"><span>jogador B</span><button type="button" className="select" onClick={() => setPickerFor("b")}>{availablePlayers.find((player) => player.id === playerB)?.name || "Selecionar jogador"}</button></label>
+      <div className="fld"><span>modalidade</span><div className="mode-switch compact"><button type="button" className={mode === "1x1" ? "active" : ""} onClick={() => setMode("1x1")}>1x1</button><button type="button" className={mode === "2x2" ? "active" : ""} onClick={() => setMode("2x2")}>2x2</button></div></div>
+      <div className={mode === "2x2" ? "team-picker-grid" : ""}>
+        <div className="team-picker-side">
+          {mode === "2x2" && <strong>Dupla A</strong>}
+          <label className="fld"><span>jogador A (quebra)</span><button type="button" className="select" onClick={() => setPickerFor("a")}>{availablePlayers.find((player) => player.id === playerA)?.name || "Selecionar jogador"}</button></label>
+          {mode === "2x2" && <label className="fld"><span>parceiro A</span><button type="button" className="select" onClick={() => setPickerFor("a2")}>{availablePlayers.find((player) => player.id === playerA2)?.name || "Selecionar jogador"}</button></label>}
+        </div>
+        <div className="team-picker-side">
+          {mode === "2x2" && <strong>Dupla B</strong>}
+          <label className="fld"><span>jogador B</span><button type="button" className="select" onClick={() => setPickerFor("b")}>{availablePlayers.find((player) => player.id === playerB)?.name || "Selecionar jogador"}</button></label>
+          {mode === "2x2" && <label className="fld"><span>parceiro B</span><button type="button" className="select" onClick={() => setPickerFor("b2")}>{availablePlayers.find((player) => player.id === playerB2)?.name || "Selecionar jogador"}</button></label>}
+        </div>
+      </div>
       <label className="fld"><span>data e hora</span><input className="search no-margin" type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)} /></label>
       {pickerFor && (
         <PlayerPickerModal
-          title={pickerFor === "a" ? "Quem começa (quebra)?" : "Contra quem?"}
-          players={availablePlayers.filter((player) => player.id !== (pickerFor === "a" ? playerB : playerA))}
+          title={pickerLabels[pickerFor]}
+          players={availablePlayers.filter((player) => !requiredSlots.some((slot) => slot !== pickerFor && selections[slot] === player.id))}
           onChoose={(id) => {
             if (pickerFor === "a") setPlayerA(id);
-            else setPlayerB(id);
+            else if (pickerFor === "a2") setPlayerA2(id);
+            else if (pickerFor === "b") setPlayerB(id);
+            else setPlayerB2(id);
             setPickerFor(null);
           }}
           onClose={() => setPickerFor(null)}
         />
       )}
-      <button className="btn chalk" onClick={async () => {
-        const match = { player_a: playerA, player_b: playerB, played_at: new Date(when).toISOString(), ball_log: [], status: "live" };
+      <button className="btn chalk" disabled={!valid || (mode === "2x2" && availablePlayers.length < 4)} onClick={async () => {
+        const match = {
+          mode,
+          player_a: playerA,
+          player_b: playerB,
+          breaker_id: playerA,
+          team_a: mode === "2x2" ? [playerA, playerA2] : null,
+          team_b: mode === "2x2" ? [playerB, playerB2] : null,
+          played_at: new Date(when).toISOString(),
+          ball_log: [],
+          status: "live",
+        };
         const playerAName = players.find((player) => player.id === playerA)?.name;
         const playerBName = players.find((player) => player.id === playerB)?.name;
         try {
@@ -511,8 +547,8 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
             action: "match_started",
             entityType: "match",
             entityId: createdMatch?.id,
-            message: `${adminUser?.email || "admin"} iniciou a partida ${playerAName} x ${playerBName}`,
-            metadata: { match: createdMatch, players: [playerAName, playerBName] },
+            message: `${adminUser?.email || "admin"} iniciou a partida ${sideLabel(match, "a", (id) => players.find((player) => player.id === id)?.name)} x ${sideLabel(match, "b", (id) => players.find((player) => player.id === id)?.name)}`,
+            metadata: { match: createdMatch, players: matchPlayerIds(match).map((id) => players.find((player) => player.id === id)?.name) },
           });
           onStarted?.(createdMatch.id);
           showToast("Partida iniciada");
@@ -527,30 +563,32 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
 function LiveMatchRouter(props) {
   const settings = loadGameSettings();
   const rules = getGameRules(settings);
-  if (!settings.trackBalls || rules.simpleOnly) return <SimpleLiveMatchPanel {...props} settings={settings} rules={rules} />;
+  if (matchMode(props.liveMatch) === "2x2" || !settings.trackBalls || rules.simpleOnly) return <SimpleLiveMatchPanel {...props} settings={settings} rules={rules} />;
   return <LiveMatchPanel {...props} settings={settings} rules={rules} />;
 }
 
 function liveDayHeadToHead(finished, liveMatch) {
   const gameDay = gameDayKey(liveMatch.played_at);
   const { start, end } = gameDayRange(gameDay);
-  const dayMatches = matchesInRange(finished, start, end).filter((match) => (
-    [match.player_a, match.player_b].includes(liveMatch.player_a) &&
-    [match.player_a, match.player_b].includes(liveMatch.player_b)
-  ));
+  const liveSides = matchSides(liveMatch);
+  const dayMatches = matchesInRange(finished, start, end).filter((match) => {
+    if (matchMode(match) !== matchMode(liveMatch)) return false;
+    const sides = matchSides(match);
+    return [teamKey(sides.a), teamKey(sides.b)].includes(teamKey(liveSides.a))
+      && [teamKey(sides.a), teamKey(sides.b)].includes(teamKey(liveSides.b));
+  });
+  const liveAKey = teamKey(liveSides.a);
   return {
     gameDay,
     start,
     end,
     total: dayMatches.length,
-    winsA: dayMatches.filter((match) => match.winner_id === liveMatch.player_a).length,
-    winsB: dayMatches.filter((match) => match.winner_id === liveMatch.player_b).length,
+    winsA: dayMatches.filter((match) => teamKey(matchSides(match)[winnerSide(match)]) === liveAKey).length,
+    winsB: dayMatches.filter((match) => teamKey(matchSides(match)[winnerSide(match)]) !== liveAKey).length,
   };
 }
 
 function LiveDayScore({ liveMatch, finished, playerById }) {
-  const playerA = playerById(liveMatch.player_a);
-  const playerB = playerById(liveMatch.player_b);
   const score = liveDayHeadToHead(finished, liveMatch);
   return (
     <section className="live-day-score">
@@ -559,36 +597,39 @@ function LiveDayScore({ liveMatch, finished, playerById }) {
         <span>{fmtPeriod(score.start)} até {fmtPeriod(score.end)} · {score.total} partida{score.total !== 1 ? "s" : ""} finalizada{score.total !== 1 ? "s" : ""}</span>
       </div>
       <div className="live-day-score-board">
-        <strong>{playerA?.name}</strong>
+        <strong>{sideLabel(liveMatch, "a", (id) => playerById(id)?.name)}</strong>
         <b>{score.winsA}</b>
         <em>x</em>
         <b>{score.winsB}</b>
-        <strong>{playerB?.name}</strong>
+        <strong>{sideLabel(liveMatch, "b", (id) => playerById(id)?.name)}</strong>
       </div>
     </section>
   );
 }
 
 function matchPlayersLabel(liveMatch, playerName) {
-  return `${playerName(liveMatch.player_a)} x ${playerName(liveMatch.player_b)}`;
+  return `${sideLabel(liveMatch, "a", playerName)} x ${sideLabel(liveMatch, "b", playerName)}`;
 }
 
 function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules, requestConfirm }) {
   const [selectingWinner, setSelectingWinner] = useState(false);
   const playerA = playerById(liveMatch.player_a);
   const playerB = playerById(liveMatch.player_b);
-  const finishMatch = async (winnerId) => {
-    await persistMatch(liveMatch.id, { winner_id: winnerId, status: "finished", ended_at: new Date().toISOString() });
+  const doubles = matchMode(liveMatch) === "2x2";
+  const finishMatch = async (side) => {
+    const winnerId = side === "a" ? liveMatch.player_a : liveMatch.player_b;
+    const winnerLabel = sideLabel(liveMatch, side, playerName);
+    await persistMatch(liveMatch.id, { winner_id: doubles ? null : winnerId, winner_side: side, status: "finished", ended_at: new Date().toISOString() });
     await auditLog?.({
       action: "match_finished",
       entityType: "match",
       entityId: liveMatch.id,
-      message: `${adminUser?.email || "admin"} definiu ${playerName(winnerId)} como vencedor da partida ${matchPlayersLabel(liveMatch, playerName)}`,
-      metadata: { match: liveMatch, winnerId, winnerName: playerName(winnerId), players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
+      message: `${adminUser?.email || "admin"} definiu ${winnerLabel} como vencedor da partida ${matchPlayersLabel(liveMatch, playerName)}`,
+      metadata: { match: liveMatch, winnerSide: side, winnerName: winnerLabel, players: matchPlayerIds(liveMatch).map(playerName) },
     });
     onFinished?.(winnerId);
     setSelectingWinner(false);
-    showToast(`Vitória de ${playerName(winnerId)} registrada`);
+    showToast(`Vitória de ${winnerLabel} registrada`);
   };
 
   return (
@@ -631,12 +672,12 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
       <section className="simple-live-card">
         <div className="simple-live-player">
           <PlayerBall player={playerA} size={68} />
-          <strong>{playerA?.name}</strong>
+          <strong>{sideLabel(liveMatch, "a", playerName)}</strong>
         </div>
         <div className="simple-live-vs">VS</div>
         <div className="simple-live-player">
           <PlayerBall player={playerB} size={68} />
-          <strong>{playerB?.name}</strong>
+          <strong>{sideLabel(liveMatch, "b", playerName)}</strong>
         </div>
       </section>
 
@@ -647,8 +688,8 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
           <div>
             <div className="eyebrow">quem venceu?</div>
             <div className="define-actions">
-              <button className="btn chalk" onClick={() => finishMatch(liveMatch.player_a)}>{playerA?.name}</button>
-              <button className="btn chalk" onClick={() => finishMatch(liveMatch.player_b)}>{playerB?.name}</button>
+              <button className="btn chalk" onClick={() => finishMatch("a")}>{sideLabel(liveMatch, "a", playerName)}</button>
+              <button className="btn chalk" onClick={() => finishMatch("b")}>{sideLabel(liveMatch, "b", playerName)}</button>
             </div>
             <button className="btn ghost small" onClick={() => setSelectingWinner(false)}>Cancelar</button>
           </div>

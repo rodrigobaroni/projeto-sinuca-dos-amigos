@@ -21,6 +21,11 @@ create table if not exists matches (
   player_a    uuid not null references players(id) on delete cascade,
   player_b    uuid not null references players(id) on delete cascade,
   winner_id   uuid references players(id) on delete cascade,
+  mode        text not null default '1x1' check (mode in ('1x1', '2x2')),
+  team_a      jsonb,
+  team_b      jsonb,
+  winner_side text check (winner_side in ('a', 'b')),
+  breaker_id  uuid references players(id) on delete set null,
   status      text not null default 'finished' check (status in ('live', 'finished')),
   ball_log    jsonb not null default '[]'::jsonb,
   notes       text,
@@ -31,7 +36,7 @@ create table if not exists matches (
     winner_id is null or winner_id = player_a or winner_id = player_b
   ),
   constraint matches_finished_has_winner check (
-    status <> 'finished' or winner_id is not null
+    status <> 'finished' or winner_id is not null or winner_side is not null
   )
 );
 
@@ -39,7 +44,15 @@ create table if not exists matches (
 alter table matches add column if not exists status text not null default 'finished';
 alter table matches add column if not exists updated_at timestamptz not null default now();
 alter table matches add column if not exists ended_at timestamptz;
+alter table matches add column if not exists mode text not null default '1x1';
+alter table matches add column if not exists team_a jsonb;
+alter table matches add column if not exists team_b jsonb;
+alter table matches add column if not exists winner_side text;
+alter table matches add column if not exists breaker_id uuid references players(id) on delete set null;
 alter table matches alter column winner_id drop not null;
+update matches
+set winner_side = case when winner_id = player_a then 'a' when winner_id = player_b then 'b' end
+where winner_side is null and winner_id is not null;
 do $$
 begin
   if not exists (
@@ -67,10 +80,31 @@ begin
     select 1 from pg_constraint where conname = 'matches_finished_has_winner'
   ) then
     alter table matches add constraint matches_finished_has_winner check (
-      status <> 'finished' or winner_id is not null
+      status <> 'finished' or winner_id is not null or winner_side is not null
     );
   end if;
 end $$;
+
+alter table matches drop constraint if exists matches_finished_has_winner;
+alter table matches add constraint matches_finished_has_winner check (
+  status <> 'finished' or winner_id is not null or winner_side is not null
+);
+alter table matches drop constraint if exists matches_mode_check;
+alter table matches add constraint matches_mode_check check (mode in ('1x1', '2x2'));
+alter table matches drop constraint if exists matches_winner_side_check;
+alter table matches add constraint matches_winner_side_check check (winner_side is null or winner_side in ('a', 'b'));
+alter table matches drop constraint if exists matches_team_shape_check;
+alter table matches add constraint matches_team_shape_check check (
+  mode = '1x1'
+  or (
+    jsonb_typeof(team_a) = 'array' and jsonb_array_length(team_a) = 2
+    and jsonb_typeof(team_b) = 'array' and jsonb_array_length(team_b) = 2
+    and team_a->>0 <> team_a->>1
+    and team_b->>0 <> team_b->>1
+    and team_a->>0 <> team_b->>0 and team_a->>0 <> team_b->>1
+    and team_a->>1 <> team_b->>0 and team_a->>1 <> team_b->>1
+  )
+);
 
 create index if not exists matches_played_at_idx on matches (played_at desc);
 

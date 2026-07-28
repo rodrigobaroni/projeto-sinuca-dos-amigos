@@ -1,6 +1,7 @@
 import { PlayerBall, PoolBall, WhiteBall } from "./balls.jsx";
 import { foulReasonText } from "../domain/rules.js";
 import { fmtDate, fmtFull } from "../utils/date.js";
+import { matchMode, matchSides, sideLabel, winnerSide } from "../domain/match.js";
 
 function BallLogLabel({ ball }) {
   if (ball === "branca") return <WhiteBall size={26} />;
@@ -39,20 +40,21 @@ function clipDuration(seconds) {
 
 export function MatchSheet({ match, clips = [], playerById, playerName, isAdmin, onDelete }) {
   if (!match) return null;
-  const playerA = playerById(match.player_a);
-  const playerB = playerById(match.player_b);
-  const winner = playerById(match.winner_id);
+  const sides = matchSides(match);
+  const playerA = playerById(sides.a[0]);
+  const playerB = playerById(sides.b[0]);
+  const winningSide = winnerSide(match);
   const live = match.status === "live";
   return (
     <>
       <div className="match-sheet-head">
-        <div className="rank-sub">{fmtFull(match.played_at)}</div>
+        <div className="rank-sub">{matchMode(match)} · {fmtFull(match.played_at)}</div>
         <div className="match-sheet-vs">
-          <div><PlayerBall player={playerA} size={48} /><div className={match.winner_id === playerA?.id ? "gold-text" : ""}>{playerA?.name}</div></div>
+          <div><PlayerBall player={playerA} size={48} /><div className={winningSide === "a" ? "gold-text" : ""}>{sideLabel(match, "a", playerName)}</div></div>
           <div className="vs">VS</div>
-          <div><PlayerBall player={playerB} size={48} /><div className={match.winner_id === playerB?.id ? "gold-text" : ""}>{playerB?.name}</div></div>
+          <div><PlayerBall player={playerB} size={48} /><div className={winningSide === "b" ? "gold-text" : ""}>{sideLabel(match, "b", playerName)}</div></div>
         </div>
-        <div>{live ? <span className="chalk-text">● em andamento</span> : <>venceu <b className="gold-text">{winner?.name}</b></>}</div>
+        <div>{live ? <span className="chalk-text">● em andamento</span> : <>venceu <b className="gold-text">{sideLabel(match, winningSide, playerName)}</b></>}</div>
       </div>
       <hr className="brass" />
       <div className="eyebrow sheet-section">ordem das bolas</div>
