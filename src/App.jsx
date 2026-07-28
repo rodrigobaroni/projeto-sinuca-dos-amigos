@@ -312,6 +312,12 @@ export function App({ supabaseClient }) {
           <a className="encacapei-link" href="/encacapei-mockup.html">
             Acessar Encaçapei
           </a>
+          <a className="encacapei-link" href="/encacapei-briefing.html">
+            Briefing do backend
+          </a>
+          <a className="encacapei-link" href="/encacapei-api.html">
+            API (Swagger)
+          </a>
         </footer>
       </div>
       <nav>

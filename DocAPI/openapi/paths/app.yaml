@@ -1,0 +1,91 @@
+# paths/app.yaml — configuração remota e health checks
+
+AppBootstrap:
+  get:
+    operationId: getAppBootstrap
+    summary: Configuração remota do aplicativo
+    description: |
+      Chamado na splash. Devolve versão mínima suportada, modo de manutenção,
+      versões de termos e as **feature flags** que materializam as decisões
+      pendentes — o app esconde o chip "Duplas" enquanto `teamMatches = false`,
+      em vez de mostrar uma opção que o backend rejeita.
+    tags: [App]
+    security: []
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/AppVersion'
+    responses:
+      '200':
+        description: Configuração atual.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: public, max-age=300
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/AppBootstrap'
+            example:
+              minSupportedVersion: { ios: 1.0.0, android: 1.0.0 }
+              latestVersion: { ios: 1.0.0, android: 1.0.0 }
+              forceUpdate: false
+              maintenanceMode: false
+              maintenanceEndsAt: null
+              termsVersion: '2026-06-01'
+              privacyPolicyVersion: '2026-06-01'
+              urls:
+                terms: https://encacapei.com.br/termos
+                privacy: https://encacapei.com.br/privacidade
+                support: https://encacapei.com.br/suporte
+              features:
+                teamMatches: false
+                pushNotifications: false
+                shareImageGeneration: false
+                venueReviews: false
+                publicLeagueJoin: true
+              serverTime: '2026-07-14T22:58:00Z'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+      '503':
+        $ref: '../openapi.yaml#/components/responses/ServiceUnavailable'
+
+HealthLive:
+  get:
+    operationId: getHealthLive
+    summary: Liveness probe
+    description: Verifica apenas se o processo está no ar. Não toca em dependências.
+    tags: [App]
+    security: []
+    responses:
+      '200':
+        description: Processo saudável.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/HealthStatus'
+            example:
+              status: Healthy
+      '503':
+        $ref: '../openapi.yaml#/components/responses/ServiceUnavailable'
+
+HealthReady:
+  get:
+    operationId: getHealthReady
+    summary: Readiness probe
+    description: Verifica banco de dados e cache. Usado pelo load balancer.
+    tags: [App]
+    security: []
+    responses:
+      '200':
+        description: Pronto para receber tráfego.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/HealthStatus'
+            example:
+              status: Healthy
+              checks:
+                - { name: postgresql, status: Healthy, durationMs: 3.1 }
+                - { name: redis, status: Healthy, durationMs: 0.8 }
+      '503':
+        $ref: '../openapi.yaml#/components/responses/ServiceUnavailable'

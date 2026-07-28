@@ -1,0 +1,576 @@
+openapi: 3.1.0
+
+info:
+  title: Encaçapei API
+  version: 1.0.0
+  summary: API do Encaçapei — ligas, jogatinas e partidas de sinuca entre amigos.
+  description: |
+    API REST do **Encaçapei**, aplicativo para organizar ligas de sinuca, registrar
+    partidas na beira da mesa, gerar rankings e compartilhar o pódio da noite.
+
+    ## Convenções
+
+    - **Datas e horas**: ISO 8601 em **UTC** com sufixo `Z` (`2026-07-15T01:08:22Z`).
+    - **Data pura**: `YYYY-MM-DD` (`businessDate`, `startsAt`).
+    - **Hora pura**: `HH:mm` 24 h (`schedule.startTime`).
+    - **Fuso**: identificador IANA (`America/Sao_Paulo`), nunca offset fixo.
+    - **Identificadores**: UUID em `string`.
+    - **Percentuais**: número `0.00`–`100.00` com 2 casas. O arredondamento para
+      inteiro é responsabilidade do cliente (half-up).
+    - **Coleções**: sempre `{ items, meta }`. Recursos únicos vêm sem envelope.
+    - **Erros**: RFC 9457 (`application/problem+json`) com `code` estável.
+
+    ## Autenticação
+
+    Bearer JWT (RS256) com vida de **15 minutos**, renovado por refresh token
+    opaco de **30 dias** rotacionado a cada uso. Ao receber `401 TOKEN_EXPIRED`,
+    o cliente deve chamar `POST /auth/refresh` **uma vez** e repetir a requisição.
+
+    ## Idempotência
+
+    Todo `POST` que cria recurso ou muda estado exige o header `Idempotency-Key`
+    (UUID gerado pelo cliente **no momento do toque do usuário**). Retry com a
+    mesma chave e o mesmo corpo replica a resposta original com
+    `Idempotent-Replay: true`.
+
+    ## Concorrência
+
+    Recursos versionados expõem `ETag` no `GET` e exigem `If-Match` em mutação de
+    estado. Divergência retorna `409 CONCURRENT_MODIFICATION` com o estado atual
+    no corpo, permitindo reconciliação sem nova leitura.
+
+    ## Documentação completa
+
+    Este arquivo é a especificação executável. A especificação narrativa
+    (regras de negócio `RN-*`, decisões pendentes `DP-*`, modelo de dados e
+    casos de teste) está nos capítulos 1 a 21 do repositório.
+  contact:
+    name: Time de Arquitetura — Encaçapei
+    email: arquitetura@encacapei.com.br
+    url: https://encacapei.com.br
+  license:
+    name: Proprietária
+    identifier: LicenseRef-Proprietary
+  termsOfService: https://encacapei.com.br/termos
+
+externalDocs:
+  description: Especificação técnica completa (capítulos 1–21)
+  url: https://encacapei.com.br/docs/backend-spec
+
+servers:
+  - url: https://api.encacapei.com.br/api/v1
+    description: Produção
+  - url: https://api-hml.encacapei.com.br/api/v1
+    description: Homologação
+  - url: https://localhost:5001/api/v1
+    description: Desenvolvimento local
+
+tags:
+  - name: App
+    description: Configuração remota e health check.
+  - name: Auth
+    description: Cadastro, login, tokens, verificação de e-mail e senha.
+  - name: Users
+    description: Perfil, avatar, busca de usuários, estatísticas e ciclo de vida da conta.
+  - name: Friendships
+    description: Convites de amizade, lista de amigos e confronto direto.
+  - name: Leagues
+    description: Ligas, regras, calendário, ranking e histórico.
+  - name: LeagueMembers
+    description: Membros, papéis, entrada e saída de liga.
+  - name: Invitations
+    description: Convites nominais e códigos de convite de liga.
+  - name: PlaySessions
+    description: Jogatinas (o dia de jogo) e pódio diário.
+  - name: Matches
+    description: Partidas, eventos de bola, finalização, cancelamento e correção.
+  - name: Rankings
+    description: Consulta de reprocessamento de ranking.
+  - name: Venues
+    description: Catálogo de locais e busca por proximidade.
+  - name: Notifications
+    description: Caixa de entrada in-app, preferências e devices de push.
+  - name: Sharing
+    description: Resumo da jogatina, card compartilhável e link público.
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ---------------------------------------------------------------- App
+  /app/bootstrap:
+    $ref: './paths/app.yaml#/AppBootstrap'
+  /health/live:
+    $ref: './paths/app.yaml#/HealthLive'
+  /health/ready:
+    $ref: './paths/app.yaml#/HealthReady'
+
+  # ---------------------------------------------------------------- Auth
+  /auth/register:
+    $ref: './paths/auth.yaml#/Register'
+  /auth/login:
+    $ref: './paths/auth.yaml#/Login'
+  /auth/refresh:
+    $ref: './paths/auth.yaml#/Refresh'
+  /auth/logout:
+    $ref: './paths/auth.yaml#/Logout'
+  /auth/password/forgot:
+    $ref: './paths/auth.yaml#/PasswordForgot'
+  /auth/password/reset:
+    $ref: './paths/auth.yaml#/PasswordReset'
+  /auth/password/change:
+    $ref: './paths/auth.yaml#/PasswordChange'
+  /auth/email/verify:
+    $ref: './paths/auth.yaml#/EmailVerify'
+  /auth/email/verify/resend:
+    $ref: './paths/auth.yaml#/EmailVerifyResend'
+
+  # ---------------------------------------------------------------- Users
+  /users/username-available:
+    $ref: './paths/users.yaml#/UsernameAvailable'
+  /users:
+    $ref: './paths/users.yaml#/SearchUsers'
+  /users/{userId}:
+    $ref: './paths/users.yaml#/GetUser'
+  /users/{userId}/statistics:
+    $ref: './paths/users.yaml#/GetUserStatistics'
+  /me:
+    $ref: './paths/users.yaml#/Me'
+  /me/avatar:
+    $ref: './paths/users.yaml#/MeAvatar'
+  /me/avatar/upload-url:
+    $ref: './paths/users.yaml#/MeAvatarUploadUrl'
+  /me/statistics:
+    $ref: './paths/users.yaml#/MeStatistics'
+  /me/statistics/timeseries:
+    $ref: './paths/users.yaml#/MeStatisticsTimeSeries'
+  /me/active-match:
+    $ref: './paths/users.yaml#/MeActiveMatch'
+  /me/deactivate:
+    $ref: './paths/users.yaml#/MeDeactivate'
+  /me/data-exports:
+    $ref: './paths/users.yaml#/MeDataExports'
+  /me/data-exports/{exportId}:
+    $ref: './paths/users.yaml#/MeDataExportById'
+
+  # ---------------------------------------------------------------- Friendships
+  /me/friends:
+    $ref: './paths/friendships.yaml#/MeFriends'
+  /me/friends/{userId}:
+    $ref: './paths/friendships.yaml#/MeFriendById'
+  /me/friend-requests:
+    $ref: './paths/friendships.yaml#/MeFriendRequests'
+  /friend-requests:
+    $ref: './paths/friendships.yaml#/FriendRequests'
+  /friend-requests/{requestId}:
+    $ref: './paths/friendships.yaml#/FriendRequestById'
+  /friend-requests/{requestId}/accept:
+    $ref: './paths/friendships.yaml#/FriendRequestAccept'
+  /friend-requests/{requestId}/decline:
+    $ref: './paths/friendships.yaml#/FriendRequestDecline'
+  /me/head-to-head/{userId}:
+    $ref: './paths/friendships.yaml#/HeadToHead'
+  /me/head-to-head/{userId}/sessions:
+    $ref: './paths/friendships.yaml#/HeadToHeadSessions'
+  /me/head-to-head/{userId}/leagues:
+    $ref: './paths/friendships.yaml#/HeadToHeadLeagues'
+
+  # ---------------------------------------------------------------- Leagues
+  /leagues:
+    $ref: './paths/leagues.yaml#/Leagues'
+  /leagues/public:
+    $ref: './paths/leagues.yaml#/PublicLeagues'
+  /leagues/join-by-code:
+    $ref: './paths/leagues.yaml#/JoinByCode'
+  /leagues/{leagueId}:
+    $ref: './paths/leagues.yaml#/LeagueById'
+  /leagues/{leagueId}/finish:
+    $ref: './paths/leagues.yaml#/LeagueFinish'
+  /leagues/{leagueId}/join:
+    $ref: './paths/leagues.yaml#/LeagueJoin'
+  /leagues/{leagueId}/leave:
+    $ref: './paths/leagues.yaml#/LeagueLeave'
+  /leagues/{leagueId}/members:
+    $ref: './paths/leagues.yaml#/LeagueMembers'
+  /leagues/{leagueId}/members/{userId}:
+    $ref: './paths/leagues.yaml#/LeagueMemberById'
+  /leagues/{leagueId}/ranking:
+    $ref: './paths/leagues.yaml#/LeagueRanking'
+  /leagues/{leagueId}/matches:
+    $ref: './paths/leagues.yaml#/LeagueMatches'
+  /leagues/{leagueId}/play-sessions:
+    $ref: './paths/leagues.yaml#/LeaguePlaySessions'
+  /leagues/{leagueId}/play-sessions/current:
+    $ref: './paths/leagues.yaml#/LeagueCurrentPlaySession'
+  /me/leagues:
+    $ref: './paths/leagues.yaml#/MeLeagues'
+
+  # ---------------------------------------------------------------- Invitations
+  /leagues/{leagueId}/invitations:
+    $ref: './paths/invitations.yaml#/LeagueInvitations'
+  /leagues/{leagueId}/invite-codes:
+    $ref: './paths/invitations.yaml#/LeagueInviteCodes'
+  /leagues/{leagueId}/invite-codes/{codeId}:
+    $ref: './paths/invitations.yaml#/LeagueInviteCodeById'
+  /invite-codes/{code}:
+    $ref: './paths/invitations.yaml#/InviteCodePreview'
+  /me/league-invitations:
+    $ref: './paths/invitations.yaml#/MeLeagueInvitations'
+  /league-invitations/{invitationId}:
+    $ref: './paths/invitations.yaml#/LeagueInvitationById'
+  /league-invitations/{invitationId}/accept:
+    $ref: './paths/invitations.yaml#/LeagueInvitationAccept'
+  /league-invitations/{invitationId}/decline:
+    $ref: './paths/invitations.yaml#/LeagueInvitationDecline'
+
+  # ---------------------------------------------------------------- Play sessions
+  /play-sessions:
+    $ref: './paths/matches.yaml#/PlaySessions'
+  /play-sessions/{playSessionId}:
+    $ref: './paths/matches.yaml#/PlaySessionById'
+  /play-sessions/{playSessionId}/ranking:
+    $ref: './paths/matches.yaml#/PlaySessionRanking'
+  /play-sessions/{playSessionId}/participants:
+    $ref: './paths/matches.yaml#/PlaySessionParticipants'
+  /play-sessions/{playSessionId}/close:
+    $ref: './paths/matches.yaml#/PlaySessionClose'
+  /play-sessions/{playSessionId}/reopen:
+    $ref: './paths/matches.yaml#/PlaySessionReopen'
+  /play-sessions/{playSessionId}/summary:
+    $ref: './paths/sharing.yaml#/PlaySessionSummary'
+  /play-sessions/{playSessionId}/share:
+    $ref: './paths/sharing.yaml#/PlaySessionShare'
+
+  # ---------------------------------------------------------------- Matches
+  /matches:
+    $ref: './paths/matches.yaml#/Matches'
+  /matches/{matchId}:
+    $ref: './paths/matches.yaml#/MatchById'
+  /matches/{matchId}/events:
+    $ref: './paths/matches.yaml#/MatchEvents'
+  /matches/{matchId}/events/{eventId}:
+    $ref: './paths/matches.yaml#/MatchEventById'
+  /matches/{matchId}/finish:
+    $ref: './paths/matches.yaml#/MatchFinish'
+  /matches/{matchId}/cancel:
+    $ref: './paths/matches.yaml#/MatchCancel'
+  /matches/{matchId}/corrections:
+    $ref: './paths/matches.yaml#/MatchCorrections'
+  /ranking-rebuilds/{jobId}:
+    $ref: './paths/matches.yaml#/RankingRebuildById'
+
+  # ---------------------------------------------------------------- Venues
+  /venues:
+    $ref: './paths/venues.yaml#/Venues'
+  /venues/{venueId}:
+    $ref: './paths/venues.yaml#/VenueById'
+  /venues/{venueId}/leagues:
+    $ref: './paths/venues.yaml#/VenueLeagues'
+
+  # ---------------------------------------------------------------- Notifications
+  /me/notifications:
+    $ref: './paths/notifications.yaml#/MeNotifications'
+  /me/notifications/unread-count:
+    $ref: './paths/notifications.yaml#/UnreadCount'
+  /me/notifications/read:
+    $ref: './paths/notifications.yaml#/MarkManyRead'
+  /me/notifications/{notificationId}:
+    $ref: './paths/notifications.yaml#/NotificationById'
+  /me/notifications/{notificationId}/read:
+    $ref: './paths/notifications.yaml#/MarkOneRead'
+  /me/notification-preferences:
+    $ref: './paths/notifications.yaml#/NotificationPreferences'
+  /me/devices:
+    $ref: './paths/notifications.yaml#/Devices'
+  /me/devices/{deviceId}:
+    $ref: './paths/notifications.yaml#/DeviceById'
+
+  # ---------------------------------------------------------------- Sharing
+  /share-artifacts/{shareArtifactId}:
+    $ref: './paths/sharing.yaml#/ShareArtifactById'
+  /public/shares/{publicToken}:
+    $ref: './paths/sharing.yaml#/PublicShare'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token JWT assinado em RS256, vida de 15 minutos.
+        Claims: `iss`, `aud`, `sub`, `sid`, `jti`, `iat`, `exp`,
+        `username`, `email_verified`, `roles`.
+
+        **Papéis de liga não estão no token** — são resolvidos por consulta a
+        cada requisição, porque mudam a qualquer momento.
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        UUID gerado pelo cliente no momento em que o usuário toca no botão.
+        Retry com a mesma chave e o mesmo corpo replica a resposta original.
+      schema:
+        type: string
+        format: uuid
+      example: d290f1ee-6c54-4b01-90e6-d701748f0851
+
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      example: d290f1ee-6c54-4b01-90e6-d701748f0851
+
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag da versão que o cliente leu. Divergência → `409 CONCURRENT_MODIFICATION`.
+      schema:
+        type: string
+      example: W/"7"
+
+    IfMatchOptional:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+      example: W/"7"
+
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: Cache condicional. Se igual ao ETag atual, responde `304`.
+      schema:
+        type: string
+      example: W/"7"
+
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 64
+      example: 0af7651916cd43dd8448eb211c80319c
+
+    AppVersion:
+      name: X-App-Version
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 20
+      example: 1.0.0 (1)
+
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      schema:
+        type: string
+        default: pt-BR
+      example: pt-BR
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Itens por página (paginação por cursor).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Cursor opaco devolvido em `meta.nextCursor`. Não deve ser construído pelo cliente.
+      schema:
+        type: string
+        maxLength: 512
+      example: eyJpZCI6IjNmNGE1YjZjIiwidCI6IjIwMjYtMDctMTVUMDI6MjE6MTVaIn0
+
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Página (1-based, paginação por offset).
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    SearchQuery:
+      name: q
+      in: query
+      required: false
+      description: Busca textual (mínimo 2 caracteres, acentos normalizados).
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 60
+      example: joao
+
+    LeagueIdPath:
+      name: leagueId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+
+    UserIdPath:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 22222222-2222-4222-8222-222222222222
+
+    MatchIdPath:
+      name: matchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+
+    PlaySessionIdPath:
+      name: playSessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+
+    VenueIdPath:
+      name: venueId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+
+    PeriodFilter:
+      name: period
+      in: query
+      required: false
+      description: Janela temporal, calculada no fuso do usuário. Mutuamente exclusivo com `from`/`to`.
+      schema:
+        $ref: './components/schemas.yaml#/Period'
+
+    FromFilter:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      example: '2026-06-01'
+
+    ToFilter:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      example: '2026-07-31'
+
+  headers:
+    ETag:
+      description: Versão atual do recurso, para uso em `If-Match`.
+      schema:
+        type: string
+      example: W/"7"
+    Location:
+      description: URI do recurso criado.
+      schema:
+        type: string
+      example: /api/v1/matches/3f4a5b6c-7d8e-4f90-8a1b-000000000009
+    RetryAfter:
+      description: Segundos a aguardar antes de tentar novamente.
+      schema:
+        type: integer
+      example: 30
+    IdempotentReplay:
+      description: Presente quando a resposta é a réplica de uma requisição anterior.
+      schema:
+        type: boolean
+      example: true
+    TraceId:
+      description: Identificador de correlação (W3C Trace Context).
+      schema:
+        type: string
+      example: 0af7651916cd43dd8448eb211c80319c
+    RateLimitLimit:
+      description: Limite de requisições na janela.
+      schema:
+        type: integer
+      example: 60
+    RateLimitRemaining:
+      description: Requisições restantes na janela.
+      schema:
+        type: integer
+      example: 57
+    RateLimitReset:
+      description: Epoch (segundos) em que a janela reinicia.
+      schema:
+        type: integer
+      example: 1785177960
+
+  responses:
+    BadRequest:
+      $ref: './components/errors.yaml#/BadRequest'
+    Unauthorized:
+      $ref: './components/errors.yaml#/Unauthorized'
+    Forbidden:
+      $ref: './components/errors.yaml#/Forbidden'
+    NotFound:
+      $ref: './components/errors.yaml#/NotFound'
+    Conflict:
+      $ref: './components/errors.yaml#/Conflict'
+    Gone:
+      $ref: './components/errors.yaml#/Gone'
+    PayloadTooLarge:
+      $ref: './components/errors.yaml#/PayloadTooLarge'
+    UnsupportedMediaType:
+      $ref: './components/errors.yaml#/UnsupportedMediaType'
+    UnprocessableEntity:
+      $ref: './components/errors.yaml#/UnprocessableEntity'
+    PreconditionRequired:
+      $ref: './components/errors.yaml#/PreconditionRequired'
+    TooManyRequests:
+      $ref: './components/errors.yaml#/TooManyRequests'
+    InternalError:
+      $ref: './components/errors.yaml#/InternalError'
+    ServiceUnavailable:
+      $ref: './components/errors.yaml#/ServiceUnavailable'
+    NotModified:
+      description: O recurso não mudou desde o `If-None-Match` informado.

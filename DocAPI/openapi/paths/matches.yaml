@@ -1,0 +1,1031 @@
+# paths/matches.yaml — jogatinas, partidas, eventos de bola, finalização e correção
+
+# ==================================================== PLAY SESSIONS
+
+PlaySessions:
+  post:
+    operationId: createPlaySession
+    summary: Criar jogatina explicitamente
+    description: |
+      Alternativa à abertura implícita (`GET /leagues/{id}/play-sessions/current?createIfMissing=true`).
+      Permite registrar uma noite passada dentro de ±7 dias.
+
+      Existe no máximo **uma** jogatina aberta por liga e **uma** por
+      (liga, `businessDate`) — garantido por unique constraints parciais.
+    tags: [PlaySessions]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreatePlaySessionRequest'
+          examples:
+            today:
+              summary: Jogatina de hoje
+              value:
+                leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+            withParticipants:
+              summary: Com quem já apareceu
+              value:
+                leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                businessDate: '2026-07-14'
+                venueId: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+                participantUserIds:
+                  - 11111111-1111-4111-8111-111111111111
+                  - 22222222-2222-4222-8222-222222222222
+                  - 33333333-3333-4333-8333-333333333333
+                  - 44444444-4444-4444-8444-444444444444
+    responses:
+      '201':
+        description: Jogatina criada.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PlaySession'
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+PlaySessionById:
+  get:
+    operationId: getPlaySession
+    summary: Consultar jogatina
+    tags: [PlaySessions]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/PlaySessionIdPath'
+      - name: include
+        in: query
+        schema:
+          type: string
+        example: ranking,participants,matches
+      - $ref: '../openapi.yaml#/components/parameters/IfNoneMatch'
+    responses:
+      '200':
+        description: Jogatina.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PlaySession'
+      '304':
+        $ref: '../openapi.yaml#/components/responses/NotModified'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+PlaySessionRanking:
+  get:
+    operationId: getPlaySessionRanking
+    summary: Ranking / pódio da jogatina
+    description: |
+      Alimenta o "N vitórias hoje" da seleção de adversário e o card do modal de
+      pódio.
+
+      Ordena por **vitórias** (é o que o card mostra), não por percentual — numa
+      única noite, quem venceu mais é o campeão do dia. Empate em 1º gera
+      **medalhas compartilhadas** (`DP-027`): dois `GOLD` e nenhum `SILVER`.
+
+      `isFinal = false` enquanto a jogatina está aberta — a UI deve dizer
+      "está em 1º", não "ficou em 1º".
+    tags: [PlaySessions, Rankings]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/PlaySessionIdPath'
+    responses:
+      '200':
+        description: Pódio da jogatina.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: private, max-age=10, must-revalidate
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SessionRanking'
+            example:
+              playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              businessDate: '2026-07-14'
+              label: Jogatina de 14 jul
+              league: { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001, name: Liga da Terça }
+              status: IN_PROGRESS
+              isFinal: false
+              items:
+                - position: 1
+                  medal: GOLD
+                  user: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+                  wins: 4
+                  losses: 0
+                  matchesPlayed: 4
+                  isMe: true
+                - position: 2
+                  medal: SILVER
+                  user: { id: 33333333-3333-4333-8333-333333333333, username: felipao, displayName: Felipe Costa, initials: FE, avatarColor: '#f4a261' }
+                  wins: 3
+                  losses: 1
+                  matchesPlayed: 4
+                  isMe: false
+                - position: 3
+                  medal: BRONZE
+                  user: { id: 22222222-2222-4222-8222-222222222222, username: joaop, displayName: João Pereira, initials: JO, avatarColor: '#8ecae6' }
+                  wins: 2
+                  losses: 2
+                  matchesPlayed: 4
+                  isMe: false
+                - position: 4
+                  medal: null
+                  user: { id: 44444444-4444-4444-8444-444444444444, username: ander, displayName: Anderson Lima, initials: AN, avatarColor: '#e9c46a' }
+                  wins: 0
+                  losses: 6
+                  matchesPlayed: 6
+                  isMe: false
+              meta: { totalItems: 4, updatedAt: '2026-07-15T01:08:23Z' }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+PlaySessionParticipants:
+  post:
+    operationId: addPlaySessionParticipants
+    summary: Adicionar participantes à jogatina
+    description: |
+      Registra quem apareceu mas ainda não jogou. É assim que "Anderson — 0 vitórias"
+      aparece no pódio (RN-SESSION-007).
+    tags: [PlaySessions]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/PlaySessionIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKeyOptional'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/AddParticipantsRequest'
+          examples:
+            add:
+              value:
+                userIds: [55555555-5555-4555-8555-555555555555]
+    responses:
+      '200':
+        description: Participantes adicionados.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/AddParticipantsResponse'
+            example:
+              playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              added:
+                - { userId: 55555555-5555-4555-8555-555555555555, displayName: Marcos Silva, joinedAt: '2026-07-15T00:50:00Z' }
+              alreadyPresent: [44444444-4444-4444-8444-444444444444]
+              participantsCount: 5
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+PlaySessionClose:
+  post:
+    operationId: closePlaySession
+    summary: Encerrar jogatina
+    description: |
+      Congela o pódio (`isFinal: true`), notifica os participantes e recalcula
+      `nextSessionAt` da liga. Exige que **nenhuma partida** esteja em andamento —
+      ou use `force: true` para cancelá-las em cascata.
+    tags: [PlaySessions]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/PlaySessionIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatch'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ClosePlaySessionRequest'
+          examples:
+            close:
+              value:
+                force: false
+                generateShare: false
+    responses:
+      '200':
+        description: Jogatina encerrada; pódio congelado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ClosePlaySessionResponse'
+            example:
+              id: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              status: CLOSED
+              closedAt: '2026-07-15T01:15:00Z'
+              closedBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+              closedReason: MANUAL
+              finalPodium:
+                - { position: 1, medal: GOLD, userId: 11111111-1111-4111-8111-111111111111, displayName: Rodrigo Baroni, wins: 4, losses: 0 }
+                - { position: 2, medal: SILVER, userId: 33333333-3333-4333-8333-333333333333, displayName: Felipe Costa, wins: 3, losses: 1 }
+                - { position: 3, medal: BRONZE, userId: 22222222-2222-4222-8222-222222222222, displayName: João Pereira, wins: 2, losses: 2 }
+                - { position: 4, medal: null, userId: 44444444-4444-4444-8444-444444444444, displayName: Anderson Lima, wins: 0, losses: 6 }
+              counters: { matchesCount: 9, participantsCount: 4 }
+              shareArtifactId: null
+              version: 11
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '428':
+        $ref: '../openapi.yaml#/components/responses/PreconditionRequired'
+
+PlaySessionReopen:
+  post:
+    operationId: reopenPlaySession
+    summary: Reabrir jogatina
+    description: |
+      Requer `ADMIN`/`OWNER`, até **12 h** após o fechamento, com motivo obrigatório.
+      Gera `AuditLog(SESSION_REOPENED)`.
+    tags: [PlaySessions]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/PlaySessionIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatchOptional'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ReopenPlaySessionRequest'
+          examples:
+            reopen:
+              value:
+                reason: Fechamos por engano, ainda tem gente jogando
+    responses:
+      '200':
+        description: Jogatina reaberta.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PlaySession'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+# ==================================================== MATCHES
+
+Matches:
+  post:
+    operationId: startMatch
+    summary: Iniciar partida
+    description: |
+      A partida nasce **`IN_PROGRESS`** — não existe estado `CREATED`, porque o
+      mockup vai de "Começar partida" direto para a tela de jogo.
+
+      Quem cria **não precisa** ser um dos jogadores (RN-MATCH-006): o organizador
+      pode registrar a partida de outros dois. Um jogador só pode estar em **uma**
+      partida em andamento por vez — a violação retorna
+      `409 PLAYER_ALREADY_IN_MATCH` com `conflictingMatchId`, permitindo ao app
+      oferecer "retomar".
+
+      As regras da liga são **congeladas** em `rules` no momento da criação, para
+      que uma mudança de configuração não reescreva o histórico.
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateMatchRequest'
+          examples:
+            oneVsOne:
+              summary: Rodrigo × João (partida 9 do dataset canônico)
+              value:
+                leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+                participants:
+                  - { userId: 11111111-1111-4111-8111-111111111111, side: 1 }
+                  - { userId: 22222222-2222-4222-8222-222222222222, side: 2 }
+            withoutSession:
+              summary: Sem informar jogatina (resolve/abre a do dia)
+              value:
+                leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                participants:
+                  - { userId: 11111111-1111-4111-8111-111111111111, side: 1 }
+                  - { userId: 33333333-3333-4333-8333-333333333333, side: 2 }
+    responses:
+      '201':
+        description: Partida iniciada.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+          Idempotent-Replay:
+            $ref: '../openapi.yaml#/components/headers/IdempotentReplay'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Match'
+            example:
+              id: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+              playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              sessionLabel: Jogatina de 14 jul
+              businessDate: '2026-07-14'
+              league: { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001, name: Liga da Terça }
+              venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+              status: IN_PROGRESS
+              resultStatus: ORIGINAL
+              gameMode: ONE_VS_ONE
+              rules: { trackPocketedBalls: true, trackFouls: true, ballsCount: 8 }
+              winnerSide: null
+              startedAt: '2026-07-15T00:47:00Z'
+              finishedAt: null
+              durationSeconds: null
+              createdBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+              finishedBy: null
+              participants:
+                - userId: 11111111-1111-4111-8111-111111111111
+                  username: baroni
+                  displayName: Rodrigo Baroni
+                  avatarUrl: null
+                  initials: RB
+                  avatarColor: '#C1E778'
+                  side: 1
+                  isWinner: null
+                  ballsPocketed: 0
+                  fouls: 0
+                  winsInSession: 3
+                  lossesInSession: 0
+                  isMe: true
+                - userId: 22222222-2222-4222-8222-222222222222
+                  username: joaop
+                  displayName: João Pereira
+                  avatarUrl: https://cdn.encacapei.com.br/avatars/22222222-2222-4222-8222-222222222222/256.webp
+                  initials: JO
+                  avatarColor: '#8ecae6'
+                  side: 2
+                  isWinner: null
+                  ballsPocketed: 0
+                  fouls: 0
+                  winsInSession: 2
+                  lossesInSession: 1
+                  isMe: false
+              tableState:
+                ballsCount: 8
+                pocketedBalls: []
+                remainingBalls: [1, 2, 3, 4, 5, 6, 7, 8]
+              eventsCount: 0
+              correctionCount: 0
+              permissions: { canRecordEvent: true, canFinish: true, canCancel: true, canCorrect: false }
+              createdAt: '2026-07-15T00:47:00Z'
+              updatedAt: '2026-07-15T00:47:00Z'
+              version: 1
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+MatchById:
+  get:
+    operationId: getMatch
+    summary: Consultar partida
+    description: |
+      `tableState` vem pronto para a grade de 8 bolas; `winsInSession` é o
+      "N vitórias hoje" sob cada avatar.
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+      - name: include
+        in: query
+        schema:
+          type: string
+        example: events
+      - $ref: '../openapi.yaml#/components/parameters/IfNoneMatch'
+    responses:
+      '200':
+        description: Detalhes da partida.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+          Cache-Control:
+            schema:
+              type: string
+            example: no-store
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Match'
+            example:
+              id: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+              playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              sessionLabel: Jogatina de 14 jul
+              businessDate: '2026-07-14'
+              league: { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001, name: Liga da Terça }
+              status: IN_PROGRESS
+              resultStatus: ORIGINAL
+              gameMode: ONE_VS_ONE
+              rules: { trackPocketedBalls: true, trackFouls: true, ballsCount: 8 }
+              winnerSide: null
+              startedAt: '2026-07-15T00:47:00Z'
+              finishedAt: null
+              createdBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+              participants:
+                - { userId: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778', side: 1, isWinner: null, ballsPocketed: 1, fouls: 0, winsInSession: 3, lossesInSession: 0, isMe: true }
+                - { userId: 22222222-2222-4222-8222-222222222222, username: joaop, displayName: João Pereira, initials: JO, avatarColor: '#8ecae6', side: 2, isWinner: null, ballsPocketed: 1, fouls: 0, winsInSession: 2, lossesInSession: 1, isMe: false }
+              tableState:
+                ballsCount: 8
+                pocketedBalls:
+                  - { ballNumber: 2, eventId: ae1b2c3d-4e5f-4a60-8b71-000000000001, pocketedByUserId: 11111111-1111-4111-8111-111111111111, occurredAt: '2026-07-15T00:49:12Z' }
+                  - { ballNumber: 4, eventId: ae1b2c3d-4e5f-4a60-8b71-000000000002, pocketedByUserId: 22222222-2222-4222-8222-222222222222, occurredAt: '2026-07-15T00:52:40Z' }
+                remainingBalls: [1, 3, 5, 6, 7, 8]
+              events:
+                - { id: ae1b2c3d-4e5f-4a60-8b71-000000000001, sequence: 1, type: BALL_POCKETED, ballNumber: 2, actorUserId: 11111111-1111-4111-8111-111111111111, actorDisplayName: Rodrigo Baroni, side: 1, recordedByUserId: 11111111-1111-4111-8111-111111111111, occurredAt: '2026-07-15T00:49:12Z', undoneAt: null }
+                - { id: ae1b2c3d-4e5f-4a60-8b71-000000000002, sequence: 2, type: BALL_POCKETED, ballNumber: 4, actorUserId: 22222222-2222-4222-8222-222222222222, actorDisplayName: João Pereira, side: 2, recordedByUserId: 11111111-1111-4111-8111-111111111111, occurredAt: '2026-07-15T00:52:40Z', undoneAt: null }
+              eventsCount: 2
+              correctionCount: 0
+              permissions: { canRecordEvent: true, canFinish: true, canCancel: true, canCorrect: false }
+              createdAt: '2026-07-15T00:47:00Z'
+              updatedAt: '2026-07-15T00:52:40Z'
+              version: 3
+      '304':
+        $ref: '../openapi.yaml#/components/responses/NotModified'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+MatchEvents:
+  get:
+    operationId: listMatchEvents
+    summary: Listar eventos da partida
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+      - name: includeUndone
+        in: query
+        schema:
+          type: boolean
+          default: true
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+    responses:
+      '200':
+        description: Eventos ordenados por `sequence`.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/MatchEvent'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+  post:
+    operationId: recordMatchEvent
+    summary: Registrar evento (bola encaçapada ou falta)
+    description: |
+      Toque numa bola da grade. **Endpoint mais sujeito a duplo toque** do produto:
+      com chaves de idempotência diferentes, a segunda requisição cai em
+      `409 BALL_ALREADY_POCKETED` (protegido por unique constraint parcial); com a
+      mesma chave, é replay silencioso.
+
+      `If-Match` é **opcional aqui, propositalmente**: exigir a versão exata numa
+      tela em que dois celulares marcam bolas alternadamente geraria conflitos
+      constantes sem ganho — o unique de bola já garante a invariante real. Em
+      **finalização** e **correção**, `If-Match` é obrigatório.
+
+      `suggestion` é dica de UX: quando a bola 8 cai, o app pode sugerir encerrar —
+      mas o servidor **nunca** finaliza a partida sozinho (RN-EVENT-008).
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatchOptional'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateMatchEventRequest'
+          examples:
+            ball:
+              summary: Bola encaçapada
+              value:
+                type: BALL_POCKETED
+                ballNumber: 8
+                actorUserId: 11111111-1111-4111-8111-111111111111
+            foul:
+              summary: Falta (requer trackFouls)
+              value:
+                type: FOUL
+                actorUserId: 22222222-2222-4222-8222-222222222222
+    responses:
+      '201':
+        description: Evento registrado.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+          Idempotent-Replay:
+            $ref: '../openapi.yaml#/components/headers/IdempotentReplay'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MatchEventResponse'
+            example:
+              event:
+                id: ae1b2c3d-4e5f-4a60-8b71-000000000003
+                matchId: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+                sequence: 3
+                type: BALL_POCKETED
+                ballNumber: 8
+                actorUserId: 11111111-1111-4111-8111-111111111111
+                actorDisplayName: Rodrigo Baroni
+                side: 1
+                recordedByUserId: 11111111-1111-4111-8111-111111111111
+                occurredAt: '2026-07-15T01:07:55Z'
+                undoneAt: null
+              tableState:
+                ballsCount: 8
+                pocketedBalls:
+                  - { ballNumber: 2, eventId: ae1b2c3d-4e5f-4a60-8b71-000000000001, pocketedByUserId: 11111111-1111-4111-8111-111111111111, occurredAt: '2026-07-15T00:49:12Z' }
+                  - { ballNumber: 4, eventId: ae1b2c3d-4e5f-4a60-8b71-000000000002, pocketedByUserId: 22222222-2222-4222-8222-222222222222, occurredAt: '2026-07-15T00:52:40Z' }
+                  - { ballNumber: 8, eventId: ae1b2c3d-4e5f-4a60-8b71-000000000003, pocketedByUserId: 11111111-1111-4111-8111-111111111111, occurredAt: '2026-07-15T01:07:55Z' }
+                remainingBalls: [1, 3, 5, 6, 7]
+              participants:
+                - { userId: 11111111-1111-4111-8111-111111111111, ballsPocketed: 2, fouls: 0 }
+                - { userId: 22222222-2222-4222-8222-222222222222, ballsPocketed: 1, fouls: 0 }
+              suggestion: { type: SUGGEST_FINISH, reason: EIGHT_BALL_POCKETED, suggestedWinnerSide: 1 }
+              matchVersion: 4
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+MatchEventById:
+  delete:
+    operationId: undoMatchEvent
+    summary: Desfazer evento
+    description: |
+      Toque numa bola **já** encaçapada (toggle). É **soft undo** (`undoneAt`), nunca
+      `DELETE` físico — preserva a trilha "encaçapou e desfez", que é justamente o
+      que resolve discussão de mesa. Um evento desfeito nunca volta a `RECORDED`:
+      tocar de novo cria um evento **novo** com nova `sequence`.
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+      - name: eventId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: ae1b2c3d-4e5f-4a60-8b71-000000000003
+    responses:
+      '200':
+        description: Evento desfeito; estado da mesa recalculado.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event, tableState, matchVersion]
+              properties:
+                event:
+                  $ref: '../components/schemas.yaml#/MatchEvent'
+                tableState:
+                  $ref: '../components/schemas.yaml#/TableState'
+                participants:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      userId:
+                        $ref: '../components/schemas.yaml#/Uuid'
+                      ballsPocketed:
+                        type: integer
+                      fouls:
+                        type: integer
+                matchVersion:
+                  type: integer
+            example:
+              event:
+                id: ae1b2c3d-4e5f-4a60-8b71-000000000003
+                type: BALL_POCKETED
+                ballNumber: 8
+                sequence: 3
+                occurredAt: '2026-07-15T01:07:55Z'
+                undoneAt: '2026-07-15T01:08:05Z'
+                undoneByUserId: 11111111-1111-4111-8111-111111111111
+                recordedByUserId: 11111111-1111-4111-8111-111111111111
+              tableState:
+                ballsCount: 8
+                pocketedBalls:
+                  - { ballNumber: 2, eventId: ae1b2c3d-4e5f-4a60-8b71-000000000001, pocketedByUserId: 11111111-1111-4111-8111-111111111111, occurredAt: '2026-07-15T00:49:12Z' }
+                  - { ballNumber: 4, eventId: ae1b2c3d-4e5f-4a60-8b71-000000000002, pocketedByUserId: 22222222-2222-4222-8222-222222222222, occurredAt: '2026-07-15T00:52:40Z' }
+                remainingBalls: [1, 3, 5, 6, 7, 8]
+              participants:
+                - { userId: 11111111-1111-4111-8111-111111111111, ballsPocketed: 1, fouls: 0 }
+                - { userId: 22222222-2222-4222-8222-222222222222, ballsPocketed: 1, fouls: 0 }
+              matchVersion: 5
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+MatchFinish:
+  post:
+    operationId: finishMatch
+    summary: Finalizar partida
+    description: |
+      Botões "Venceu" / "Perdeu" da tela de partida. O contrato é por **lado**
+      (`winnerSide`), não por "eu venci": o app traduz. Isso sobrevive a duplas e ao
+      registro por um terceiro (RN-MATCH-009).
+
+      **Transação síncrona:** status, `isWinner`, ranking da liga, ranking da
+      jogatina, contadores e liberação de `activeMatchId`. **Assíncrono:**
+      estatísticas do usuário, h2h e notificação ao adversário.
+
+      A resposta entrega **tudo que o modal de vitória precisa** — pódio completo,
+      posição e ranking — evitando 3 requisições na pior rede do fluxo.
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatch'
+      - $ref: '../openapi.yaml#/components/parameters/CorrelationId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/FinishMatchRequest'
+          examples:
+            bySide:
+              summary: Por lado (canônico)
+              value:
+                winnerSide: 1
+            byUser:
+              summary: Por usuário (conveniência em 1v1)
+              value:
+                winnerUserId: 11111111-1111-4111-8111-111111111111
+    responses:
+      '200':
+        description: Partida finalizada; rankings atualizados.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+          Idempotent-Replay:
+            $ref: '../openapi.yaml#/components/headers/IdempotentReplay'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/FinishMatchResponse'
+            example:
+              match:
+                id: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+                status: FINISHED
+                resultStatus: ORIGINAL
+                winnerSide: 1
+                startedAt: '2026-07-15T00:47:00Z'
+                finishedAt: '2026-07-15T01:08:22Z'
+                durationSeconds: 1282
+                finishedBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+                participants:
+                  - { userId: 11111111-1111-4111-8111-111111111111, displayName: Rodrigo Baroni, side: 1, isWinner: true, ballsPocketed: 1, fouls: 0 }
+                  - { userId: 22222222-2222-4222-8222-222222222222, displayName: João Pereira, side: 2, isWinner: false, ballsPocketed: 1, fouls: 0 }
+                myResult: WIN
+                correctionDeadline: '2026-07-16T01:08:22Z'
+                version: 6
+              leagueRanking:
+                updated: true
+                myEntry: { position: 2, previousPosition: 4, wins: 7, losses: 4, winRate: 63.64 }
+                opponentEntries:
+                  - { userId: 22222222-2222-4222-8222-222222222222, position: 3, previousPosition: 3, wins: 5, losses: 4, winRate: 55.56 }
+              sessionRanking:
+                isFinal: false
+                myPosition: 1
+                podium:
+                  - { position: 1, medal: GOLD, userId: 11111111-1111-4111-8111-111111111111, displayName: Rodrigo Baroni, wins: 4, losses: 0 }
+                  - { position: 2, medal: SILVER, userId: 33333333-3333-4333-8333-333333333333, displayName: Felipe Costa, wins: 3, losses: 1 }
+                  - { position: 3, medal: BRONZE, userId: 22222222-2222-4222-8222-222222222222, displayName: João Pereira, wins: 2, losses: 2 }
+                  - { position: 4, medal: null, userId: 44444444-4444-4444-8444-444444444444, displayName: Anderson Lima, wins: 0, losses: 6 }
+              streak: { currentWinStreak: 5, longestWinStreak: 7, isPersonalBest: false }
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '428':
+        $ref: '../openapi.yaml#/components/responses/PreconditionRequired'
+
+MatchCancel:
+  post:
+    operationId: cancelMatch
+    summary: Cancelar partida
+    description: |
+      Partida cancelada **não conta** em ranking, estatística, h2h nem pódio
+      (RN-MATCH-013). Os eventos de bola são **preservados**. Partida já finalizada
+      só muda por correção — ou por cancelamento de admin dentro de 24 h.
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatch'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CancelMatchRequest'
+          examples:
+            mistake:
+              value:
+                reason: MISTAKE
+                note: Partida aberta por engano com o adversário errado
+            abandoned:
+              value:
+                reason: ABANDONED
+    responses:
+      '200':
+        description: Partida cancelada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/CancelMatchResponse'
+            example:
+              id: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+              status: CANCELLED
+              cancelReason: MISTAKE
+              note: Partida aberta por engano com o adversário errado
+              cancelledAt: '2026-07-15T00:48:10Z'
+              cancelledBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+              rankingImpact: NONE
+              version: 3
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '428':
+        $ref: '../openapi.yaml#/components/responses/PreconditionRequired'
+
+MatchCorrections:
+  get:
+    operationId: listMatchCorrections
+    summary: Histórico de correções da partida
+    description: |
+      É a trilha exigida por RN-AUDIT-004, exibida no app:
+      "Resultado corrigido por Rodrigo em 14/07 às 22:22 — motivo: …".
+    tags: [Matches]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+    responses:
+      '200':
+        description: Correções aplicadas, em ordem cronológica.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/MatchCorrection'
+                meta:
+                  type: object
+                  properties:
+                    totalItems:
+                      type: integer
+            example:
+              items:
+                - id: d5e6f708-192a-4b3c-8d4e-000000000001
+                  matchId: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+                  previousResult: { winnerSide: 1, winnerUserIds: [11111111-1111-4111-8111-111111111111] }
+                  newResult: { winnerSide: 2, winnerUserIds: [22222222-2222-4222-8222-222222222222] }
+                  reason: 'Marcamos errado: quem venceu foi o João, a bola 8 caiu na caçapa errada.'
+                  correctedBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+                  createdAt: '2026-07-15T01:22:40Z'
+              meta: { totalItems: 1 }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+  post:
+    operationId: correctMatchResult
+    summary: Corrigir resultado da partida
+    description: |
+      Permitido a **participantes dentro de 24 h** de `finishedAt`; depois disso,
+      apenas `ADMIN`/`OWNER` da liga (`DP-003`).
+
+      `reason` é **obrigatório** — é o registro que encerra a discussão. O resultado
+      anterior nunca é sobrescrito sem trilha: cria-se um `MatchCorrection`, o
+      `resultStatus` vira `CORRECTED` e **todos** os participantes são notificados.
+
+      O ranking é **reconstruído de forma determinística** a partir de `matches`,
+      não por delta — aplicar delta produziria deriva silenciosa e quebraria streaks.
+      Ligas com até 500 partidas são reprocessadas de forma síncrona (`200`); acima
+      disso, assíncrona (`202` + `statusUrl`).
+    tags: [Matches, Rankings]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/MatchIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatch'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateCorrectionRequest'
+          examples:
+            correction:
+              value:
+                winnerSide: 2
+                reason: 'Marcamos errado: quem venceu foi o João, a bola 8 caiu na caçapa errada.'
+    responses:
+      '202':
+        description: Correção aplicada; reprocessamento de ranking enfileirado.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/CorrectionResponse'
+            example:
+              correction:
+                id: d5e6f708-192a-4b3c-8d4e-000000000001
+                matchId: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+                previousResult: { winnerSide: 1, winnerUserIds: [11111111-1111-4111-8111-111111111111] }
+                newResult: { winnerSide: 2, winnerUserIds: [22222222-2222-4222-8222-222222222222] }
+                reason: 'Marcamos errado: quem venceu foi o João, a bola 8 caiu na caçapa errada.'
+                correctedBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+                createdAt: '2026-07-15T01:22:40Z'
+              match:
+                id: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+                status: FINISHED
+                resultStatus: CORRECTED
+                winnerSide: 2
+                correctionCount: 1
+                version: 7
+              rankingRebuild:
+                jobId: f6a7b8c9-0d1e-4f2a-8b3c-000000000001
+                status: QUEUED
+                scope: [LEAGUE_RANKING, SESSION_RANKING, USER_STATISTICS, HEAD_TO_HEAD]
+                statusUrl: /api/v1/ranking-rebuilds/f6a7b8c9-0d1e-4f2a-8b3c-000000000001
+                estimatedCompletionSeconds: 3
+      '200':
+        description: Correção aplicada e ranking já reprocessado (liga pequena).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/CorrectionResponse'
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '428':
+        $ref: '../openapi.yaml#/components/responses/PreconditionRequired'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+RankingRebuildById:
+  get:
+    operationId: getRankingRebuild
+    summary: Consultar status do reprocessamento de ranking
+    description: |
+      `positionChanges` permite ao app explicar ao usuário por que sua posição mudou
+      sem que ele tenha jogado — o que, sem explicação, parece bug.
+    tags: [Rankings]
+    parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: f6a7b8c9-0d1e-4f2a-8b3c-000000000001
+    responses:
+      '200':
+        description: Status do job.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RankingRebuild'
+            example:
+              jobId: f6a7b8c9-0d1e-4f2a-8b3c-000000000001
+              leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+              triggeredBy: MATCH_CORRECTION
+              sourceMatchId: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+              status: COMPLETED
+              scope: [LEAGUE_RANKING, SESSION_RANKING, USER_STATISTICS, HEAD_TO_HEAD]
+              matchesProcessed: 27
+              entriesUpdated: 6
+              positionChanges:
+                - { userId: 11111111-1111-4111-8111-111111111111, from: 2, to: 3 }
+                - { userId: 22222222-2222-4222-8222-222222222222, from: 3, to: 2 }
+              queuedAt: '2026-07-15T01:22:40Z'
+              startedAt: '2026-07-15T01:22:41Z'
+              completedAt: '2026-07-15T01:22:43Z'
+              error: null
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'

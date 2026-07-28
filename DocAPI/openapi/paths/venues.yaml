@@ -1,0 +1,337 @@
+# paths/venues.yaml — catálogo de locais e busca por proximidade
+
+Venues:
+  get:
+    operationId: searchVenues
+    summary: Buscar locais (proximidade ou texto)
+    description: |
+      Alimenta o mapa da aba Locais e o autocomplete de local do wizard.
+
+      É obrigatório informar **`lat`+`lng`**, **`q`** ou **`city`**.
+      `distanceKm` só aparece quando o cliente envia coordenadas.
+
+      **Privacidade:** as coordenadas do usuário **não são persistidas nem
+      logadas** (RN-PRIV-002) — os parâmetros são removidos do log de acesso por
+      filtro dedicado. O backend também não chama nenhuma API de mapas de terceiro
+      no caminho da requisição.
+    tags: [Venues]
+    parameters:
+      - name: lat
+        in: query
+        schema:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        example: -23.5583
+      - name: lng
+        in: query
+        schema:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        example: -46.6604
+      - name: radiusKm
+        in: query
+        schema:
+          type: number
+          minimum: 0.1
+          maximum: 50
+          default: 5
+      - $ref: '../openapi.yaml#/components/parameters/SearchQuery'
+      - name: city
+        in: query
+        schema:
+          type: string
+          maxLength: 80
+      - name: openNow
+        in: query
+        description: Filtra por horário de funcionamento no fuso do **local**.
+        schema:
+          type: boolean
+          default: false
+      - name: maxPricePerHour
+        in: query
+        schema:
+          type: number
+          minimum: 0
+      - name: minRating
+        in: query
+        schema:
+          type: number
+          minimum: 0
+          maximum: 5
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+      - $ref: '../openapi.yaml#/components/parameters/Cursor'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [distance, rating, pricePerHour, name]
+      - name: fields
+        in: query
+        description: '`map` devolve apenas o necessário para os pins.'
+        schema:
+          type: string
+          enum: [full, map]
+          default: full
+    responses:
+      '200':
+        description: Locais encontrados, ordenados por distância.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: private, max-age=60
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/Venue'
+                meta:
+                  allOf:
+                    - $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+                    - type: object
+                      properties:
+                        searchCenter:
+                          type: [object, 'null']
+                          properties:
+                            latitude:
+                              type: number
+                            longitude:
+                              type: number
+                        radiusKm:
+                          type: [number, 'null']
+            example:
+              items:
+                - id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+                  name: Bar do Zé
+                  photoUrl: https://cdn.encacapei.com.br/venues/5e6f7a8b-9c0d-4e1f-8a2b-000000000001/cover.webp
+                  addressLine: R. Domingos de Morais, 1234
+                  neighborhood: Vila Mariana
+                  city: São Paulo
+                  state: SP
+                  postalCode: 04010-200
+                  country: BR
+                  latitude: -23.561414
+                  longitude: -46.655881
+                  distanceKm: 2.4
+                  pricePerHour: { amount: 30.00, currency: BRL }
+                  rating: 4.5
+                  ratingCount: 128
+                  ratingSource: INTERNAL
+                  tablesCount: 3
+                  isOpenNow: true
+                  openingHoursSummary: Seg–Dom, 20h–04h
+                  leaguesCount: 2
+                  status: ACTIVE
+                - id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000002
+                  name: Sinuca Central
+                  photoUrl: https://cdn.encacapei.com.br/venues/5e6f7a8b-9c0d-4e1f-8a2b-000000000002/cover.webp
+                  addressLine: Av. São João, 700
+                  neighborhood: Centro
+                  city: São Paulo
+                  state: SP
+                  postalCode: 01035-000
+                  country: BR
+                  latitude: -23.550520
+                  longitude: -46.633308
+                  distanceKm: 3.8
+                  pricePerHour: { amount: 25.00, currency: BRL }
+                  rating: 4.1
+                  ratingCount: 64
+                  ratingSource: INTERNAL
+                  tablesCount: 6
+                  isOpenNow: true
+                  openingHoursSummary: Ter–Dom, 18h–02h
+                  leaguesCount: 1
+                  status: ACTIVE
+                - id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000003
+                  name: Snooker House Pinheiros
+                  photoUrl: https://cdn.encacapei.com.br/venues/5e6f7a8b-9c0d-4e1f-8a2b-000000000003/cover.webp
+                  addressLine: R. dos Pinheiros, 980
+                  neighborhood: Pinheiros
+                  city: São Paulo
+                  state: SP
+                  postalCode: 05422-001
+                  country: BR
+                  latitude: -23.567200
+                  longitude: -46.693400
+                  distanceKm: 5.1
+                  pricePerHour: { amount: 45.00, currency: BRL }
+                  rating: 4.8
+                  ratingCount: 210
+                  ratingSource: INTERNAL
+                  tablesCount: 8
+                  isOpenNow: false
+                  openingHoursSummary: Qua–Sáb, 19h–03h
+                  leaguesCount: 1
+                  status: ACTIVE
+              meta:
+                totalItems: 3
+                pageSize: 20
+                hasMore: false
+                nextCursor: null
+                searchCenter: { latitude: -23.5583, longitude: -46.6604 }
+                radiusKm: 6
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+VenueById:
+  get:
+    operationId: getVenue
+    summary: Consultar detalhes do local
+    description: |
+      Modal do local. `directions.geoUri` é tudo que o botão **"Traçar rota"**
+      precisa — o app abre o mapa nativo, sem nova chamada ao backend
+      (RN-VENUE-008). `attachableLeagues` popula o seletor de "Atrelar liga a este
+      local", listando apenas ligas que o solicitante administra.
+    tags: [Venues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/VenueIdPath'
+      - name: lat
+        in: query
+        schema:
+          type: number
+          format: double
+      - name: lng
+        in: query
+        schema:
+          type: number
+          format: double
+      - $ref: '../openapi.yaml#/components/parameters/IfNoneMatch'
+    responses:
+      '200':
+        description: Detalhes do local.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Venue'
+            example:
+              id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+              name: Bar do Zé
+              description: Bar de esquina com 3 mesas de sinuca e chope gelado.
+              photoUrl: https://cdn.encacapei.com.br/venues/5e6f7a8b-9c0d-4e1f-8a2b-000000000001/cover.webp
+              addressLine: R. Domingos de Morais, 1234
+              neighborhood: Vila Mariana
+              city: São Paulo
+              state: SP
+              postalCode: 04010-200
+              country: BR
+              latitude: -23.561414
+              longitude: -46.655881
+              distanceKm: 2.4
+              phone: '+551155551234'
+              pricePerHour: { amount: 30.00, currency: BRL }
+              rating: 4.5
+              ratingCount: 128
+              ratingSource: INTERNAL
+              ratingAttribution: null
+              tablesCount: 3
+              isOpenNow: true
+              openingHoursSummary: Seg–Dom, 20h–04h
+              openingHours:
+                - { weekday: MONDAY, opensAt: '20:00', closesAt: '04:00', crossesMidnight: true }
+                - { weekday: TUESDAY, opensAt: '20:00', closesAt: '04:00', crossesMidnight: true }
+                - { weekday: WEDNESDAY, opensAt: '20:00', closesAt: '04:00', crossesMidnight: true }
+                - { weekday: THURSDAY, opensAt: '20:00', closesAt: '04:00', crossesMidnight: true }
+                - { weekday: FRIDAY, opensAt: '20:00', closesAt: '04:00', crossesMidnight: true }
+                - { weekday: SATURDAY, opensAt: '20:00', closesAt: '04:00', crossesMidnight: true }
+                - { weekday: SUNDAY, opensAt: '20:00', closesAt: '04:00', crossesMidnight: true }
+              leaguesCount: 2
+              myLeaguesHere:
+                - { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001, name: Liga da Terça }
+                - { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000002, name: Ranking do Bar do Zé }
+              directions:
+                latitude: -23.561414
+                longitude: -46.655881
+                label: Bar do Zé
+                geoUri: geo:-23.561414,-46.655881?q=-23.561414,-46.655881(Bar%20do%20Z%C3%A9)
+              attachableLeagues:
+                - { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001, name: Liga da Terça, alreadyHere: true }
+                - { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000002, name: Ranking do Bar do Zé, alreadyHere: true }
+              status: ACTIVE
+              createdAt: '2025-11-02T13:00:00Z'
+              updatedAt: '2026-06-18T10:22:00Z'
+              version: 2
+      '304':
+        $ref: '../openapi.yaml#/components/responses/NotModified'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+VenueLeagues:
+  get:
+    operationId: listVenueLeagues
+    summary: Ligas que jogam neste local
+    description: |
+      Retorna apenas ligas **visíveis ao solicitante**: públicas + as privadas das
+      quais ele é membro (RN-VENUE-006). `meta.totalItems` também respeita esse
+      filtro — o contador **nunca** revela a existência de ligas privadas.
+
+      Para atrelar/desatrelar uma liga a este local, use
+      `PATCH /leagues/{leagueId}` com `venueId` (ou `null`).
+    tags: [Venues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/VenueIdPath'
+      - name: status
+        in: query
+        schema:
+          type: string
+          default: ACTIVE
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+      - $ref: '../openapi.yaml#/components/parameters/Cursor'
+    responses:
+      '200':
+        description: Ligas associadas ao local.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/VenueLeagueItem'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+            example:
+              items:
+                - id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                  name: Liga da Terça
+                  visibility: PRIVATE
+                  status: ACTIVE
+                  membersCount: 5
+                  scheduleSummary: Terças, 20h–00h
+                  isMember: true
+                  canJoin: false
+                - id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000002
+                  name: Ranking do Bar do Zé
+                  visibility: PUBLIC
+                  status: ACTIVE
+                  membersCount: 8
+                  scheduleSummary: Sextas, 21h–01h
+                  isMember: true
+                  canJoin: false
+              meta: { totalItems: 2, pageSize: 20, hasMore: false, nextCursor: null }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'

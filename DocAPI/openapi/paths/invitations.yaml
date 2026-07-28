@@ -1,0 +1,403 @@
+# paths/invitations.yaml — convites nominais e códigos de convite de liga
+
+LeagueInvitations:
+  post:
+    operationId: inviteToLeague
+    summary: Convidar usuários para a liga
+    description: |
+      Convite em lote. Retorna **`207 Multi-Status`** com resultado por destinatário —
+      convite em lote precisa reportar sucesso parcial. Quando há **um único**
+      destinatário e ele é convidado com sucesso, responde `201` com o convite, para
+      o app não precisar tratar `207` no caso simples.
+
+      Convites expiram em **7 dias**; reenviar renova o `expiresAt` do existente
+      (operação idempotente — RN-INVITE-003).
+    tags: [Invitations]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateInvitationsRequest'
+          examples:
+            batch:
+              summary: Lote de convites
+              value:
+                userIds:
+                  - 22222222-2222-4222-8222-222222222222
+                  - 33333333-3333-4333-8333-333333333333
+                  - 44444444-4444-4444-8444-444444444444
+                message: Bora jogar terça?
+            single:
+              summary: Um destinatário
+              value:
+                userIds: [22222222-2222-4222-8222-222222222222]
+    responses:
+      '201':
+        description: Convite único criado.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LeagueInvitation'
+      '207':
+        description: Resultado por destinatário (sucesso parcial).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InvitationBatchResult'
+            example:
+              results:
+                - userId: 22222222-2222-4222-8222-222222222222
+                  status: INVITED
+                  invitationId: 8a9b0c1d-2e3f-4a5b-8c6d-000000000010
+                  expiresAt: '2026-08-03T19:35:00Z'
+                - userId: 33333333-3333-4333-8333-333333333333
+                  status: ALREADY_MEMBER
+                  invitationId: null
+                - userId: 44444444-4444-4444-8444-444444444444
+                  status: ALREADY_INVITED
+                  invitationId: 8a9b0c1d-2e3f-4a5b-8c6d-000000000004
+                  expiresAt: '2026-08-03T19:35:00Z'
+                  renewed: true
+              summary: { invited: 1, alreadyMember: 1, alreadyInvited: 1, failed: 0 }
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+MeLeagueInvitations:
+  get:
+    operationId: listMyLeagueInvitations
+    summary: Listar meus convites de liga
+    description: |
+      Alimenta o card amarelo no topo da aba Liga: nome da liga, "Convidado por
+      Felipe Costa" e o tempo relativo derivado de `createdAt`.
+    tags: [Invitations]
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          default: PENDING
+      - name: direction
+        in: query
+        schema:
+          $ref: '../components/schemas.yaml#/RequestDirection'
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+      - $ref: '../openapi.yaml#/components/parameters/Cursor'
+    responses:
+      '200':
+        description: Convites de liga.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/LeagueInvitation'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+            example:
+              items:
+                - id: 8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+                  status: PENDING
+                  league:
+                    id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000004
+                    name: Liga do Churrasco
+                    visibility: PRIVATE
+                    gameMode: ONE_VS_ONE
+                    venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000003, name: Snooker House Pinheiros }
+                    scheduleSummary: Sábados, 15h–20h
+                    membersCount: 6
+                  invitedBy:
+                    id: 33333333-3333-4333-8333-333333333333
+                    username: felipao
+                    displayName: Felipe Costa
+                    avatarUrl: https://cdn.encacapei.com.br/avatars/33333333-3333-4333-8333-333333333333/256.webp
+                    initials: FE
+                    avatarColor: '#f4a261'
+                  message: null
+                  createdAt: '2026-07-25T14:30:00Z'
+                  expiresAt: '2026-08-01T14:30:00Z'
+                  respondedAt: null
+              meta: { totalItems: 1, pageSize: 20, hasMore: false, nextCursor: null }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+
+LeagueInvitationById:
+  delete:
+    operationId: revokeLeagueInvitation
+    summary: Revogar convite de liga
+    description: 'Requer `ADMIN`/`OWNER` ou ser quem convidou. Apaga a notificação pendente do convidado.'
+    tags: [Invitations]
+    parameters:
+      - name: invitationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 8a9b0c1d-2e3f-4a5b-8c6d-000000000010
+    responses:
+      '204':
+        description: Convite revogado.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+LeagueInvitationAccept:
+  post:
+    operationId: acceptLeagueInvitation
+    summary: Aceitar convite de liga
+    description: |
+      Somente o convidado. Cria `LeagueMember(PLAYER)` + `RankingEntry` zerada,
+      incrementa `membersCount`, resolve a notificação e avisa quem convidou.
+    tags: [Invitations]
+    parameters:
+      - name: invitationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKeyOptional'
+    responses:
+      '200':
+        description: Convite aceito.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InvitationResponse'
+            example:
+              invitationId: 8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+              status: ACCEPTED
+              respondedAt: '2026-07-27T19:40:00Z'
+              league: { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000004, name: Liga do Churrasco }
+              membership: { role: PLAYER, status: ACTIVE, joinedAt: '2026-07-27T19:40:00Z', joinedVia: INVITATION }
+              ranking: { position: 7, wins: 0, losses: 0, winRate: 0.00 }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '410':
+        $ref: '../openapi.yaml#/components/responses/Gone'
+
+LeagueInvitationDecline:
+  post:
+    operationId: declineLeagueInvitation
+    summary: Recusar convite de liga
+    description: '**Não notifica** quem convidou (RN-NOTIF-008).'
+    tags: [Invitations]
+    parameters:
+      - name: invitationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+    responses:
+      '200':
+        description: Convite recusado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InvitationResponse'
+            example:
+              invitationId: 8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+              status: DECLINED
+              respondedAt: '2026-07-27T19:41:00Z'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '410':
+        $ref: '../openapi.yaml#/components/responses/Gone'
+
+LeagueInviteCodes:
+  get:
+    operationId: listInviteCodes
+    summary: Listar códigos de convite ativos
+    tags: [Invitations]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+    responses:
+      '200':
+        description: Códigos ativos da liga.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/InviteCode'
+                meta:
+                  type: object
+                  properties:
+                    totalItems:
+                      type: integer
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+  post:
+    operationId: createInviteCode
+    summary: Gerar código de convite
+    description: |
+      Código curto com alfabeto **sem caracteres ambíguos** (sem `0`, `O`, `1`, `I`) —
+      é feito para ser ditado no grupo do WhatsApp. Gerar um novo **revoga** o
+      anterior por padrão.
+
+      `shareText` já vem pronto para o share sheet — gerar texto de compartilhamento
+      é responsabilidade do backend, não do app.
+    tags: [Invitations]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateInviteCodeRequest'
+          examples:
+            default:
+              value:
+                expiresInHours: 168
+                maxUses: null
+                revokePrevious: true
+    responses:
+      '201':
+        description: Código gerado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InviteCode'
+            example:
+              id: c0d1e2f3-a4b5-4c6d-8e7f-000000000001
+              code: TERCA-7K9M
+              shareUrl: https://encacapei.com.br/j/TERCA-7K9M
+              deepLink: encacapei://join?code=TERCA-7K9M
+              shareText: 'Bora jogar sinuca? Entra na Liga da Terça no Encaçapei: https://encacapei.com.br/j/TERCA-7K9M'
+              leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+              maxUses: null
+              usesCount: 0
+              expiresAt: '2026-08-03T19:45:00Z'
+              createdAt: '2026-07-27T19:45:00Z'
+              revokedPreviousCode: TERCA-3B8P
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+LeagueInviteCodeById:
+  delete:
+    operationId: revokeInviteCode
+    summary: Revogar código de convite
+    tags: [Invitations]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - name: codeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: c0d1e2f3-a4b5-4c6d-8e7f-000000000001
+    responses:
+      '204':
+        description: Código revogado.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+InviteCodePreview:
+  get:
+    operationId: previewInviteCode
+    summary: Pré-visualizar código de convite
+    description: |
+      Mostra em que liga o usuário está prestes a entrar, **sem** efeito colateral
+      (RN-INVITE-010). Cada estado inválido tem código de erro próprio.
+    tags: [Invitations]
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 6
+          maxLength: 16
+        example: TERCA-7K9M
+    responses:
+      '200':
+        description: Dados da liga do código.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InviteCodePreview'
+            example:
+              code: TERCA-7K9M
+              valid: true
+              league:
+                id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                name: Liga da Terça
+                visibility: PRIVATE
+                gameMode: ONE_VS_ONE
+                venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé, neighborhood: Vila Mariana, city: São Paulo }
+                scheduleSummary: Terças, 20h–00h
+                membersCount: 5
+                owner: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+              alreadyMember: false
+              expiresAt: '2026-08-03T19:45:00Z'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '410':
+        $ref: '../openapi.yaml#/components/responses/Gone'

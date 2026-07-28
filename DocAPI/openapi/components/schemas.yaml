@@ -1,0 +1,3727 @@
+# components/schemas.yaml
+# Schemas de domínio do Encaçapei. Todos os exemplos usam o dataset canônico (README §0.6).
+
+# ============================================================ ENUMS
+
+UserStatus:
+  type: string
+  enum: [PENDING_VERIFICATION, ACTIVE, DEACTIVATED, DELETION_SCHEDULED, ANONYMIZED]
+
+ProfileVisibility:
+  type: string
+  enum: [PUBLIC, FRIENDS_ONLY, PRIVATE]
+  default: FRIENDS_ONLY
+
+RelationshipStatus:
+  type: string
+  description: Relação entre o solicitante e o usuário retornado. Define o botão exibido no card.
+  enum: [NONE, REQUEST_SENT, REQUEST_RECEIVED, FRIENDS, BLOCKED, SELF]
+
+FriendRequestStatus:
+  type: string
+  enum: [PENDING, ACCEPTED, DECLINED, CANCELLED, EXPIRED]
+
+RequestDirection:
+  type: string
+  enum: [INCOMING, OUTGOING]
+
+LeagueVisibility:
+  type: string
+  enum: [PUBLIC, PRIVATE]
+  default: PRIVATE
+
+LeagueStatus:
+  type: string
+  enum: [DRAFT, ACTIVE, FINISHED, ARCHIVED]
+
+GameMode:
+  type: string
+  description: '`TEAM_2V2` é rejeitado com `FEATURE_NOT_AVAILABLE` no MVP (DP-013).'
+  enum: [ONE_VS_ONE, TEAM_2V2]
+  default: ONE_VS_ONE
+
+DurationType:
+  type: string
+  description: Chips "Um dia | 6 meses | Infinita" do wizard.
+  enum: [ONE_DAY, SIX_MONTHS, UNLIMITED]
+  default: SIX_MONTHS
+
+Weekday:
+  type: string
+  enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+
+LeagueRole:
+  type: string
+  enum: [OWNER, ADMIN, PLAYER]
+
+MemberStatus:
+  type: string
+  enum: [ACTIVE, LEFT, REMOVED]
+
+JoinedVia:
+  type: string
+  enum: [CREATOR, INVITATION, INVITE_CODE, PUBLIC_JOIN]
+
+JoinPolicy:
+  type: string
+  enum: [OPEN, APPROVAL_REQUIRED, INVITE_ONLY]
+
+InvitationStatus:
+  type: string
+  enum: [PENDING, ACCEPTED, DECLINED, REVOKED, EXPIRED]
+
+PlaySessionStatus:
+  type: string
+  enum: [SCHEDULED, IN_PROGRESS, CLOSED, CANCELLED]
+
+SessionClosedReason:
+  type: string
+  enum: [MANUAL, AUTO_TIMEOUT, LEAGUE_FINISHED]
+
+MatchStatus:
+  type: string
+  enum: [IN_PROGRESS, FINISHED, CANCELLED]
+
+MatchResultStatus:
+  type: string
+  description: Segunda dimensão do resultado. `CORRECTED` não altera `status`, que segue `FINISHED`.
+  enum: [ORIGINAL, CORRECTED]
+
+MatchCancelReason:
+  type: string
+  enum: [ABANDONED, MISTAKE, SESSION_CLOSED, OTHER]
+
+MatchEventType:
+  type: string
+  enum: [BALL_POCKETED, FOUL, TURN_CHANGE]
+
+MatchResultForMe:
+  type: string
+  enum: [WIN, LOSS]
+
+SessionOutcome:
+  type: string
+  enum: [WIN, LOSS, DRAW]
+
+Medal:
+  type: [string, 'null']
+  enum: [GOLD, SILVER, BRONZE, null]
+
+Side:
+  type: integer
+  enum: [1, 2]
+
+Period:
+  type: string
+  enum: [LAST_7_DAYS, LAST_30_DAYS, LAST_90_DAYS, LAST_4_WEEKS, LAST_12_WEEKS, CURRENT_YEAR, ALL_TIME]
+
+Granularity:
+  type: string
+  enum: [DAY, WEEK, MONTH]
+
+StatisticMetric:
+  type: string
+  enum: [WIN_RATE, WINS_LOSSES, MATCHES_PLAYED]
+
+TiebreakerCriterion:
+  type: string
+  enum: [WIN_RATE, WINS, FEWER_LOSSES, HEAD_TO_HEAD, JOINED_AT]
+
+NotificationCategory:
+  type: string
+  description: Define a seção da tela de notificações.
+  enum: [LEAGUE_INVITATIONS, FRIEND_REQUESTS, SESSION_ALERTS, MATCH_RESULTS, LEAGUE_UPDATES, SYSTEM]
+
+NotificationType:
+  type: string
+  enum:
+    - LEAGUE_INVITATION_RECEIVED
+    - FRIEND_REQUEST_RECEIVED
+    - FRIEND_REQUEST_ACCEPTED
+    - SESSION_REMINDER
+    - SESSION_STARTED
+    - SESSION_CLOSED_PODIUM
+    - MATCH_FINISHED
+    - MATCH_RESULT_CORRECTED
+    - RANKING_CHANGED
+    - LEAGUE_MEMBER_JOINED
+    - LEAGUE_RULES_CHANGED
+    - LEAGUE_FINISHED
+    - REMOVED_FROM_LEAGUE
+    - ROLE_CHANGED
+    - OWNERSHIP_TRANSFERRED
+    - SECURITY_PASSWORD_CHANGED
+    - SECURITY_ALERT
+
+DevicePlatform:
+  type: string
+  enum: [IOS, ANDROID, WEB]
+
+ShareKind:
+  type: string
+  enum: [SESSION_PODIUM, LEAGUE_RANKING, MATCH_RESULT]
+
+ShareFormat:
+  type: string
+  enum: [LINK, IMAGE_STORY, IMAGE_SQUARE]
+
+ShareStatus:
+  type: string
+  enum: [PENDING, PROCESSING, READY, FAILED, REVOKED]
+
+ShareVisibilityLevel:
+  type: string
+  description: '`MINIMAL` expõe primeiro nome + inicial. `FULL` exige opt-in de todos (DP-004).'
+  enum: [MINIMAL, FULL]
+  default: MINIMAL
+
+RankingRebuildStatus:
+  type: string
+  enum: [QUEUED, RUNNING, COMPLETED, FAILED]
+
+DataExportStatus:
+  type: string
+  enum: [PENDING, PROCESSING, READY, EXPIRED, FAILED]
+
+# ============================================================ PRIMITIVOS
+
+Uuid:
+  type: string
+  format: uuid
+  example: 11111111-1111-4111-8111-111111111111
+
+WinRate:
+  type: number
+  format: double
+  minimum: 0
+  maximum: 100
+  multipleOf: 0.01
+  description: Percentual com 2 casas. O arredondamento para inteiro é do cliente (half-up).
+  example: 63.64
+
+Money:
+  type: object
+  required: [amount, currency]
+  properties:
+    amount:
+      type: number
+      format: double
+      minimum: 0
+      multipleOf: 0.01
+      example: 30.00
+    currency:
+      type: string
+      pattern: '^[A-Z]{3}$'
+      default: BRL
+      example: BRL
+
+TimeOfDay:
+  type: string
+  pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+  example: '20:00'
+
+Timezone:
+  type: string
+  description: Identificador IANA. Nunca offset fixo.
+  maxLength: 64
+  default: America/Sao_Paulo
+  example: America/Sao_Paulo
+
+PaginationMetaCursor:
+  type: object
+  required: [totalItems, pageSize, hasMore]
+  properties:
+    totalItems:
+      type: integer
+      minimum: 0
+      example: 47
+    pageSize:
+      type: integer
+      example: 20
+    hasMore:
+      type: boolean
+      example: true
+    nextCursor:
+      type: [string, 'null']
+      example: eyJpZCI6IjNmNGE1YjZjIiwidCI6IjIwMjYtMDctMTVUMDI6MjE6MTVaIn0
+
+PaginationMetaOffset:
+  type: object
+  required: [totalItems, page, pageSize, totalPages, hasMore]
+  properties:
+    totalItems:
+      type: integer
+      example: 5
+    page:
+      type: integer
+      example: 1
+    pageSize:
+      type: integer
+      example: 50
+    totalPages:
+      type: integer
+      example: 1
+    hasMore:
+      type: boolean
+      example: false
+
+PaginationLinks:
+  type: object
+  properties:
+    next:
+      type: [string, 'null']
+      example: /api/v1/leagues/0a1b2c3d-4e5f-4a6b-8c7d-000000000001/matches?cursor=eyJpZCI6&limit=20
+    prev:
+      type: [string, 'null']
+
+# ============================================================ USERS
+
+UserSummary:
+  type: object
+  description: Projeção mínima de usuário, usada em listas, rankings e pódios.
+  required: [id, username, displayName, initials, avatarColor]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    username:
+      type: string
+      pattern: '^[a-z0-9_.]{3,20}$'
+      example: baroni
+    displayName:
+      type: string
+      minLength: 2
+      maxLength: 60
+      example: Rodrigo Baroni
+    avatarUrl:
+      type: [string, 'null']
+      format: uri
+      example: null
+    initials:
+      type: string
+      minLength: 1
+      maxLength: 2
+      description: Iniciais para o avatar quando `avatarUrl` é nulo.
+      example: RB
+    avatarColor:
+      type: string
+      pattern: '^#[0-9A-Fa-f]{6}$'
+      example: '#C1E778'
+
+MeProfile:
+  type: object
+  required:
+    [id, username, displayName, email, initials, avatarColor, status, emailVerified,
+     memberSince, timezone, locale, profileVisibility, searchableByUsername, createdAt, version]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    username:
+      type: string
+      example: baroni
+    displayName:
+      type: string
+      example: Rodrigo Baroni
+    email:
+      type: string
+      format: email
+      example: rodrigo.baroni@email.com
+    avatarUrl:
+      type: [string, 'null']
+      format: uri
+    initials:
+      type: string
+      example: RB
+    avatarColor:
+      type: string
+      example: '#C1E778'
+    bio:
+      type: [string, 'null']
+      maxLength: 160
+    status:
+      $ref: '#/UserStatus'
+    emailVerified:
+      type: boolean
+      example: true
+    memberSince:
+      type: string
+      format: date
+      description: Base do texto "Desde jan 2025" na Home.
+      example: '2025-01-14'
+    timezone:
+      $ref: '#/Timezone'
+    locale:
+      type: string
+      example: pt-BR
+    profileVisibility:
+      $ref: '#/ProfileVisibility'
+    searchableByUsername:
+      type: boolean
+      example: true
+    shareStatsPublicly:
+      type: boolean
+      default: false
+    locationConsentGrantedAt:
+      type: [string, 'null']
+      format: date-time
+      example: '2026-03-02T14:20:00Z'
+    createdAt:
+      type: string
+      format: date-time
+      example: '2025-01-14T22:10:00Z'
+    updatedAt:
+      type: string
+      format: date-time
+    version:
+      type: integer
+      example: 3
+    statistics:
+      $ref: '#/UserStatistics'
+    counters:
+      $ref: '#/MeCounters'
+
+MeCounters:
+  type: object
+  description: Contadores para os badges do app. Evita 4 requisições na abertura.
+  required: [unreadNotifications, pendingFriendRequests, pendingLeagueInvitations, activeLeagues]
+  properties:
+    unreadNotifications:
+      type: integer
+      example: 3
+    pendingFriendRequests:
+      type: integer
+      example: 2
+    pendingLeagueInvitations:
+      type: integer
+      example: 1
+    activeLeagues:
+      type: integer
+      example: 2
+    activeMatchId:
+      type: [string, 'null']
+      format: uuid
+      description: Partida em andamento do usuário, se houver (retomada de partida).
+      example: null
+
+PublicUser:
+  type: object
+  required: [id, username, displayName, initials, avatarColor, memberSince, relationship, statisticsVisible]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    username:
+      type: string
+      example: joaop
+    displayName:
+      type: string
+      example: João Pereira
+    avatarUrl:
+      type: [string, 'null']
+      format: uri
+    initials:
+      type: string
+      example: JO
+    avatarColor:
+      type: string
+      example: '#8ecae6'
+    memberSince:
+      type: string
+      format: date
+      example: '2025-03-08'
+    relationship:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/RelationshipStatus'
+        friendsSince:
+          type: [string, 'null']
+          format: date-time
+        friendRequestId:
+          type: [string, 'null']
+          format: uuid
+        canSendRequest:
+          type: boolean
+    sharedLeagues:
+      type: array
+      items:
+        $ref: '#/LeagueRef'
+    statisticsVisible:
+      type: boolean
+      example: true
+
+UserSearchResult:
+  allOf:
+    - $ref: '#/UserSummary'
+    - type: object
+      properties:
+        relationship:
+          type: object
+          required: [status, canSendRequest]
+          properties:
+            status:
+              $ref: '#/RelationshipStatus'
+            friendRequestId:
+              type: [string, 'null']
+              format: uuid
+            canSendRequest:
+              type: boolean
+        mutualLeaguesCount:
+          type: integer
+          example: 0
+        mutualFriendsCount:
+          type: integer
+          example: 2
+
+UserStatistics:
+  type: object
+  description: KPIs da Home e do card de perfil.
+  required: [matchesPlayed, wins, losses, winRate, currentWinStreak, longestWinStreak, longestLossStreak]
+  properties:
+    period:
+      $ref: '#/Period'
+    leagueId:
+      type: [string, 'null']
+      format: uuid
+    matchesPlayed:
+      type: integer
+      description: KPI "Partidas jogadas".
+      example: 47
+    wins:
+      type: integer
+      example: 29
+    losses:
+      type: integer
+      example: 18
+    winRate:
+      allOf:
+        - $ref: '#/WinRate'
+      description: KPI "Taxa de vitória" — `61.70` é exibido como `62%`.
+      example: 61.70
+    currentWinStreak:
+      type: integer
+      description: KPI "Vitórias consecutivas".
+      example: 5
+    longestWinStreak:
+      type: integer
+      example: 7
+    currentLossStreak:
+      type: integer
+      example: 0
+    longestLossStreak:
+      type: integer
+      description: KPI "Maiores derrotas" (DP-016b).
+      example: 2
+    sessionsPlayed:
+      type: integer
+      example: 14
+    podiumFirsts:
+      type: integer
+      example: 6
+    podiums:
+      type: object
+      properties:
+        first:
+          type: integer
+        second:
+          type: integer
+        third:
+          type: integer
+    ballsPocketedTotal:
+      type: integer
+      example: 213
+    averageMatchDurationSeconds:
+      type: [integer, 'null']
+      example: 1284
+    firstMatchAt:
+      type: [string, 'null']
+      format: date-time
+    lastMatchAt:
+      type: [string, 'null']
+      format: date-time
+      example: '2026-07-15T01:08:22Z'
+    computedAt:
+      type: string
+      format: date-time
+
+TimeSeries:
+  type: object
+  required: [metric, period, granularity, timezone, from, to, unit, points]
+  properties:
+    metric:
+      $ref: '#/StatisticMetric'
+    period:
+      $ref: '#/Period'
+    granularity:
+      $ref: '#/Granularity'
+    timezone:
+      $ref: '#/Timezone'
+    from:
+      type: string
+      format: date
+    to:
+      type: string
+      format: date
+    unit:
+      type: string
+      enum: [PERCENT, COUNT]
+    points:
+      type: array
+      items:
+        $ref: '#/TimeSeriesPoint'
+    summary:
+      type: object
+      additionalProperties: true
+
+TimeSeriesPoint:
+  type: object
+  required: [bucket]
+  properties:
+    bucket:
+      type: string
+      description: Chave do agrupamento (`2026-07-14` para DAY, `2026-W30` para WEEK).
+      example: '2026-W30'
+    date:
+      type: [string, 'null']
+      format: date
+    weekStart:
+      type: [string, 'null']
+      format: date
+    weekEnd:
+      type: [string, 'null']
+      format: date
+    label:
+      type: [string, 'null']
+      description: Rótulo gerado pelo servidor ("Sem 1").
+      example: Sem 4
+    value:
+      type: [number, 'null']
+      description: Presente em métricas de valor único (`WIN_RATE`).
+      example: 61.70
+    wins:
+      type: [integer, 'null']
+      example: 5
+    losses:
+      type: [integer, 'null']
+      example: 2
+    matchesPlayed:
+      type: [integer, 'null']
+
+# ============================================================ AUTH
+
+AuthTokens:
+  type: object
+  required: [accessToken, refreshToken, tokenType, expiresIn, refreshExpiresIn]
+  properties:
+    accessToken:
+      type: string
+      description: JWT RS256 com vida de 15 minutos. Armazenar apenas em memória.
+      example: eyJhbGciOiJSUzI1NiIsImtpZCI6ImVuYy0yMDI2LTAzIn0.eyJzdWIiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEifQ.mS4k
+    refreshToken:
+      type: string
+      description: Token opaco de 30 dias, rotacionado a cada uso. Armazenar em Keychain/Keystore.
+      example: v1.MWY0YTNiMmMtOGQ5ZS00ZjcwLTgxMmItMDAwMDAwMDAwMDAx.7Rq2xK9mZ0pL
+    tokenType:
+      type: string
+      const: Bearer
+      example: Bearer
+    expiresIn:
+      type: integer
+      description: Segundos de vida do access token.
+      example: 900
+    refreshExpiresIn:
+      type: integer
+      example: 2592000
+
+AuthSession:
+  allOf:
+    - $ref: '#/AuthTokens'
+    - type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/MeProfile'
+
+DeviceInfo:
+  type: object
+  properties:
+    deviceId:
+      type: string
+      format: uuid
+      example: b1c2d3e4-f5a6-4b7c-8d9e-000000000001
+    deviceName:
+      type: string
+      maxLength: 60
+      example: iPhone 15 de Rodrigo
+    platform:
+      $ref: '#/DevicePlatform'
+
+RegisterRequest:
+  type: object
+  required: [fullName, username, email, password, acceptedTermsVersion]
+  properties:
+    fullName:
+      type: string
+      minLength: 2
+      maxLength: 60
+      example: Rodrigo Baroni
+    username:
+      type: string
+      pattern: '^[a-z0-9_.]{3,20}$'
+      example: baroni
+    email:
+      type: string
+      format: email
+      maxLength: 254
+      example: rodrigo.baroni@email.com
+    password:
+      type: string
+      minLength: 8
+      maxLength: 128
+      description: |
+        Deve conter maiúscula, minúscula, número e caractere especial (RN-AUTH-001).
+        Cada critério violado retorna um item em `errors[]`.
+      example: Sinuca@2026
+    acceptedTermsVersion:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      example: '2026-06-01'
+    timezone:
+      $ref: '#/Timezone'
+    locale:
+      type: string
+      default: pt-BR
+      example: pt-BR
+    avatarUploadToken:
+      type: string
+      description: Token de upload prévio do avatar (etapa 4 do cadastro).
+    deviceInfo:
+      $ref: '#/DeviceInfo'
+
+LoginRequest:
+  type: object
+  required: [email, password]
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 254
+      example: rodrigo.baroni@email.com
+    password:
+      type: string
+      minLength: 1
+      maxLength: 128
+      example: Sinuca@2026
+    deviceInfo:
+      $ref: '#/DeviceInfo'
+
+RefreshRequest:
+  type: object
+  required: [refreshToken]
+  properties:
+    refreshToken:
+      type: string
+      maxLength: 512
+      example: v1.MWY0YTNiMmMtOGQ5ZS00ZjcwLTgxMmItMDAwMDAwMDAwMDAx.7Rq2xK9mZ0pL
+
+LogoutRequest:
+  type: object
+  properties:
+    refreshToken:
+      type: string
+      maxLength: 512
+    allSessions:
+      type: boolean
+      default: false
+
+PasswordForgotRequest:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+      example: rodrigo.baroni@email.com
+
+PasswordResetRequest:
+  type: object
+  required: [token, newPassword]
+  properties:
+    token:
+      type: string
+      maxLength: 256
+      example: rst_9f8e7d6c5b4a43928180000000000001
+    newPassword:
+      type: string
+      minLength: 8
+      maxLength: 128
+      example: NovaSinuca@2026
+
+PasswordChangeRequest:
+  type: object
+  required: [currentPassword, newPassword]
+  properties:
+    currentPassword:
+      type: string
+      maxLength: 128
+      example: Sinuca@2026
+    newPassword:
+      type: string
+      minLength: 8
+      maxLength: 128
+      example: OutraSinuca@2027
+    keepCurrentSession:
+      type: boolean
+      default: true
+
+TokenRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      maxLength: 256
+      example: evt_2b3c4d5e6f7048129a34000000000001
+
+UsernameAvailability:
+  type: object
+  required: [username, available]
+  properties:
+    username:
+      type: string
+      example: baroni
+    available:
+      type: boolean
+      example: false
+    reason:
+      type: [string, 'null']
+      enum: [TAKEN, RESERVED, INVALID_FORMAT, null]
+      example: TAKEN
+    suggestions:
+      type: array
+      items:
+        type: string
+      example: [baroni1, baroni_sinuca, rbaroni]
+
+# ============================================================ FRIENDSHIPS
+
+Friend:
+  allOf:
+    - $ref: '#/UserSummary'
+    - type: object
+      required: [friendshipId, friendsSince]
+      properties:
+        friendshipId:
+          $ref: '#/Uuid'
+        friendsSince:
+          type: string
+          format: date-time
+          example: '2025-04-02T19:22:00Z'
+        mutualLeaguesCount:
+          type: integer
+          example: 2
+        lastPlayedAt:
+          type: [string, 'null']
+          format: date-time
+          example: '2026-07-15T01:08:22Z'
+
+FriendRequest:
+  type: object
+  required: [id, direction, status, user, createdAt]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    direction:
+      $ref: '#/RequestDirection'
+    status:
+      $ref: '#/FriendRequestStatus'
+    user:
+      $ref: '#/UserSummary'
+    message:
+      type: [string, 'null']
+      maxLength: 200
+    mutualFriendsCount:
+      type: integer
+      example: 2
+    createdAt:
+      type: string
+      format: date-time
+      example: '2026-07-27T13:30:00Z'
+    respondedAt:
+      type: [string, 'null']
+      format: date-time
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+      description: 'null` — convites de amizade não expiram (DP-019).'
+    autoAccepted:
+      type: boolean
+      description: '`true` quando havia convite recíproco pendente (RN-FRIEND-004).'
+    friendship:
+      type: [object, 'null']
+      properties:
+        id:
+          $ref: '#/Uuid'
+        createdAt:
+          type: string
+          format: date-time
+
+CreateFriendRequest:
+  type: object
+  description: Informe **exatamente um** de `userId` ou `username`.
+  properties:
+    userId:
+      $ref: '#/Uuid'
+    username:
+      type: string
+      pattern: '^[a-z0-9_.]{3,20}$'
+    message:
+      type: string
+      maxLength: 200
+  oneOf:
+    - required: [userId]
+    - required: [username]
+
+FriendRequestResponse:
+  type: object
+  required: [requestId, status, respondedAt]
+  properties:
+    requestId:
+      $ref: '#/Uuid'
+    status:
+      $ref: '#/FriendRequestStatus'
+    respondedAt:
+      type: string
+      format: date-time
+    friendship:
+      type: [object, 'null']
+      properties:
+        id:
+          $ref: '#/Uuid'
+        createdAt:
+          type: string
+          format: date-time
+        friend:
+          $ref: '#/UserSummary'
+
+HeadToHead:
+  type: object
+  required: [opponent, filters, summary]
+  properties:
+    opponent:
+      $ref: '#/UserSummary'
+    filters:
+      type: object
+      properties:
+        leagueId:
+          type: [string, 'null']
+          format: uuid
+        period:
+          $ref: '#/Period'
+        from:
+          type: [string, 'null']
+          format: date
+        to:
+          type: [string, 'null']
+          format: date
+    summary:
+      type: object
+      required: [myWins, opponentWins, totalMatches, myWinRate, opponentWinRate]
+      properties:
+        myWins:
+          type: integer
+          example: 5
+        opponentWins:
+          type: integer
+          example: 3
+        totalMatches:
+          type: integer
+          example: 8
+        myWinRate:
+          allOf:
+            - $ref: '#/WinRate'
+          example: 62.50
+        opponentWinRate:
+          allOf:
+            - $ref: '#/WinRate'
+          example: 37.50
+        sessionsPlayed:
+          type: integer
+          example: 4
+        currentStreak:
+          $ref: '#/StreakHolder'
+        longestStreak:
+          $ref: '#/StreakHolder'
+        lastMatch:
+          type: [object, 'null']
+          properties:
+            id:
+              $ref: '#/Uuid'
+            winnerUserId:
+              $ref: '#/Uuid'
+            finishedAt:
+              type: string
+              format: date-time
+            leagueId:
+              $ref: '#/Uuid'
+            leagueName:
+              type: string
+        firstMatchAt:
+          type: [string, 'null']
+          format: date-time
+    byLeague:
+      type: array
+      description: Popula o filtro de liga da tela, evitando um segundo request.
+      items:
+        type: object
+        properties:
+          leagueId:
+            $ref: '#/Uuid'
+          leagueName:
+            type: string
+          myWins:
+            type: integer
+          opponentWins:
+            type: integer
+          totalMatches:
+            type: integer
+
+StreakHolder:
+  type: object
+  properties:
+    holder:
+      type: string
+      enum: [ME, OPPONENT, NONE]
+      example: ME
+    count:
+      type: integer
+      example: 1
+
+HeadToHeadSession:
+  type: object
+  required: [playSessionId, businessDate, league, myWins, opponentWins, totalMatches, outcome]
+  properties:
+    playSessionId:
+      $ref: '#/Uuid'
+    businessDate:
+      type: string
+      format: date
+      example: '2026-07-07'
+    league:
+      $ref: '#/LeagueRef'
+    venue:
+      $ref: '#/VenueRef'
+    myWins:
+      type: integer
+      example: 2
+    opponentWins:
+      type: integer
+      example: 1
+    totalMatches:
+      type: integer
+      example: 3
+    outcome:
+      $ref: '#/SessionOutcome'
+    matchIds:
+      type: array
+      items:
+        $ref: '#/Uuid'
+
+# ============================================================ LEAGUES
+
+LeagueRef:
+  type: object
+  required: [id, name]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    name:
+      type: string
+      example: Liga da Terça
+
+VenueRef:
+  type: object
+  required: [id, name]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    name:
+      type: string
+      example: Bar do Zé
+    neighborhood:
+      type: [string, 'null']
+    city:
+      type: [string, 'null']
+    distanceKm:
+      type: [number, 'null']
+
+LeagueSchedule:
+  type: object
+  required: [weekdays, startTime, endTime, timezone]
+  properties:
+    weekdays:
+      type: array
+      maxItems: 7
+      uniqueItems: true
+      items:
+        $ref: '#/Weekday'
+      example: [TUESDAY, FRIDAY]
+    startTime:
+      $ref: '#/TimeOfDay'
+    endTime:
+      allOf:
+        - $ref: '#/TimeOfDay'
+      description: Se ≤ `startTime`, a janela cruza a meia-noite.
+      example: '00:00'
+    crossesMidnight:
+      type: boolean
+      readOnly: true
+      description: Derivado. Base do cálculo de `businessDate` (RN-SESSION-003).
+      example: true
+    timezone:
+      $ref: '#/Timezone'
+    reminderMinutesBefore:
+      type: integer
+      minimum: 0
+      maximum: 1440
+      default: 60
+      description: Origem da notificação "começa em 1 hora".
+      example: 60
+    humanReadable:
+      type: string
+      readOnly: true
+      example: Terças e sextas, 20h–00h
+
+LeagueRules:
+  type: object
+  properties:
+    trackPocketedBalls:
+      type: boolean
+      default: true
+      description: Toggle "Marca bola caída?" — habilita a grade de 8 bolas.
+      example: true
+    trackFouls:
+      type: boolean
+      default: false
+      description: Toggle "Marca falta?".
+      example: false
+    ballsCount:
+      type: integer
+      enum: [8, 15]
+      default: 8
+      example: 8
+    requireOpponentConfirmation:
+      type: boolean
+      default: false
+      description: Fixo em `false` no MVP (DP-001).
+    correctionWindowHours:
+      type: integer
+      minimum: 0
+      maximum: 720
+      default: 24
+      example: 24
+    minMatchesForRanking:
+      type: integer
+      minimum: 0
+      maximum: 50
+      default: 0
+    tiebreakerOrder:
+      type: array
+      uniqueItems: true
+      items:
+        $ref: '#/TiebreakerCriterion'
+      example: [WIN_RATE, WINS, FEWER_LOSSES, HEAD_TO_HEAD, JOINED_AT]
+    locked:
+      type: boolean
+      readOnly: true
+      description: '`true` após a 1ª partida finalizada; campos de jogo tornam-se imutáveis (RN-LEAGUE-009).'
+      example: false
+    lockedAt:
+      type: [string, 'null']
+      format: date-time
+      readOnly: true
+
+LeagueCounters:
+  type: object
+  required: [membersCount, matchesCount]
+  properties:
+    membersCount:
+      type: integer
+      description: Membros ativos, incluindo o próprio usuário.
+      example: 5
+    matchesCount:
+      type: integer
+      description: Todas as partidas `FINISHED` da liga, inclusive de ex-membros.
+      example: 27
+    sessionsCount:
+      type: integer
+      example: 9
+
+LeaguePermissions:
+  type: object
+  description: Calculado pelo servidor para o app não reimplementar autorização.
+  properties:
+    canEdit:
+      type: boolean
+    canFinish:
+      type: boolean
+    canDelete:
+      type: boolean
+    canInvite:
+      type: boolean
+    canGenerateCode:
+      type: boolean
+    canManageMembers:
+      type: boolean
+    canLeave:
+      type: boolean
+    canStartMatch:
+      type: boolean
+    canJoin:
+      type: boolean
+
+MyMembership:
+  type: object
+  required: [role, status]
+  properties:
+    role:
+      $ref: '#/LeagueRole'
+    status:
+      $ref: '#/MemberStatus'
+    joinedAt:
+      type: string
+      format: date-time
+
+MyRankingSnapshot:
+  type: object
+  properties:
+    position:
+      type: [integer, 'null']
+      example: 2
+    wins:
+      type: integer
+      example: 7
+    losses:
+      type: integer
+      example: 4
+    winRate:
+      allOf:
+        - $ref: '#/WinRate'
+      example: 63.64
+
+League:
+  type: object
+  required: [id, name, visibility, status, gameMode, durationType, startsAt, owner, schedule, rules, counters, createdAt, version]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    name:
+      type: string
+      minLength: 3
+      maxLength: 60
+      example: Liga da Terça
+    description:
+      type: [string, 'null']
+      maxLength: 500
+    visibility:
+      $ref: '#/LeagueVisibility'
+    status:
+      $ref: '#/LeagueStatus'
+    gameMode:
+      $ref: '#/GameMode'
+    durationType:
+      $ref: '#/DurationType'
+    startsAt:
+      type: string
+      format: date
+      example: '2026-07-28'
+    endsAt:
+      type: [string, 'null']
+      format: date
+      example: '2027-01-28'
+    owner:
+      $ref: '#/UserSummary'
+    venue:
+      oneOf:
+        - $ref: '#/Venue'
+        - type: 'null'
+    venueLabel:
+      type: [string, 'null']
+      maxLength: 120
+    schedule:
+      $ref: '#/LeagueSchedule'
+    rules:
+      $ref: '#/LeagueRules'
+    counters:
+      $ref: '#/LeagueCounters'
+    nextSessionAt:
+      type: [string, 'null']
+      format: date-time
+      description: 'Derivado do schedule. Base do badge "Próxima: terça, 20h".'
+      example: '2026-07-28T23:00:00Z'
+    lastActivityAt:
+      type: [string, 'null']
+      format: date-time
+    currentSession:
+      oneOf:
+        - $ref: '#/PlaySession'
+        - type: 'null'
+    myMembership:
+      oneOf:
+        - $ref: '#/MyMembership'
+        - type: 'null'
+    myRanking:
+      oneOf:
+        - $ref: '#/MyRankingSnapshot'
+        - type: 'null'
+    permissions:
+      $ref: '#/LeaguePermissions'
+    inviteCode:
+      oneOf:
+        - $ref: '#/InviteCode'
+        - type: 'null'
+    invitationsSent:
+      type: integer
+    finishedAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    version:
+      type: integer
+      example: 1
+
+LeagueListItem:
+  type: object
+  required: [id, name, status, visibility, gameMode, counters]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    name:
+      type: string
+      example: Liga da Terça
+    status:
+      $ref: '#/LeagueStatus'
+    visibility:
+      $ref: '#/LeagueVisibility'
+    gameMode:
+      $ref: '#/GameMode'
+    venue:
+      oneOf:
+        - $ref: '#/VenueRef'
+        - type: 'null'
+    counters:
+      $ref: '#/LeagueCounters'
+    nextSessionAt:
+      type: [string, 'null']
+      format: date-time
+    lastActivityAt:
+      type: [string, 'null']
+      format: date-time
+    myMembership:
+      oneOf:
+        - $ref: '#/MyMembership'
+        - type: 'null'
+    myRanking:
+      oneOf:
+        - $ref: '#/MyRankingSnapshot'
+        - type: 'null'
+    hasActiveSession:
+      type: boolean
+    scheduleSummary:
+      type: string
+      example: Terças, 20h–00h
+
+PublicLeagueListItem:
+  allOf:
+    - $ref: '#/LeagueListItem'
+    - type: object
+      properties:
+        description:
+          type: [string, 'null']
+        owner:
+          $ref: '#/UserSummary'
+        alreadyMember:
+          type: boolean
+        canJoin:
+          type: boolean
+        joinPolicy:
+          $ref: '#/JoinPolicy'
+
+CreateLeagueRequest:
+  type: object
+  required: [name, durationType]
+  properties:
+    name:
+      type: string
+      minLength: 3
+      maxLength: 60
+      example: Liga da Terça
+    description:
+      type: string
+      maxLength: 500
+    visibility:
+      $ref: '#/LeagueVisibility'
+    venueId:
+      $ref: '#/Uuid'
+    venueLabel:
+      type: string
+      maxLength: 120
+      description: Alternativa a `venueId` para local fora do catálogo. Mutuamente exclusivos.
+    durationType:
+      $ref: '#/DurationType'
+    startsAt:
+      type: string
+      format: date
+      example: '2026-07-28'
+    gameMode:
+      $ref: '#/GameMode'
+    schedule:
+      $ref: '#/LeagueSchedule'
+    rules:
+      $ref: '#/LeagueRules'
+    inviteUserIds:
+      type: array
+      maxItems: 50
+      uniqueItems: true
+      items:
+        $ref: '#/Uuid'
+    generateInviteCode:
+      type: boolean
+      default: false
+
+UpdateLeagueRequest:
+  type: object
+  description: Atualização parcial. Omitir = não alterar; `null` = limpar.
+  properties:
+    name:
+      type: string
+      minLength: 3
+      maxLength: 60
+    description:
+      type: [string, 'null']
+      maxLength: 500
+    visibility:
+      $ref: '#/LeagueVisibility'
+    venueId:
+      type: [string, 'null']
+      format: uuid
+    venueLabel:
+      type: [string, 'null']
+      maxLength: 120
+    gameMode:
+      $ref: '#/GameMode'
+    durationType:
+      $ref: '#/DurationType'
+    endsAt:
+      type: [string, 'null']
+      format: date
+    schedule:
+      $ref: '#/LeagueSchedule'
+    rules:
+      $ref: '#/LeagueRules'
+
+FinishLeagueRequest:
+  type: object
+  properties:
+    reason:
+      type: string
+      maxLength: 300
+    force:
+      type: boolean
+      default: false
+      description: Cancela jogatinas e partidas em aberto.
+
+FinishLeagueResponse:
+  type: object
+  required: [id, name, status, finishedAt, version]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    name:
+      type: string
+    status:
+      $ref: '#/LeagueStatus'
+    finishedAt:
+      type: string
+      format: date-time
+    finishedBy:
+      $ref: '#/UserSummary'
+    finalRanking:
+      type: object
+      properties:
+        frozenAt:
+          type: string
+          format: date-time
+        champion:
+          type: object
+          properties:
+            userId:
+              $ref: '#/Uuid'
+            displayName:
+              type: string
+            wins:
+              type: integer
+            losses:
+              type: integer
+            winRate:
+              $ref: '#/WinRate'
+        entriesCount:
+          type: integer
+    sideEffects:
+      type: object
+      properties:
+        sessionsClosed:
+          type: integer
+        matchesCancelled:
+          type: integer
+        invitationsExpired:
+          type: integer
+        inviteCodesRevoked:
+          type: integer
+    version:
+      type: integer
+
+# ============================================================ MEMBERS
+
+LeagueMember:
+  type: object
+  required: [userId, username, displayName, initials, avatarColor, role, status, joinedAt, isMe]
+  properties:
+    userId:
+      $ref: '#/Uuid'
+    username:
+      type: string
+    displayName:
+      type: string
+    avatarUrl:
+      type: [string, 'null']
+      format: uri
+    initials:
+      type: string
+    avatarColor:
+      type: string
+    role:
+      $ref: '#/LeagueRole'
+    status:
+      $ref: '#/MemberStatus'
+    joinedAt:
+      type: string
+      format: date-time
+    leftAt:
+      type: [string, 'null']
+      format: date-time
+    joinedVia:
+      $ref: '#/JoinedVia'
+    ranking:
+      oneOf:
+        - $ref: '#/MyRankingSnapshot'
+        - type: 'null'
+    sessionStats:
+      type: [object, 'null']
+      description: Presente com `include=sessionStats`. `wins` é o "N vitórias hoje".
+      properties:
+        wins:
+          type: integer
+          example: 3
+        losses:
+          type: integer
+          example: 0
+        matchesPlayed:
+          type: integer
+          example: 3
+        position:
+          type: [integer, 'null']
+          example: 1
+    isMe:
+      type: boolean
+    canBeRemoved:
+      type: boolean
+    canChangeRole:
+      type: boolean
+
+ChangeMemberRoleRequest:
+  type: object
+  required: [role]
+  properties:
+    role:
+      $ref: '#/LeagueRole'
+
+ChangeMemberRoleResponse:
+  type: object
+  required: [userId, role, status, changedAt, version]
+  properties:
+    userId:
+      $ref: '#/Uuid'
+    displayName:
+      type: string
+    role:
+      $ref: '#/LeagueRole'
+    previousRole:
+      $ref: '#/LeagueRole'
+    status:
+      $ref: '#/MemberStatus'
+    changedAt:
+      type: string
+      format: date-time
+    ownershipTransferred:
+      type: boolean
+    previousOwner:
+      type: [object, 'null']
+      properties:
+        userId:
+          $ref: '#/Uuid'
+        newRole:
+          $ref: '#/LeagueRole'
+    version:
+      type: integer
+
+JoinLeagueResponse:
+  type: object
+  required: [leagueId, leagueName, membership]
+  properties:
+    leagueId:
+      $ref: '#/Uuid'
+    leagueName:
+      type: string
+    membership:
+      type: object
+      required: [role, status, joinedAt, joinedVia]
+      properties:
+        role:
+          $ref: '#/LeagueRole'
+        status:
+          $ref: '#/MemberStatus'
+        joinedAt:
+          type: string
+          format: date-time
+        joinedVia:
+          $ref: '#/JoinedVia'
+    ranking:
+      $ref: '#/MyRankingSnapshot'
+
+# ============================================================ INVITATIONS
+
+LeagueInvitation:
+  type: object
+  required: [id, status, league, invitedBy, createdAt, expiresAt]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    status:
+      $ref: '#/InvitationStatus'
+    league:
+      type: object
+      properties:
+        id:
+          $ref: '#/Uuid'
+        name:
+          type: string
+          example: Liga do Churrasco
+        visibility:
+          $ref: '#/LeagueVisibility'
+        gameMode:
+          $ref: '#/GameMode'
+        venue:
+          oneOf:
+            - $ref: '#/VenueRef'
+            - type: 'null'
+        scheduleSummary:
+          type: string
+        membersCount:
+          type: integer
+    invitedBy:
+      $ref: '#/UserSummary'
+    message:
+      type: [string, 'null']
+    createdAt:
+      type: string
+      format: date-time
+      example: '2026-07-25T14:30:00Z'
+    expiresAt:
+      type: string
+      format: date-time
+      example: '2026-08-01T14:30:00Z'
+    respondedAt:
+      type: [string, 'null']
+      format: date-time
+
+CreateInvitationsRequest:
+  type: object
+  description: Informe `userIds` e/ou `usernames`.
+  properties:
+    userIds:
+      type: array
+      minItems: 1
+      maxItems: 50
+      uniqueItems: true
+      items:
+        $ref: '#/Uuid'
+    usernames:
+      type: array
+      minItems: 1
+      maxItems: 50
+      uniqueItems: true
+      items:
+        type: string
+    message:
+      type: string
+      maxLength: 200
+  anyOf:
+    - required: [userIds]
+    - required: [usernames]
+
+InvitationBatchResult:
+  type: object
+  required: [results, summary]
+  properties:
+    results:
+      type: array
+      items:
+        type: object
+        required: [status]
+        properties:
+          userId:
+            $ref: '#/Uuid'
+          status:
+            type: string
+            enum: [INVITED, ALREADY_MEMBER, ALREADY_INVITED, USER_NOT_FOUND, USER_BLOCKED, LIMIT_EXCEEDED]
+          invitationId:
+            type: [string, 'null']
+            format: uuid
+          expiresAt:
+            type: [string, 'null']
+            format: date-time
+          renewed:
+            type: boolean
+    summary:
+      type: object
+      properties:
+        invited:
+          type: integer
+        alreadyMember:
+          type: integer
+        alreadyInvited:
+          type: integer
+        failed:
+          type: integer
+
+InvitationResponse:
+  type: object
+  required: [invitationId, status, respondedAt]
+  properties:
+    invitationId:
+      $ref: '#/Uuid'
+    status:
+      $ref: '#/InvitationStatus'
+    respondedAt:
+      type: string
+      format: date-time
+    league:
+      $ref: '#/LeagueRef'
+    membership:
+      type: [object, 'null']
+      properties:
+        role:
+          $ref: '#/LeagueRole'
+        status:
+          $ref: '#/MemberStatus'
+        joinedAt:
+          type: string
+          format: date-time
+        joinedVia:
+          $ref: '#/JoinedVia'
+    ranking:
+      oneOf:
+        - $ref: '#/MyRankingSnapshot'
+        - type: 'null'
+
+InviteCode:
+  type: object
+  required: [code, expiresAt, usesCount]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    code:
+      type: string
+      pattern: '^[A-Z0-9-]{6,16}$'
+      description: Alfabeto sem caracteres ambíguos (sem 0, O, 1, I) — ditável ao telefone.
+      example: TERCA-7K9M
+    shareUrl:
+      type: string
+      format: uri
+      example: https://encacapei.com.br/j/TERCA-7K9M
+    deepLink:
+      type: string
+      example: encacapei://join?code=TERCA-7K9M
+    shareText:
+      type: string
+      example: 'Bora jogar sinuca? Entra na Liga da Terça no Encaçapei: https://encacapei.com.br/j/TERCA-7K9M'
+    leagueId:
+      $ref: '#/Uuid'
+    maxUses:
+      type: [integer, 'null']
+      minimum: 1
+      example: null
+    usesCount:
+      type: integer
+      example: 0
+    expiresAt:
+      type: string
+      format: date-time
+      example: '2026-08-03T19:45:00Z'
+    createdAt:
+      type: string
+      format: date-time
+    revokedPreviousCode:
+      type: [string, 'null']
+
+CreateInviteCodeRequest:
+  type: object
+  properties:
+    expiresInHours:
+      type: integer
+      minimum: 1
+      maximum: 8760
+      default: 168
+    maxUses:
+      type: [integer, 'null']
+      minimum: 1
+    revokePrevious:
+      type: boolean
+      default: true
+
+InviteCodePreview:
+  type: object
+  required: [code, valid, league, alreadyMember]
+  properties:
+    code:
+      type: string
+      example: TERCA-7K9M
+    valid:
+      type: boolean
+    league:
+      type: object
+      properties:
+        id:
+          $ref: '#/Uuid'
+        name:
+          type: string
+        visibility:
+          $ref: '#/LeagueVisibility'
+        gameMode:
+          $ref: '#/GameMode'
+        venue:
+          oneOf:
+            - $ref: '#/VenueRef'
+            - type: 'null'
+        scheduleSummary:
+          type: string
+        membersCount:
+          type: integer
+        owner:
+          $ref: '#/UserSummary'
+    alreadyMember:
+      type: boolean
+    expiresAt:
+      type: string
+      format: date-time
+
+JoinByCodeRequest:
+  type: object
+  required: [code]
+  properties:
+    code:
+      type: string
+      minLength: 6
+      maxLength: 16
+      description: Normalizado para maiúsculas pelo servidor.
+      example: terca-7k9m
+
+# ============================================================ RANKING
+
+LeagueRanking:
+  type: object
+  required: [leagueId, leagueName, leagueStatus, period, frozen, items, meta]
+  properties:
+    leagueId:
+      $ref: '#/Uuid'
+    leagueName:
+      type: string
+    leagueStatus:
+      $ref: '#/LeagueStatus'
+    period:
+      $ref: '#/Period'
+    frozen:
+      type: boolean
+      description: '`true` em liga encerrada — ranking final imutável.'
+    frozenAt:
+      type: [string, 'null']
+      format: date-time
+    tiebreakerOrder:
+      type: array
+      items:
+        $ref: '#/TiebreakerCriterion'
+    minMatchesForRanking:
+      type: integer
+    items:
+      type: array
+      items:
+        $ref: '#/LeagueRankingEntry'
+    meta:
+      type: object
+      properties:
+        totalItems:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+
+LeagueRankingEntry:
+  type: object
+  required: [position, user, wins, losses, matchesPlayed, winRate, isMe, isActive]
+  properties:
+    position:
+      type: integer
+      minimum: 1
+      example: 2
+    user:
+      $ref: '#/UserSummary'
+    wins:
+      type: integer
+      example: 7
+    losses:
+      type: integer
+      example: 4
+    matchesPlayed:
+      type: integer
+      example: 11
+    winRate:
+      allOf:
+        - $ref: '#/WinRate'
+      example: 63.64
+    currentWinStreak:
+      type: integer
+    longestWinStreak:
+      type: integer
+    currentLossStreak:
+      type: integer
+    lastMatchAt:
+      type: [string, 'null']
+      format: date-time
+    isMe:
+      type: boolean
+    isActive:
+      type: boolean
+      description: '`false` para quem saiu da liga mas mantém histórico (DP-025).'
+    provisional:
+      type: boolean
+      description: '`true` quando abaixo de `minMatchesForRanking`.'
+    previousPosition:
+      type: [integer, 'null']
+    positionChange:
+      type: [integer, 'null']
+      description: Positivo = subiu.
+      example: 2
+
+SessionRanking:
+  type: object
+  required: [playSessionId, businessDate, status, isFinal, items, meta]
+  properties:
+    playSessionId:
+      $ref: '#/Uuid'
+    businessDate:
+      type: string
+      format: date
+    label:
+      type: string
+      example: Jogatina de 14 jul
+    league:
+      $ref: '#/LeagueRef'
+    status:
+      $ref: '#/PlaySessionStatus'
+    isFinal:
+      type: boolean
+      description: '`false` enquanto a jogatina está aberta — a UI deve dizer "está em 1º", não "ficou".'
+      example: false
+    items:
+      type: array
+      items:
+        $ref: '#/SessionRankingEntry'
+    meta:
+      type: object
+      properties:
+        totalItems:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+
+SessionRankingEntry:
+  type: object
+  required: [position, user, wins, losses, matchesPlayed, isMe]
+  properties:
+    position:
+      type: integer
+      example: 1
+    medal:
+      $ref: '#/Medal'
+    user:
+      $ref: '#/UserSummary'
+    wins:
+      type: integer
+      example: 4
+    losses:
+      type: integer
+      example: 0
+    matchesPlayed:
+      type: integer
+      example: 4
+    isMe:
+      type: boolean
+
+PodiumEntry:
+  type: object
+  required: [position, userId, displayName, wins]
+  properties:
+    position:
+      type: integer
+    medal:
+      $ref: '#/Medal'
+    userId:
+      $ref: '#/Uuid'
+    displayName:
+      type: string
+    wins:
+      type: integer
+    losses:
+      type: integer
+
+RankingRebuild:
+  type: object
+  required: [jobId, status, scope]
+  properties:
+    jobId:
+      $ref: '#/Uuid'
+    leagueId:
+      $ref: '#/Uuid'
+    triggeredBy:
+      type: string
+      enum: [MATCH_CORRECTION, MATCH_CANCELLED, RULES_CHANGED, MANUAL, DRIFT_CHECK]
+    sourceMatchId:
+      type: [string, 'null']
+      format: uuid
+    status:
+      $ref: '#/RankingRebuildStatus'
+    scope:
+      type: array
+      items:
+        type: string
+        enum: [LEAGUE_RANKING, SESSION_RANKING, USER_STATISTICS, HEAD_TO_HEAD]
+    statusUrl:
+      type: string
+    estimatedCompletionSeconds:
+      type: integer
+    matchesProcessed:
+      type: [integer, 'null']
+    entriesUpdated:
+      type: [integer, 'null']
+    positionChanges:
+      type: array
+      items:
+        type: object
+        properties:
+          userId:
+            $ref: '#/Uuid'
+          from:
+            type: [integer, 'null']
+          to:
+            type: [integer, 'null']
+    queuedAt:
+      type: [string, 'null']
+      format: date-time
+    startedAt:
+      type: [string, 'null']
+      format: date-time
+    completedAt:
+      type: [string, 'null']
+      format: date-time
+    error:
+      type: [string, 'null']
+
+# ============================================================ PLAY SESSIONS
+
+PlaySession:
+  type: object
+  required: [id, leagueId, businessDate, status, timezone, openedAt, counters, version]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    leagueId:
+      $ref: '#/Uuid'
+    leagueName:
+      type: string
+    businessDate:
+      type: string
+      format: date
+      description: |
+        O dia da jogatina calculado no **fuso da liga**, com corte deslocado quando a
+        janela cruza a meia-noite. Uma partida às 00:40 local pertence à noite anterior.
+      example: '2026-07-14'
+    label:
+      type: string
+      example: Jogatina de 14 jul
+    status:
+      $ref: '#/PlaySessionStatus'
+    venue:
+      oneOf:
+        - $ref: '#/VenueRef'
+        - type: 'null'
+    timezone:
+      $ref: '#/Timezone'
+    openedAt:
+      type: string
+      format: date-time
+      example: '2026-07-14T23:00:00Z'
+    openedBy:
+      $ref: '#/UserSummary'
+    closedAt:
+      type: [string, 'null']
+      format: date-time
+    closedBy:
+      oneOf:
+        - $ref: '#/UserSummary'
+        - type: 'null'
+    closedReason:
+      oneOf:
+        - $ref: '#/SessionClosedReason'
+        - type: 'null'
+    outOfSchedule:
+      type: boolean
+      description: '`true` quando a jogatina ocorreu fora dos dias do calendário da liga.'
+    counters:
+      type: object
+      properties:
+        matchesCount:
+          type: integer
+          example: 8
+        participantsCount:
+          type: integer
+          example: 4
+        activeMatchesCount:
+          type: integer
+          example: 0
+    myStats:
+      type: [object, 'null']
+      properties:
+        wins:
+          type: integer
+        losses:
+          type: integer
+        matchesPlayed:
+          type: integer
+        position:
+          type: [integer, 'null']
+    ranking:
+      type: array
+      items:
+        $ref: '#/SessionRankingEntry'
+    permissions:
+      type: object
+      properties:
+        canStartMatch:
+          type: boolean
+        canAddParticipant:
+          type: boolean
+        canClose:
+          type: boolean
+        canShare:
+          type: boolean
+    notes:
+      type: [string, 'null']
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    version:
+      type: integer
+
+PlaySessionListItem:
+  type: object
+  required: [id, businessDate, status, matchesCount]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    businessDate:
+      type: string
+      format: date
+    status:
+      $ref: '#/PlaySessionStatus'
+    label:
+      type: string
+      example: 14 de julho
+    matchesCount:
+      type: integer
+    participantsCount:
+      type: integer
+    openedAt:
+      type: string
+      format: date-time
+    closedAt:
+      type: [string, 'null']
+      format: date-time
+    venue:
+      oneOf:
+        - $ref: '#/VenueRef'
+        - type: 'null'
+    myWins:
+      type: integer
+    myLosses:
+      type: integer
+    myPosition:
+      type: [integer, 'null']
+
+CreatePlaySessionRequest:
+  type: object
+  required: [leagueId]
+  properties:
+    leagueId:
+      $ref: '#/Uuid'
+    businessDate:
+      type: string
+      format: date
+      description: Entre hoje-7 e hoje+7 no fuso da liga. Default = hoje.
+    venueId:
+      $ref: '#/Uuid'
+    participantUserIds:
+      type: array
+      maxItems: 20
+      uniqueItems: true
+      items:
+        $ref: '#/Uuid'
+    notes:
+      type: string
+      maxLength: 500
+
+AddParticipantsRequest:
+  type: object
+  required: [userIds]
+  properties:
+    userIds:
+      type: array
+      minItems: 1
+      maxItems: 20
+      uniqueItems: true
+      items:
+        $ref: '#/Uuid'
+
+AddParticipantsResponse:
+  type: object
+  properties:
+    playSessionId:
+      $ref: '#/Uuid'
+    added:
+      type: array
+      items:
+        type: object
+        properties:
+          userId:
+            $ref: '#/Uuid'
+          displayName:
+            type: string
+          joinedAt:
+            type: string
+            format: date-time
+    alreadyPresent:
+      type: array
+      items:
+        $ref: '#/Uuid'
+    participantsCount:
+      type: integer
+
+ClosePlaySessionRequest:
+  type: object
+  properties:
+    force:
+      type: boolean
+      default: false
+      description: Cancela partidas em andamento com `cancelReason = SESSION_CLOSED`.
+    generateShare:
+      type: boolean
+      default: false
+
+ClosePlaySessionResponse:
+  type: object
+  required: [id, status, closedAt, version]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    status:
+      $ref: '#/PlaySessionStatus'
+    closedAt:
+      type: string
+      format: date-time
+    closedBy:
+      oneOf:
+        - $ref: '#/UserSummary'
+        - type: 'null'
+    closedReason:
+      $ref: '#/SessionClosedReason'
+    finalPodium:
+      type: array
+      items:
+        $ref: '#/PodiumEntry'
+    counters:
+      type: object
+      properties:
+        matchesCount:
+          type: integer
+        participantsCount:
+          type: integer
+    shareArtifactId:
+      type: [string, 'null']
+      format: uuid
+    version:
+      type: integer
+
+ReopenPlaySessionRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 300
+
+# ============================================================ MATCHES
+
+MatchParticipant:
+  type: object
+  required: [userId, displayName, side]
+  properties:
+    userId:
+      $ref: '#/Uuid'
+    username:
+      type: string
+    displayName:
+      type: string
+    avatarUrl:
+      type: [string, 'null']
+      format: uri
+    initials:
+      type: string
+    avatarColor:
+      type: string
+    side:
+      $ref: '#/Side'
+    isWinner:
+      type: [boolean, 'null']
+    ballsPocketed:
+      type: integer
+      example: 1
+    fouls:
+      type: integer
+      example: 0
+    winsInSession:
+      type: integer
+      description: O "N vitórias hoje" exibido sob o avatar.
+      example: 3
+    lossesInSession:
+      type: integer
+      example: 0
+    isMe:
+      type: boolean
+
+TableState:
+  type: object
+  required: [ballsCount, pocketedBalls, remainingBalls]
+  properties:
+    ballsCount:
+      type: integer
+      example: 8
+    pocketedBalls:
+      type: array
+      items:
+        type: object
+        required: [ballNumber, eventId]
+        properties:
+          ballNumber:
+            type: integer
+            minimum: 1
+            maximum: 15
+          eventId:
+            $ref: '#/Uuid'
+          pocketedByUserId:
+            type: [string, 'null']
+            format: uuid
+          occurredAt:
+            type: string
+            format: date-time
+    remainingBalls:
+      type: array
+      items:
+        type: integer
+      example: [1, 3, 5, 6, 7, 8]
+
+Match:
+  type: object
+  required: [id, playSessionId, businessDate, league, status, resultStatus, gameMode, rules, startedAt, participants, tableState, version]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    playSessionId:
+      $ref: '#/Uuid'
+    sessionLabel:
+      type: string
+      example: Jogatina de 14 jul
+    businessDate:
+      type: string
+      format: date
+    league:
+      $ref: '#/LeagueRef'
+    venue:
+      oneOf:
+        - $ref: '#/VenueRef'
+        - type: 'null'
+    status:
+      $ref: '#/MatchStatus'
+    resultStatus:
+      $ref: '#/MatchResultStatus'
+    gameMode:
+      $ref: '#/GameMode'
+    rules:
+      type: object
+      description: Snapshot das regras no momento da criação — protege o histórico.
+      properties:
+        trackPocketedBalls:
+          type: boolean
+        trackFouls:
+          type: boolean
+        ballsCount:
+          type: integer
+    winnerSide:
+      oneOf:
+        - $ref: '#/Side'
+        - type: 'null'
+    startedAt:
+      type: string
+      format: date-time
+      example: '2026-07-15T00:47:00Z'
+    finishedAt:
+      type: [string, 'null']
+      format: date-time
+    durationSeconds:
+      type: [integer, 'null']
+    createdBy:
+      $ref: '#/UserSummary'
+    finishedBy:
+      oneOf:
+        - $ref: '#/UserSummary'
+        - type: 'null'
+    cancelledBy:
+      oneOf:
+        - $ref: '#/UserSummary'
+        - type: 'null'
+    cancelReason:
+      oneOf:
+        - $ref: '#/MatchCancelReason'
+        - type: 'null'
+    participants:
+      type: array
+      minItems: 2
+      maxItems: 4
+      items:
+        $ref: '#/MatchParticipant'
+    tableState:
+      $ref: '#/TableState'
+    events:
+      type: array
+      items:
+        $ref: '#/MatchEvent'
+    eventsCount:
+      type: integer
+    correctionCount:
+      type: integer
+    myResult:
+      oneOf:
+        - $ref: '#/MatchResultForMe'
+        - type: 'null'
+    correctionDeadline:
+      type: [string, 'null']
+      format: date-time
+    permissions:
+      type: object
+      properties:
+        canRecordEvent:
+          type: boolean
+        canFinish:
+          type: boolean
+        canCancel:
+          type: boolean
+        canCorrect:
+          type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    version:
+      type: integer
+
+MatchListItem:
+  type: object
+  required: [id, playSessionId, businessDate, status, resultStatus, gameMode, participants]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    playSessionId:
+      $ref: '#/Uuid'
+    businessDate:
+      type: string
+      format: date
+    status:
+      $ref: '#/MatchStatus'
+    resultStatus:
+      $ref: '#/MatchResultStatus'
+    gameMode:
+      $ref: '#/GameMode'
+    winnerSide:
+      oneOf:
+        - $ref: '#/Side'
+        - type: 'null'
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: [string, 'null']
+      format: date-time
+    durationSeconds:
+      type: [integer, 'null']
+    participants:
+      type: array
+      items:
+        $ref: '#/MatchParticipant'
+    myResult:
+      oneOf:
+        - $ref: '#/MatchResultForMe'
+        - type: 'null'
+    title:
+      type: string
+      description: Gerado pelo servidor na perspectiva do solicitante.
+      example: Você vs João
+    canCorrect:
+      type: boolean
+    correctionCount:
+      type: integer
+
+CreateMatchRequest:
+  type: object
+  required: [leagueId, participants]
+  properties:
+    leagueId:
+      $ref: '#/Uuid'
+    playSessionId:
+      $ref: '#/Uuid'
+      description: Se omitido, resolve ou abre a jogatina do dia (DP-012).
+    participants:
+      type: array
+      minItems: 2
+      maxItems: 4
+      items:
+        type: object
+        required: [userId, side]
+        properties:
+          userId:
+            $ref: '#/Uuid'
+          side:
+            $ref: '#/Side'
+    startedAt:
+      type: string
+      format: date-time
+      description: Entre `now-6h` e `now+5min`.
+    notes:
+      type: string
+      maxLength: 300
+
+CreateMatchEventRequest:
+  type: object
+  required: [type]
+  properties:
+    type:
+      $ref: '#/MatchEventType'
+    ballNumber:
+      type: integer
+      minimum: 1
+      maximum: 15
+      description: Obrigatório em `BALL_POCKETED`; proibido em `FOUL`.
+      example: 8
+    actorUserId:
+      $ref: '#/Uuid'
+      description: Quem encaçapou / cometeu a falta (DP-014).
+    occurredAt:
+      type: string
+      format: date-time
+
+MatchEvent:
+  type: object
+  required: [id, sequence, type, occurredAt]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    matchId:
+      $ref: '#/Uuid'
+    sequence:
+      type: integer
+      description: Ordem determinística atribuída pelo servidor.
+      example: 3
+    type:
+      $ref: '#/MatchEventType'
+    ballNumber:
+      type: [integer, 'null']
+    actorUserId:
+      type: [string, 'null']
+      format: uuid
+    actorDisplayName:
+      type: [string, 'null']
+    side:
+      oneOf:
+        - $ref: '#/Side'
+        - type: 'null'
+    recordedByUserId:
+      $ref: '#/Uuid'
+    occurredAt:
+      type: string
+      format: date-time
+    undoneAt:
+      type: [string, 'null']
+      format: date-time
+    undoneByUserId:
+      type: [string, 'null']
+      format: uuid
+
+MatchEventResponse:
+  type: object
+  required: [event, tableState, matchVersion]
+  properties:
+    event:
+      $ref: '#/MatchEvent'
+    tableState:
+      $ref: '#/TableState'
+    participants:
+      type: array
+      items:
+        type: object
+        properties:
+          userId:
+            $ref: '#/Uuid'
+          ballsPocketed:
+            type: integer
+          fouls:
+            type: integer
+    suggestion:
+      type: [object, 'null']
+      description: Dica de UX, não decisão de negócio. O servidor nunca finaliza a partida sozinho.
+      properties:
+        type:
+          type: string
+          enum: [SUGGEST_FINISH]
+        reason:
+          type: string
+          enum: [EIGHT_BALL_POCKETED, ALL_BALLS_POCKETED]
+        suggestedWinnerSide:
+          $ref: '#/Side'
+    matchVersion:
+      type: integer
+
+FinishMatchRequest:
+  type: object
+  description: Informe **exatamente um** de `winnerSide` ou `winnerUserId`.
+  properties:
+    winnerSide:
+      $ref: '#/Side'
+    winnerUserId:
+      $ref: '#/Uuid'
+    finishedAt:
+      type: string
+      format: date-time
+    notes:
+      type: string
+      maxLength: 300
+  oneOf:
+    - required: [winnerSide]
+    - required: [winnerUserId]
+
+FinishMatchResponse:
+  type: object
+  description: |
+    Uma única chamada entrega tudo que o modal de vitória precisa — pódio, posição
+    e ranking atualizado —, evitando 3 requisições na pior rede do fluxo.
+  required: [match, sessionRanking]
+  properties:
+    match:
+      type: object
+      properties:
+        id:
+          $ref: '#/Uuid'
+        status:
+          $ref: '#/MatchStatus'
+        resultStatus:
+          $ref: '#/MatchResultStatus'
+        winnerSide:
+          $ref: '#/Side'
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        durationSeconds:
+          type: integer
+        finishedBy:
+          $ref: '#/UserSummary'
+        participants:
+          type: array
+          items:
+            $ref: '#/MatchParticipant'
+        myResult:
+          $ref: '#/MatchResultForMe'
+        correctionDeadline:
+          type: string
+          format: date-time
+        version:
+          type: integer
+    leagueRanking:
+      type: object
+      properties:
+        updated:
+          type: boolean
+        myEntry:
+          type: object
+          properties:
+            position:
+              type: integer
+            previousPosition:
+              type: [integer, 'null']
+            wins:
+              type: integer
+            losses:
+              type: integer
+            winRate:
+              $ref: '#/WinRate'
+        opponentEntries:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                $ref: '#/Uuid'
+              position:
+                type: integer
+              previousPosition:
+                type: [integer, 'null']
+              wins:
+                type: integer
+              losses:
+                type: integer
+              winRate:
+                $ref: '#/WinRate'
+    sessionRanking:
+      type: object
+      properties:
+        isFinal:
+          type: boolean
+        myPosition:
+          type: integer
+        podium:
+          type: array
+          items:
+            $ref: '#/PodiumEntry'
+    streak:
+      type: object
+      properties:
+        currentWinStreak:
+          type: integer
+        longestWinStreak:
+          type: integer
+        isPersonalBest:
+          type: boolean
+
+CancelMatchRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      enum: [ABANDONED, MISTAKE, OTHER]
+    note:
+      type: string
+      maxLength: 300
+      description: Obrigatório quando `reason = OTHER`.
+
+CancelMatchResponse:
+  type: object
+  required: [id, status, cancelledAt, version]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    status:
+      $ref: '#/MatchStatus'
+    cancelReason:
+      $ref: '#/MatchCancelReason'
+    note:
+      type: [string, 'null']
+    cancelledAt:
+      type: string
+      format: date-time
+    cancelledBy:
+      $ref: '#/UserSummary'
+    rankingImpact:
+      type: string
+      enum: [NONE, REVERTED]
+    version:
+      type: integer
+
+CreateCorrectionRequest:
+  type: object
+  required: [reason]
+  properties:
+    winnerSide:
+      $ref: '#/Side'
+    winnerUserId:
+      $ref: '#/Uuid'
+    reason:
+      type: string
+      minLength: 5
+      maxLength: 300
+      description: Obrigatório — é o registro que encerra a discussão.
+      example: 'Marcamos errado: quem venceu foi o João, a bola 8 caiu na caçapa errada.'
+    finishedAt:
+      type: string
+      format: date-time
+  oneOf:
+    - required: [winnerSide, reason]
+    - required: [winnerUserId, reason]
+
+MatchCorrection:
+  type: object
+  required: [id, previousResult, newResult, reason, correctedBy, createdAt]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    matchId:
+      $ref: '#/Uuid'
+    previousResult:
+      $ref: '#/MatchResultSnapshot'
+    newResult:
+      $ref: '#/MatchResultSnapshot'
+    reason:
+      type: string
+    correctedBy:
+      $ref: '#/UserSummary'
+    createdAt:
+      type: string
+      format: date-time
+
+MatchResultSnapshot:
+  type: object
+  properties:
+    winnerSide:
+      $ref: '#/Side'
+    winnerUserIds:
+      type: array
+      items:
+        $ref: '#/Uuid'
+
+CorrectionResponse:
+  type: object
+  required: [correction, match]
+  properties:
+    correction:
+      $ref: '#/MatchCorrection'
+    match:
+      type: object
+      properties:
+        id:
+          $ref: '#/Uuid'
+        status:
+          $ref: '#/MatchStatus'
+        resultStatus:
+          $ref: '#/MatchResultStatus'
+        winnerSide:
+          $ref: '#/Side'
+        correctionCount:
+          type: integer
+        version:
+          type: integer
+    rankingRebuild:
+      $ref: '#/RankingRebuild'
+
+# ============================================================ VENUES
+
+OpeningHours:
+  type: object
+  required: [weekday, opensAt, closesAt]
+  properties:
+    weekday:
+      $ref: '#/Weekday'
+    opensAt:
+      $ref: '#/TimeOfDay'
+    closesAt:
+      $ref: '#/TimeOfDay'
+    crossesMidnight:
+      type: boolean
+
+Venue:
+  type: object
+  required: [id, name, addressLine, city, state, latitude, longitude, status]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    name:
+      type: string
+      minLength: 2
+      maxLength: 120
+      example: Bar do Zé
+    description:
+      type: [string, 'null']
+      maxLength: 1000
+    photoUrl:
+      type: [string, 'null']
+      format: uri
+    addressLine:
+      type: string
+      example: R. Domingos de Morais, 1234
+    neighborhood:
+      type: [string, 'null']
+      example: Vila Mariana
+    city:
+      type: string
+      example: São Paulo
+    state:
+      type: string
+      pattern: '^[A-Z]{2}$'
+      example: SP
+    postalCode:
+      type: [string, 'null']
+      pattern: '^\d{5}-?\d{3}$'
+      example: 04010-200
+    country:
+      type: string
+      pattern: '^[A-Z]{2}$'
+      default: BR
+    latitude:
+      type: number
+      format: double
+      minimum: -90
+      maximum: 90
+      example: -23.561414
+    longitude:
+      type: number
+      format: double
+      minimum: -180
+      maximum: 180
+      example: -46.655881
+    distanceKm:
+      type: [number, 'null']
+      description: Presente somente quando o cliente envia `lat`/`lng`. Nunca persistido.
+      example: 2.4
+    phone:
+      type: [string, 'null']
+      example: '+551155551234'
+    pricePerHour:
+      oneOf:
+        - $ref: '#/Money'
+        - type: 'null'
+    rating:
+      type: [number, 'null']
+      minimum: 0
+      maximum: 5
+      example: 4.5
+    ratingCount:
+      type: integer
+      example: 128
+    ratingSource:
+      type: string
+      enum: [INTERNAL, GOOGLE_PLACES, MANUAL]
+    ratingAttribution:
+      type: [string, 'null']
+      description: Atribuição obrigatória quando a nota vem de terceiro.
+    tablesCount:
+      type: [integer, 'null']
+      example: 3
+    isOpenNow:
+      type: boolean
+    openingHoursSummary:
+      type: string
+      example: Seg–Dom, 20h–04h
+    openingHours:
+      type: array
+      items:
+        $ref: '#/OpeningHours'
+    leaguesCount:
+      type: integer
+      example: 2
+    myLeaguesHere:
+      type: array
+      items:
+        $ref: '#/LeagueRef'
+    directions:
+      type: object
+      description: Tudo que o botão "Traçar rota" precisa. O app abre o mapa nativo.
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        label:
+          type: string
+        geoUri:
+          type: string
+          example: geo:-23.561414,-46.655881?q=-23.561414,-46.655881(Bar%20do%20Z%C3%A9)
+    attachableLeagues:
+      type: array
+      description: Ligas que o solicitante administra, para o botão "Atrelar liga a este local".
+      items:
+        type: object
+        properties:
+          id:
+            $ref: '#/Uuid'
+          name:
+            type: string
+          alreadyHere:
+            type: boolean
+    status:
+      type: string
+      enum: [ACTIVE, INACTIVE, PENDING_REVIEW]
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    version:
+      type: integer
+
+VenueLeagueItem:
+  type: object
+  required: [id, name, visibility, status, membersCount, isMember]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    name:
+      type: string
+    visibility:
+      $ref: '#/LeagueVisibility'
+    status:
+      $ref: '#/LeagueStatus'
+    membersCount:
+      type: integer
+    scheduleSummary:
+      type: string
+    isMember:
+      type: boolean
+    canJoin:
+      type: boolean
+
+# ============================================================ NOTIFICATIONS
+
+NotificationAction:
+  type: object
+  required: [key, label, style, method, href]
+  properties:
+    key:
+      type: string
+      enum: [ACCEPT, DECLINE, VIEW, SHARE, CONTEST]
+    label:
+      type: string
+      example: Aceitar
+    style:
+      type: string
+      enum: [PRIMARY, SECONDARY, DANGER]
+    method:
+      type: string
+      enum: [POST, DELETE, GET]
+    href:
+      type: string
+      example: /api/v1/league-invitations/8a9b0c1d-2e3f-4a5b-8c6d-000000000001/accept
+
+Notification:
+  type: object
+  required: [id, category, type, title, payload, actions, createdAt]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    category:
+      $ref: '#/NotificationCategory'
+    type:
+      $ref: '#/NotificationType'
+    title:
+      type: string
+      maxLength: 120
+      example: Liga do Churrasco te convidou
+    body:
+      type: [string, 'null']
+      maxLength: 300
+    payload:
+      type: object
+      additionalProperties: true
+      description: IDs necessários para as ações inline.
+    actions:
+      type: array
+      items:
+        $ref: '#/NotificationAction'
+    deepLink:
+      type: [string, 'null']
+      example: encacapei://league-invitations/8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+    icon:
+      type: [string, 'null']
+      enum: [ENVELOPE, USERS, CLOCK, TROPHY, WARNING, INFO, null]
+    readAt:
+      type: [string, 'null']
+      format: date-time
+    resolvedAt:
+      type: [string, 'null']
+      format: date-time
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+      description: O app formata como tempo relativo ("há 2 horas"). O servidor nunca envia data relativa.
+
+NotificationGroup:
+  type: object
+  required: [category, label, unreadCount, items]
+  properties:
+    category:
+      $ref: '#/NotificationCategory'
+    label:
+      type: string
+      example: Convites de liga
+    unreadCount:
+      type: integer
+    items:
+      type: array
+      items:
+        $ref: '#/Notification'
+
+UnreadCount:
+  type: object
+  required: [total, byCategory, computedAt]
+  properties:
+    total:
+      type: integer
+      example: 3
+    byCategory:
+      type: object
+      additionalProperties:
+        type: integer
+      example:
+        LEAGUE_INVITATIONS: 1
+        FRIEND_REQUESTS: 1
+        SESSION_ALERTS: 1
+        MATCH_RESULTS: 0
+        LEAGUE_UPDATES: 0
+        SYSTEM: 0
+    pendingActions:
+      type: integer
+      example: 2
+    computedAt:
+      type: string
+      format: date-time
+
+MarkReadRequest:
+  type: object
+  description: Informe **exatamente uma** das três formas de seleção.
+  properties:
+    notificationIds:
+      type: array
+      maxItems: 200
+      items:
+        $ref: '#/Uuid'
+    category:
+      $ref: '#/NotificationCategory'
+    all:
+      type: boolean
+  oneOf:
+    - required: [notificationIds]
+    - required: [category]
+    - required: [all]
+
+NotificationPreference:
+  type: object
+  required: [category, inAppEnabled, pushEnabled, emailEnabled]
+  properties:
+    category:
+      $ref: '#/NotificationCategory'
+    label:
+      type: string
+    inAppEnabled:
+      type: boolean
+    pushEnabled:
+      type: boolean
+    emailEnabled:
+      type: boolean
+    locked:
+      type: boolean
+      description: '`true` em `SYSTEM` — avisos de segurança não podem ser desligados.'
+
+QuietHours:
+  type: object
+  properties:
+    enabled:
+      type: boolean
+    startTime:
+      $ref: '#/TimeOfDay'
+    endTime:
+      $ref: '#/TimeOfDay'
+    timezone:
+      $ref: '#/Timezone'
+
+NotificationPreferences:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/NotificationPreference'
+    quietHours:
+      $ref: '#/QuietHours'
+    pushAvailable:
+      type: boolean
+    pushUnavailableReason:
+      type: [string, 'null']
+      enum: [FEATURE_DISABLED, NO_DEVICE_REGISTERED, PERMISSION_DENIED, null]
+
+UpdateNotificationPreferencesRequest:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 6
+      items:
+        type: object
+        required: [category]
+        properties:
+          category:
+            $ref: '#/NotificationCategory'
+          inAppEnabled:
+            type: boolean
+          pushEnabled:
+            type: boolean
+          emailEnabled:
+            type: boolean
+    quietHours:
+      $ref: '#/QuietHours'
+
+RegisterDeviceRequest:
+  type: object
+  required: [pushToken, platform]
+  properties:
+    pushToken:
+      type: string
+      minLength: 32
+      maxLength: 4096
+    platform:
+      $ref: '#/DevicePlatform'
+    deviceId:
+      type: string
+      format: uuid
+    deviceName:
+      type: string
+      maxLength: 60
+    appVersion:
+      type: string
+      maxLength: 20
+    osVersion:
+      type: string
+      maxLength: 20
+    locale:
+      type: string
+      maxLength: 10
+
+Device:
+  type: object
+  required: [id, platform, registeredAt, pushEnabled]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    platform:
+      $ref: '#/DevicePlatform'
+    deviceName:
+      type: [string, 'null']
+    registeredAt:
+      type: string
+      format: date-time
+    lastSeenAt:
+      type: string
+      format: date-time
+    pushEnabled:
+      type: boolean
+    note:
+      type: [string, 'null']
+
+# ============================================================ SHARING
+
+SessionSummary:
+  type: object
+  required: [playSessionId, businessDate, league, status, isFinal, podium, shareText]
+  properties:
+    playSessionId:
+      $ref: '#/Uuid'
+    businessDate:
+      type: string
+      format: date
+    label:
+      type: string
+      example: Jogatina de 14 jul
+    league:
+      $ref: '#/LeagueRef'
+    venue:
+      oneOf:
+        - $ref: '#/VenueRef'
+        - type: 'null'
+    status:
+      $ref: '#/PlaySessionStatus'
+    isFinal:
+      type: boolean
+    headline:
+      type: string
+      example: Você está em 1º lugar na jogatina de hoje da Liga da Terça.
+    myPosition:
+      type: integer
+    myWins:
+      type: integer
+    myLosses:
+      type: integer
+    totalMatches:
+      type: integer
+    podium:
+      type: array
+      items:
+        type: object
+        required: [position, displayName, shortName, wins]
+        properties:
+          position:
+            type: integer
+          medal:
+            $ref: '#/Medal'
+          displayName:
+            type: string
+          shortName:
+            type: string
+            description: Primeiro nome — já é a forma minimizada exigida por DP-004.
+            example: Rodrigo
+          initials:
+            type: string
+          avatarColor:
+            type: string
+          wins:
+            type: integer
+          losses:
+            type: integer
+          isMe:
+            type: boolean
+    shareText:
+      type: string
+      description: Texto pronto com emojis e quebras de linha. O app só entrega ao share sheet.
+    permissions:
+      type: object
+      properties:
+        canShare:
+          type: boolean
+        canGenerateImage:
+          type: boolean
+    generatedAt:
+      type: string
+      format: date-time
+
+CreateShareRequest:
+  type: object
+  properties:
+    format:
+      $ref: '#/ShareFormat'
+    kind:
+      $ref: '#/ShareKind'
+    visibilityLevel:
+      $ref: '#/ShareVisibilityLevel'
+    expiresInDays:
+      type: integer
+      minimum: 1
+      maximum: 90
+      default: 30
+
+ShareArtifact:
+  type: object
+  required: [id, kind, format, status, publicToken, shareUrl, expiresAt, createdAt]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    playSessionId:
+      $ref: '#/Uuid'
+    kind:
+      $ref: '#/ShareKind'
+    format:
+      $ref: '#/ShareFormat'
+    status:
+      $ref: '#/ShareStatus'
+    publicToken:
+      type: string
+      description: Token opaco de 32 bytes base64url.
+      example: Jt7xK2mQ9pR4vN8sL1yB6cW3zA5dF0hG-eU
+    shareUrl:
+      type: string
+      format: uri
+      example: https://encacapei.com.br/p/Jt7xK2mQ9pR4vN8sL1yB6cW3zA5dF0hG-eU
+    imageUrl:
+      type: [string, 'null']
+      format: uri
+    imageWidth:
+      type: [integer, 'null']
+    imageHeight:
+      type: [integer, 'null']
+    imageSizeBytes:
+      type: [integer, 'null']
+    shareText:
+      type: [string, 'null']
+    statusUrl:
+      type: [string, 'null']
+    estimatedReadySeconds:
+      type: [integer, 'null']
+    visibilityLevel:
+      $ref: '#/ShareVisibilityLevel'
+    snapshotFrozenAt:
+      type: string
+      format: date-time
+      description: O pódio é congelado aqui — correção posterior não altera o card já enviado.
+    viewCount:
+      type: integer
+    expiresAt:
+      type: string
+      format: date-time
+    createdBy:
+      $ref: '#/UserSummary'
+    createdAt:
+      type: string
+      format: date-time
+    failureReason:
+      type: [string, 'null']
+    retryable:
+      type: boolean
+
+PublicShare:
+  type: object
+  description: |
+    Projeção **minimizada** para consumo sem autenticação (DP-004).
+    Omite deliberadamente `userId`, `username`, avatar real, `leagueId` e `playSessionId`.
+  required: [kind, date, leagueName, podium]
+  properties:
+    kind:
+      $ref: '#/ShareKind'
+    date:
+      type: string
+      format: date
+    label:
+      type: string
+    leagueName:
+      type: string
+      example: Liga da Terça
+    venueName:
+      type: [string, 'null']
+      example: Bar do Zé
+    city:
+      type: [string, 'null']
+    podium:
+      type: array
+      items:
+        type: object
+        required: [position, name, wins]
+        properties:
+          position:
+            type: integer
+          medal:
+            $ref: '#/Medal'
+          name:
+            type: string
+            description: Primeiro nome + inicial do sobrenome. Quem optou por não aparecer vira "Jogador".
+            example: Rodrigo B.
+          initials:
+            type: [string, 'null']
+          avatarColor:
+            type: [string, 'null']
+          wins:
+            type: integer
+    totalMatches:
+      type: integer
+    imageUrl:
+      type: [string, 'null']
+      format: uri
+    appDeepLink:
+      type: string
+    appStoreUrl:
+      type: string
+      format: uri
+    expiresAt:
+      type: string
+      format: date-time
+
+# ============================================================ APP
+
+AppBootstrap:
+  type: object
+  required: [minSupportedVersion, forceUpdate, maintenanceMode, termsVersion, features, serverTime]
+  properties:
+    minSupportedVersion:
+      type: object
+      properties:
+        ios:
+          type: string
+        android:
+          type: string
+    latestVersion:
+      type: object
+      properties:
+        ios:
+          type: string
+        android:
+          type: string
+    forceUpdate:
+      type: boolean
+    maintenanceMode:
+      type: boolean
+    maintenanceEndsAt:
+      type: [string, 'null']
+      format: date-time
+    termsVersion:
+      type: string
+      example: '2026-06-01'
+    privacyPolicyVersion:
+      type: string
+    urls:
+      type: object
+      properties:
+        terms:
+          type: string
+          format: uri
+        privacy:
+          type: string
+          format: uri
+        support:
+          type: string
+          format: uri
+    features:
+      type: object
+      description: Materializa as decisões pendentes. O app esconde o que estiver `false`.
+      properties:
+        teamMatches:
+          type: boolean
+        pushNotifications:
+          type: boolean
+        shareImageGeneration:
+          type: boolean
+        venueReviews:
+          type: boolean
+        publicLeagueJoin:
+          type: boolean
+      additionalProperties:
+        type: boolean
+    serverTime:
+      type: string
+      format: date-time
+
+HealthStatus:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum: [Healthy, Degraded, Unhealthy]
+    checks:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+          status:
+            type: string
+          durationMs:
+            type: number
+
+# ============================================================ LGPD
+
+DeactivateAccountRequest:
+  type: object
+  required: [password]
+  properties:
+    password:
+      type: string
+      maxLength: 128
+    reason:
+      type: string
+      maxLength: 300
+
+DeleteAccountRequest:
+  type: object
+  required: [password, confirmation]
+  properties:
+    password:
+      type: string
+      maxLength: 128
+    confirmation:
+      type: string
+      const: EXCLUIR MINHA CONTA
+      example: EXCLUIR MINHA CONTA
+    reason:
+      type: string
+      maxLength: 300
+
+DeleteAccountResponse:
+  type: object
+  required: [status, scheduledFor, message]
+  properties:
+    status:
+      type: string
+      const: DELETION_SCHEDULED
+    scheduledFor:
+      type: string
+      format: date-time
+    cancelBy:
+      type: string
+      format: date-time
+    message:
+      type: string
+    dataRetentionNotice:
+      type: string
+      description: Explica que o histórico é preservado de forma anonimizada (RN-USER-007).
+
+DataExport:
+  type: object
+  required: [id, status, requestedAt]
+  properties:
+    id:
+      $ref: '#/Uuid'
+    status:
+      $ref: '#/DataExportStatus'
+    fileUrl:
+      type: [string, 'null']
+      format: uri
+    fileSizeBytes:
+      type: [integer, 'null']
+    format:
+      type: [string, 'null']
+      enum: [ZIP, null]
+    contents:
+      type: array
+      items:
+        type: string
+    statusUrl:
+      type: [string, 'null']
+    requestedAt:
+      type: string
+      format: date-time
+    estimatedReadyAt:
+      type: [string, 'null']
+      format: date-time
+    completedAt:
+      type: [string, 'null']
+      format: date-time
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+
+AvatarUploadUrl:
+  type: object
+  required: [uploadUrl, uploadToken, method, expiresAt, maxBytes]
+  properties:
+    uploadUrl:
+      type: string
+      format: uri
+      description: SAS de escrita com TTL de 10 minutos. O app faz `PUT` direto no Blob.
+    uploadToken:
+      type: string
+    method:
+      type: string
+      const: PUT
+    requiredHeaders:
+      type: object
+      additionalProperties:
+        type: string
+    expiresAt:
+      type: string
+      format: date-time
+    maxBytes:
+      type: integer
+      example: 5242880
+
+AvatarUploadUrlRequest:
+  type: object
+  required: [contentType, contentLength]
+  properties:
+    contentType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    contentLength:
+      type: integer
+      minimum: 1
+      maximum: 5242880
+
+ConfirmAvatarRequest:
+  type: object
+  required: [uploadToken]
+  properties:
+    uploadToken:
+      type: string
+
+Avatar:
+  type: object
+  required: [avatarUrl, updatedAt, version]
+  properties:
+    avatarUrl:
+      type: string
+      format: uri
+    thumbnailUrl:
+      type: string
+      format: uri
+    updatedAt:
+      type: string
+      format: date-time
+    version:
+      type: integer
+
+UpdateMeRequest:
+  type: object
+  description: |
+    Atualização parcial. Campos `id`, `email`, `status`, `createdAt` e `version`
+    são **ignorados** se enviados.
+  properties:
+    displayName:
+      type: string
+      minLength: 2
+      maxLength: 60
+    username:
+      type: string
+      pattern: '^[a-z0-9_.]{3,20}$'
+    bio:
+      type: [string, 'null']
+      maxLength: 160
+    timezone:
+      $ref: '#/Timezone'
+    locale:
+      type: string
+    profileVisibility:
+      $ref: '#/ProfileVisibility'
+    searchableByUsername:
+      type: boolean
+    shareStatsPublicly:
+      type: boolean

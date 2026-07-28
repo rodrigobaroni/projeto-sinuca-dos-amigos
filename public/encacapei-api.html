@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Encaçapei API — referência OpenAPI 3.1</title>
+<meta name="description" content="Referência interativa da API do Encaçapei: 98 operações, 162 schemas, gerada a partir da especificação OpenAPI 3.1." />
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+<style>
+:root{
+  --felt-900:#07271c;
+  --felt-800:#0c3b2a;
+  --felt-600:#15523b;
+  --cream-100:#f4efe3;
+  --muted-100:#acc6b9;
+  --gold:#f4c430;
+  --brass:#cdaa54;
+  --chalk:#46c2e0;
+  --clay:#e2745a;
+  --line:rgba(201,162,75,.18);
+  --line-strong:rgba(201,162,75,.3);
+  --surface-2:rgba(7,39,28,.5);
+  --surface-gold:rgba(244,196,48,.12);
+  --gold-line:rgba(244,196,48,.3);
+  --focus-ring:0 0 0 3px rgba(70,194,224,.35);
+  --font-display:'Anton',sans-serif;
+  --font-body:'Archivo',system-ui,sans-serif;
+  --font-mono:'Space Mono',monospace;
+  --page-max:1180px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font-body);
+  background:var(--felt-900);
+  color:var(--cream-100);
+  min-height:100dvh;
+}
+
+/* ---------- chrome do app ---------- */
+.chrome{
+  background:linear-gradient(180deg,#0e4630,var(--felt-900));
+  border-bottom:1px solid var(--line);
+}
+.chrome-in{
+  width:min(100%,var(--page-max));margin:0 auto;padding:12px 16px 16px;
+  display:flex;flex-direction:column;gap:12px;
+}
+.chrome-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.pill{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--muted-100);border:1px solid var(--line);border-radius:999px;padding:7px 12px;
+  text-decoration:none;white-space:nowrap;transition:color .15s ease,border-color .15s ease;
+}
+.pill:hover{color:var(--cream-100);border-color:var(--line-strong)}
+.pill:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.pill.accent{color:var(--gold);border-color:var(--gold-line);background:var(--surface-gold)}
+
+.ident{display:flex;align-items:center;gap:11px;min-width:0}
+.ball8{
+  width:34px;height:34px;border-radius:50%;background:#1c1c1c;color:var(--cream-100);flex:none;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-weight:700;font-size:13px;
+  box-shadow:inset -4px -5px 9px rgba(0,0,0,.45),inset 3px 4px 7px rgba(255,255,255,.22);
+}
+.ident h1{
+  font-family:var(--font-display);font-weight:400;text-transform:uppercase;
+  font-size:20px;line-height:1;letter-spacing:.5px;
+}
+.ident h1 small{
+  display:block;font-family:var(--font-mono);font-size:9.5px;letter-spacing:2.4px;
+  color:var(--brass);margin-top:4px;font-weight:400;
+}
+.facts{display:flex;gap:7px;flex-wrap:wrap}
+.fact{
+  font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--muted-100);background:var(--surface-2);border:1px solid var(--line);
+  border-radius:999px;padding:5px 10px;white-space:nowrap;
+}
+.fact b{color:var(--gold);font-weight:700}
+
+.warn{
+  width:min(100%,var(--page-max));margin:0 auto;padding:11px 16px;
+  font-size:13.5px;line-height:1.5;color:#e7f0ea;
+  display:flex;gap:9px;align-items:flex-start;
+}
+.warn-band{background:rgba(226,116,90,.1);border-bottom:1px solid rgba(226,116,90,.32)}
+.warn .ico{color:var(--clay);font-family:var(--font-mono);font-weight:700;flex:none}
+.warn b{color:var(--clay)}
+
+/* ---------- estados ---------- */
+.state{
+  width:min(100%,var(--page-max));margin:0 auto;padding:60px 16px;
+  display:flex;flex-direction:column;gap:12px;align-items:flex-start;
+}
+.state h2{font-family:var(--font-display);font-weight:400;text-transform:uppercase;font-size:24px;letter-spacing:.5px}
+.state p{font-size:15px;line-height:1.6;color:var(--muted-100);max-width:62ch}
+.state code{
+  font-family:var(--font-mono);font-size:12.5px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:6px;padding:.15em .4em;color:var(--cream-100);
+}
+.spinner{
+  width:22px;height:22px;border-radius:50%;
+  border:2px solid rgba(244,196,48,.25);border-top-color:var(--gold);
+  animation:spin .9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+[hidden]{display:none!important}
+
+/* ---------- swagger ui embutido ---------- */
+#swagger{background:#fff;min-height:50vh}
+.swagger-ui .topbar{display:none}
+.swagger-ui .info{margin:26px 0 18px}
+.swagger-ui .scheme-container{
+  background:#f6f7f2;box-shadow:none;border-bottom:1px solid #e2e5da;padding:14px 0;
+}
+.swagger-ui .btn.authorize{border-color:#15523b;color:#15523b}
+.swagger-ui .btn.authorize svg{fill:#15523b}
+.swagger-ui .opblock-tag{font-family:var(--font-body);font-weight:700}
+.swagger-ui .info .title{font-family:var(--font-display);font-weight:400;text-transform:uppercase;letter-spacing:.5px}
+.swagger-ui .filter input{border-radius:8px}
+
+footer{
+  width:min(100%,var(--page-max));margin:0 auto;padding:22px 16px 40px;
+  font-size:13px;line-height:1.6;color:var(--muted-100);
+  display:flex;flex-direction:column;gap:5px;
+}
+footer code{font-family:var(--font-mono);font-size:12px;color:var(--brass)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="chrome">
+  <div class="chrome-in">
+    <div class="chrome-row">
+      <div class="ident">
+        <span class="ball8">8</span>
+        <h1>Encaçapei API<small>OPENAPI 3.1 · V1.0.0</small></h1>
+      </div>
+      <div class="links">
+        <a class="pill" href="/">&larr; Placar da Sinuca</a>
+        <a class="pill" href="/encacapei-briefing.html">Briefing</a>
+        <a class="pill" href="/encacapei-mockup.html">Mockup</a>
+        <a class="pill accent" href="/openapi.yaml" download="encacapei-openapi.yaml">Baixar YAML</a>
+      </div>
+    </div>
+    <div class="facts">
+      <span class="fact"><b>98</b> operações</span>
+      <span class="fact"><b>86</b> rotas</span>
+      <span class="fact"><b>162</b> schemas</span>
+      <span class="fact"><b>131</b> códigos de erro</span>
+      <span class="fact"><b>13</b> tags</span>
+      <span class="fact"><b>0</b> erros de lint</span>
+    </div>
+  </div>
+</div>
+
+<div class="warn-band">
+  <div class="warn">
+    <span class="ico">!</span>
+    <span>
+      <b>Especificação, não servidor.</b> O backend descrito aqui ainda não existe —
+      esta é a referência de contrato para implementá-lo. Por isso o
+      <b>“Try it out”</b> está desativado: não há endpoint para chamar.
+      Os exemplos usam o dataset canônico do <a href="/encacapei-briefing.html" style="color:var(--gold)">briefing</a>.
+    </span>
+  </div>
+</div>
+
+<div class="state" id="loading">
+  <div class="spinner" role="status" aria-label="Carregando a especificação"></div>
+  <p>Carregando a especificação OpenAPI…</p>
+</div>
+
+<div class="state" id="failed" hidden>
+  <h2>Não foi possível montar a referência</h2>
+  <p id="failed-why"></p>
+  <p>
+    Duas alternativas que não dependem de rede externa:
+    abra <code>DocAPI/redoc-static.html</code> direto no navegador — é autocontido e já vem gerado —
+    ou rode <code>npx @redocly/cli preview-docs DocAPI/openapi/openapi.yaml</code>.
+  </p>
+</div>
+
+<div id="swagger"></div>
+
+<footer>
+  <div>Gerado a partir de <code>DocAPI/openapi/openapi.bundled.yaml</code>, servido em <code>/openapi.yaml</code>.</div>
+  <div>Para regerar o bundle depois de alterar a especificação: <code>npx @redocly/cli bundle DocAPI/openapi/openapi.yaml -o public/openapi.yaml</code></div>
+</footer>
+
+<script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin></script>
+<script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" crossorigin></script>
+<script>
+(function () {
+  var loading = document.getElementById("loading");
+  var failed = document.getElementById("failed");
+  var why = document.getElementById("failed-why");
+
+  function fail(message) {
+    loading.hidden = true;
+    failed.hidden = false;
+    why.textContent = message;
+  }
+
+  if (typeof window.SwaggerUIBundle !== "function") {
+    fail("Os arquivos do Swagger UI não carregaram. Isso normalmente acontece sem acesso ao unpkg.com — em rede restrita ou offline.");
+    return;
+  }
+
+  try {
+    window.SwaggerUIBundle({
+      url: "/openapi.yaml",
+      dom_id: "#swagger",
+      presets: [window.SwaggerUIBundle.presets.apis],
+      layout: "BaseLayout",
+      deepLinking: true,
+      docExpansion: "none",
+      filter: true,
+      tryItOutEnabled: false,
+      supportedSubmitMethods: [],
+      defaultModelsExpandDepth: 1,
+      defaultModelExpandDepth: 3,
+      persistAuthorization: false,
+      syntaxHighlight: { activate: true, theme: "nord" },
+      onComplete: function () {
+        loading.hidden = true;
+      },
+      onFailure: function (err) {
+        fail("A especificação não pôde ser carregada de /openapi.yaml. Detalhe: " + err);
+      }
+    });
+  } catch (e) {
+    fail("Erro ao inicializar o Swagger UI: " + (e && e.message ? e.message : e));
+  }
+
+  // rede de segurança: se em 15 s nada renderizou, explica em vez de deixar o spinner girando
+  setTimeout(function () {
+    if (!loading.hidden && !document.querySelector("#swagger .opblock, #swagger .information-container")) {
+      fail("A especificação demorou demais para carregar. Verifique se /openapi.yaml está sendo servido.");
+    }
+  }, 15000);
+})();
+</script>
+</body>
+</html>

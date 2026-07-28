@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Encaçapei — Briefing de handoff do backend</title>
+<meta name="description" content="Briefing técnico do backend do Encaçapei: inconsistências do mockup, 7 decisões bloqueantes, 16 módulos e roadmap de 16 semanas." />
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   ENCAÇAPEI — BRIEFING DE HANDOFF
+   Design system: Mesa de feltro (src/styles.css)
+   ============================================================ */
+:root{
+  --felt-900:#07271c;
+  --felt-800:#0c3b2a;
+  --felt-700:#103f2f;
+  --felt-600:#15523b;
+  --cream-100:#f4efe3;
+  --cream-200:#e7f0ea;
+  --cream-300:#d6e4dc;
+  --muted-100:#acc6b9;
+  --muted-200:#9fbdac;
+  --gold:#f4c430;
+  --brass:#cdaa54;
+  --chalk:#46c2e0;
+  --clay:#e2745a;
+  --line:rgba(201,162,75,.18);
+  --line-strong:rgba(201,162,75,.3);
+  --chalk-line:rgba(70,194,224,.38);
+  --gold-line:rgba(244,196,48,.3);
+  --clay-line:rgba(226,116,90,.32);
+  --surface-1:rgba(21,82,59,.6);
+  --surface-2:rgba(7,39,28,.5);
+  --surface-3:rgba(7,39,28,.72);
+  --surface-gold:rgba(244,196,48,.12);
+  --surface-chalk:rgba(70,194,224,.12);
+  --surface-clay:rgba(226,116,90,.1);
+  --cue:var(--cream-100);
+  --muted:var(--muted-100);
+  --page-max:1180px;
+  --radius-sm:12px;
+  --radius-md:14px;
+  --radius-lg:18px;
+  --shadow-card:0 18px 55px rgba(0,0,0,.14);
+  --focus-ring:0 0 0 3px rgba(70,194,224,.35);
+  --font-display:'Anton',sans-serif;
+  --font-body:'Archivo',system-ui,sans-serif;
+  --font-mono:'Space Mono',monospace;
+  --measure:66ch;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{
+  font-family:var(--font-body);
+  color:var(--cue);
+  background:radial-gradient(130% 80% at 50% -8%,#11583f 0%,var(--felt-800) 48%,var(--felt-900) 100%);
+  background-attachment:fixed;
+  min-height:100dvh;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- tipografia ---------- */
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--brass)}
+.h-hero{
+  font-family:var(--font-display);font-weight:400;text-transform:uppercase;
+  font-size:clamp(32px,6.4vw,58px);line-height:.94;letter-spacing:.5px;
+  text-wrap:balance;
+}
+.h-sec{
+  font-family:var(--font-display);font-weight:400;text-transform:uppercase;
+  font-size:clamp(23px,3.6vw,33px);line-height:.98;letter-spacing:.5px;
+  text-wrap:balance;
+}
+.h-card{font-size:17px;font-weight:700;line-height:1.28;text-wrap:balance;letter-spacing:-.005em}
+.lead{font-size:17.5px;line-height:1.6;color:var(--cream-300);max-width:var(--measure)}
+p,li{max-width:var(--measure)}
+strong,b{font-weight:700;color:var(--cue)}
+.mono{font-family:var(--font-mono);font-size:.87em}
+.tag{
+  font-family:var(--font-mono);font-size:.84em;
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:6px;padding:.1em .38em;white-space:nowrap;color:var(--cream-200);
+}
+a{color:var(--gold);text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{color:var(--cue)}
+:focus-visible{outline:none;box-shadow:var(--focus-ring);border-radius:6px}
+
+/* ---------- shell ---------- */
+.wrap{width:min(100%,var(--page-max));margin:0 auto;padding:0 16px 96px}
+
+/* ---------- topbar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:linear-gradient(180deg,rgba(7,39,28,.97),rgba(7,39,28,.86) 70%,rgba(7,39,28,.6));
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-in{
+  width:min(100%,var(--page-max));margin:0 auto;padding:10px 16px;
+  display:flex;align-items:center;gap:14px;justify-content:space-between;
+}
+.back{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:7px 12px;
+  text-decoration:none;white-space:nowrap;transition:color .15s ease,border-color .15s ease;
+}
+.back:hover{color:var(--cue);border-color:var(--line-strong)}
+.jump{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.jump::-webkit-scrollbar{display:none}
+.jump a{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--muted);text-decoration:none;padding:8px 9px;border-bottom:2px solid transparent;white-space:nowrap;
+}
+.jump a:hover{color:var(--gold);border-bottom-color:var(--gold-line)}
+
+/* ---------- hero ---------- */
+.hero{padding:44px 0 34px;display:flex;flex-direction:column;gap:22px}
+.hero-mark{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+.ball{
+  width:32px;height:32px;border-radius:50%;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-weight:700;font-size:12px;
+  box-shadow:inset -4px -5px 9px rgba(0,0,0,.45),inset 3px 4px 7px rgba(255,255,255,.22);
+}
+.ball.lg{width:44px;height:44px;font-size:15px}
+.ball.eight{background:#1c1c1c;color:var(--cream-100)}
+.ball.gold{background:var(--gold);color:#4a3a00}
+.ball.brass{background:var(--brass);color:#3a2c07}
+.ball.chalk{background:var(--chalk);color:#04303c}
+.ball.clay{background:var(--clay);color:#4a1608}
+.ball.cream{background:var(--cream-200);color:var(--felt-900)}
+.ball.felt{background:var(--felt-600);color:var(--cream-100)}
+
+.stats{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
+  border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;
+  background:var(--surface-2);
+}
+.stat{padding:15px 16px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat-n{font-family:var(--font-display);font-weight:400;font-size:31px;line-height:.9;letter-spacing:.5px;font-variant-numeric:tabular-nums;color:var(--gold)}
+.stat-l{font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);line-height:1.4}
+.stat.alert .stat-n{color:var(--clay)}
+
+/* ---------- seções ---------- */
+section{padding-top:58px}
+.sec-head{display:flex;flex-direction:column;gap:11px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.sec-title{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+
+/* ---------- cards ---------- */
+.card{
+  background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:20px 22px;box-shadow:var(--shadow-card);
+}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(298px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(232px,1fr))}
+.stack{display:flex;flex-direction:column;gap:14px}
+.stack-sm{display:flex;flex-direction:column;gap:9px}
+.small{font-size:14px;line-height:1.5;color:var(--muted)}
+
+/* ---------- chips ---------- */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;
+  padding:5px 10px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);white-space:nowrap;
+}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.chip.block{border-color:var(--clay-line);color:var(--clay);background:var(--surface-clay)}
+.chip.warn{border-color:var(--gold-line);color:var(--gold);background:var(--surface-gold)}
+.chip.info{border-color:var(--chalk-line);color:var(--chalk);background:var(--surface-chalk)}
+
+/* ---------- decisões ---------- */
+.dec{
+  background:var(--surface-1);border:1px solid var(--line);border-left:3px solid var(--clay);
+  border-radius:var(--radius-md);padding:17px 19px;display:flex;flex-direction:column;gap:10px;
+}
+.dec-id{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1.4px;color:var(--clay)}
+.dec-q{font-size:16px;font-weight:700;line-height:1.32}
+.dec-rec{
+  font-size:14px;line-height:1.5;color:var(--cream-300);
+  background:var(--surface-gold);border:1px solid var(--gold-line);
+  border-radius:10px;padding:9px 12px;
+}
+.dec-rec b{color:var(--gold)}
+.dec-note{font-size:13px;line-height:1.5;color:var(--muted)}
+.dec.soft{border-left-style:dashed;border-left-color:var(--brass)}
+.dec.soft .dec-id{color:var(--brass)}
+
+/* ---------- prova ---------- */
+.proof{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;background:var(--surface-2)}
+.prow{
+  display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;
+  padding:12px 15px;border-bottom:1px solid var(--line);
+}
+.prow:last-child{border-bottom:0}
+.prow.head{
+  background:var(--surface-3);font-family:var(--font-mono);
+  font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);
+}
+.pwhat{font-size:14px;line-height:1.35}
+.pv{font-family:var(--font-mono);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--cream-200)}
+.pv.ok{color:var(--chalk)}
+
+/* ---------- tabela ---------- */
+.tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-2)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{
+  background:var(--surface-3);font-family:var(--font-mono);
+  font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);font-weight:400;white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--brass)}
+td p{max-width:none}
+
+/* ---------- roadmap ---------- */
+.phase{display:grid;grid-template-columns:44px 1fr;gap:17px;padding:19px 0;border-bottom:1px solid var(--line)}
+.phase:last-child{border-bottom:0}
+.pmark{display:flex;flex-direction:column;align-items:center;gap:8px}
+.prail{width:1px;flex:1;min-height:10px;background:var(--line-strong)}
+.pbody{display:flex;flex-direction:column;gap:9px}
+.ptop{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.pname{font-family:var(--font-display);font-weight:400;text-transform:uppercase;font-size:19px;letter-spacing:.5px;line-height:1}
+.pwk{font-family:var(--font-mono);font-size:11px;color:var(--brass);font-variant-numeric:tabular-nums}
+.pdesc{font-size:14.5px;line-height:1.55;color:var(--cream-300)}
+.gate{
+  font-size:13.5px;line-height:1.5;color:var(--cream-300);
+  background:var(--surface-clay);border:1px solid var(--clay-line);
+  border-radius:10px;padding:9px 12px;
+}
+.gate b{color:var(--clay)}
+.phase.crit .pname{color:var(--clay)}
+.phase.done .gate{background:var(--surface-chalk);border-color:var(--chalk-line)}
+.phase.done .gate b{color:var(--chalk)}
+
+/* ---------- módulos ---------- */
+.mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:8px}
+.mod{
+  border:1px solid var(--line);border-left:3px solid var(--chalk);border-radius:10px;
+  padding:10px 12px;background:var(--surface-2);display:flex;flex-direction:column;gap:3px;
+}
+.mod-n{font-size:13.5px;font-weight:600;line-height:1.25}
+.mod-s{font-family:var(--font-mono);font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+.mod.later{border-left-color:var(--line-strong)}
+.mod.later .mod-n{color:var(--muted)}
+.mod.crit{border-left-color:var(--clay)}
+
+/* ---------- arquivos ---------- */
+.files{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;background:var(--surface-2)}
+.file{
+  display:grid;grid-template-columns:minmax(180px,250px) 1fr;gap:14px;align-items:baseline;
+  padding:11px 15px;border-bottom:1px solid var(--line);
+}
+.file:last-child{border-bottom:0}
+.file-p{font-family:var(--font-mono);font-size:12px;color:var(--gold);word-break:break-all}
+.file-d{font-size:13.5px;line-height:1.45;color:var(--muted)}
+
+pre{
+  background:var(--surface-3);border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px;overflow-x:auto;
+  font-family:var(--font-mono);font-size:12px;line-height:1.7;color:var(--cream-200);
+}
+pre .c{color:var(--muted-200)}
+pre .k{color:var(--gold)}
+
+.note{font-size:14px;line-height:1.55;color:var(--cream-300);border-left:2px solid var(--gold);padding-left:14px;max-width:var(--measure)}
+.kv{display:flex;flex-direction:column;gap:2px}
+.kv-k{font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.kv-v{font-size:14px;line-height:1.45}
+
+footer{
+  border-top:1px solid var(--line);margin-top:64px;padding-top:22px;
+  display:flex;flex-direction:column;gap:6px;
+  font-size:13px;color:var(--muted);
+}
+
+@media (max-width:640px){
+  .prow{grid-template-columns:1fr auto}
+  .prow .pv:last-child{grid-column:2}
+  .file{grid-template-columns:1fr;gap:3px}
+  .phase{grid-template-columns:36px 1fr;gap:13px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <a class="back" href="/">&larr; Placar da Sinuca</a>
+    <nav class="jump" aria-label="Seções">
+      <a href="#leitura">Como ler</a>
+      <a href="#achado">O achado</a>
+      <a href="#decisoes">7 decisões</a>
+      <a href="#modulos">Módulos</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#entrega">Entrega</a>
+    </nav>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="hero-mark">
+      <span class="ball lg eight">8</span>
+      <span class="eyebrow">Encaçapei · Especificação de backend · v1.0 draft</span>
+    </div>
+
+    <h1 class="h-hero">Do mockup navegável ao contrato de backend</h1>
+
+    <p class="lead">
+      Um mockup estático de 12 telas virou 25 capítulos de especificação e uma OpenAPI 3.1 validada.
+      Este briefing existe para uma coisa: mostrar ao time <strong>o que já está decidido</strong>,
+      <strong>o que ainda bloqueia</strong> e <strong>por onde começar</strong>.
+    </p>
+
+    <div class="stats">
+      <div class="stat"><span class="stat-n">90</span><span class="stat-l">endpoints<br>especificados</span></div>
+      <div class="stat"><span class="stat-n">181</span><span class="stat-l">regras de<br>negócio</span></div>
+      <div class="stat"><span class="stat-n">269</span><span class="stat-l">casos de<br>teste</span></div>
+      <div class="stat"><span class="stat-n">131</span><span class="stat-l">códigos<br>de erro</span></div>
+      <div class="stat"><span class="stat-n">98</span><span class="stat-l">operações<br>openapi</span></div>
+      <div class="stat alert"><span class="stat-n">7</span><span class="stat-l">decisões que<br>bloqueiam</span></div>
+    </div>
+  </header>
+
+  <!-- ============================================ COMO LER -->
+  <section id="leitura">
+    <div class="sec-head">
+      <div class="sec-title">
+        <span class="ball cream">1</span>
+        <h2 class="h-sec">Cada um lê uma parte</h2>
+      </div>
+      <p class="lead">Ninguém precisa ler 34 mil linhas. Três caminhos, por papel.</p>
+    </div>
+
+    <div class="grid g3">
+      <div class="card stack-sm">
+        <span class="chip block"><span class="dot"></span>Produto</span>
+        <h3 class="h-card">Responder 7 perguntas</h3>
+        <p class="small">Uma reunião de 90 minutos destrava a fase mais crítica. Todas já vêm com recomendação — o pedido é confirmar ou vetar.</p>
+        <div class="kv"><span class="kv-k">Onde</span><span class="kv-v">Capítulo 19 · §19.2</span></div>
+      </div>
+
+      <div class="card stack-sm">
+        <span class="chip info"><span class="dot"></span>Backend</span>
+        <h3 class="h-card">Contratos e roadmap</h3>
+        <p class="small">OpenAPI validada com exemplos reais, modelo de 38 tabelas com as invariantes protegidas no banco, e 269 casos de teste que já usam o mesmo dataset.</p>
+        <div class="kv"><span class="kv-k">Onde</span><span class="kv-v">Capítulos 5–17 · <span class="mono">DocAPI/openapi/</span></span></div>
+      </div>
+
+      <div class="card stack-sm">
+        <span class="chip warn"><span class="dot"></span>Jurídico / DPO</span>
+        <h3 class="h-card">LGPD e link público</h3>
+        <p class="small">Inventário de dados, bases legais por finalidade e a decisão mais sensível do modelo: preservar o histórico de partidas de forma anonimizada quando alguém exclui a conta.</p>
+        <div class="kv"><span class="kv-k">Onde</span><span class="kv-v">Capítulo 15 · <span class="mono">DP-004</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ O ACHADO -->
+  <section id="achado">
+    <div class="sec-head">
+      <div class="sec-title">
+        <span class="ball clay">3</span>
+        <h2 class="h-sec">Os números do mockup não fechavam</h2>
+      </div>
+      <p class="lead">
+        Ao cruzar as telas, 11 inconsistências apareceram — três delas impossíveis de implementar
+        como estão. Não é crítica ao protótipo: é exatamente o tipo de coisa que só aparece quando
+        alguém tenta transformar pixels em contrato.
+      </p>
+    </div>
+
+    <div class="stack">
+      <div class="grid g3">
+        <div class="dec">
+          <span class="dec-id">INC-11 · impossível</span>
+          <p class="dec-q">O ranking da liga é incompatível com o pódio da mesma noite</p>
+          <p class="dec-note">A tabela dá a Felipe <strong>8V/2D</strong> na liga. O pódio da noite dá a ele <strong>3 vitórias</strong>. Nenhuma distribuição de derrotas o mantém em só 2 na liga.</p>
+        </div>
+        <div class="dec">
+          <span class="dec-id">INC-10 · impossível</span>
+          <p class="dec-q">O head-to-head soma 5 × 3 ignorando uma jogatina</p>
+          <p class="dec-note">Os três dias listados já fecham 5×3 — mas Rodrigo e João também se enfrentaram em 14/07, partida que o total não contabiliza.</p>
+        </div>
+        <div class="dec">
+          <span class="dec-id">INC-01 · ambíguo</span>
+          <p class="dec-q">Duas regras de arredondamento na mesma tabela</p>
+          <p class="dec-note">7/11 = 63,6 % aparece como <strong>64 %</strong> (arredondado). 5/9 = 55,5 % aparece como <strong>55 %</strong> (truncado). Uma das duas está errada.</p>
+        </div>
+      </div>
+
+      <div class="card stack">
+        <div class="stack-sm">
+          <span class="eyebrow">Dataset canônico · verificado</span>
+          <h3 class="h-card">Reconstruí um conjunto de dados em que os seis números fecham ao mesmo tempo</h3>
+          <p class="small">
+            Uma noite de 9 partidas, com horários, participantes e vencedores definidos. Foi preciso
+            introduzir um ex-membro da liga (0V/4D) para que <span class="tag">Σ vitórias = Σ derrotas = nº de partidas</span>.
+            Esse dataset é o seed dos testes — qualquer divergência entre especificação e código aparece como teste vermelho.
+          </p>
+        </div>
+
+        <div class="proof">
+          <div class="prow head">
+            <span>Elemento do mockup</span>
+            <span class="pv">Valor</span>
+            <span class="pv">Confere</span>
+          </div>
+          <div class="prow">
+            <span class="pwhat">Home — “Partidas jogadas”</span>
+            <span class="pv">47</span><span class="pv ok">43 + 4</span>
+          </div>
+          <div class="prow">
+            <span class="pwhat">Home — “Taxa de vitória”</span>
+            <span class="pv">62 %</span><span class="pv ok">29 ÷ 47</span>
+          </div>
+          <div class="prow">
+            <span class="pwhat">Home — “Vitórias consecutivas”</span>
+            <span class="pv">5</span><span class="pv ok">1 + 4</span>
+          </div>
+          <div class="prow">
+            <span class="pwhat">Ranking da liga</span>
+            <span class="pv">8/2 · 7/4 · 5/4 · 4/6 · 3/7</span><span class="pv ok">Σ = 27</span>
+          </div>
+          <div class="prow">
+            <span class="pwhat">Pódio da jogatina</span>
+            <span class="pv">4 · 3 · 2 · 0</span><span class="pv ok">Σ = 9</span>
+          </div>
+          <div class="prow">
+            <span class="pwhat">Head-to-head Rodrigo × João</span>
+            <span class="pv">5 × 3 (62 %)</span><span class="pv ok">4 dias</span>
+          </div>
+        </div>
+
+        <p class="note">
+          Consequência prática para o Design: o ranking passará a exibir <strong>56 %</strong> onde o print
+          mostra 55 %, e o contador da liga dirá <strong>27 partidas</strong> onde o card diz 32.
+          Ambos estão no checklist de handoff.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ DECISÕES -->
+  <section id="decisoes">
+    <div class="sec-head">
+      <div class="sec-title">
+        <span class="ball gold">5</span>
+        <h2 class="h-sec">As 7 decisões que travam a fase do jogo</h2>
+      </div>
+      <p class="lead">
+        Auth, perfil, amigos e ligas podem começar hoje. O módulo de <strong>partidas</strong> —
+        o coração do produto — depende destas respostas. Cada uma já está implementada na
+        especificação com a recomendação; o custo indicado é o de mudar depois.
+      </p>
+    </div>
+
+    <div class="grid g2">
+      <div class="dec">
+        <span class="dec-id">DP-001</span>
+        <p class="dec-q">O adversário precisa confirmar o resultado?</p>
+        <div class="dec-rec"><b>Não.</b> Quem registra é a fonte da verdade; o outro recebe aviso com botão “Contestar” e 24 h para corrigir.</div>
+        <p class="dec-note">Mudar depois: alto — novo estado na máquina de partida e no ranking.</p>
+      </div>
+
+      <div class="dec">
+        <span class="dec-id">DP-011</span>
+        <p class="dec-q">Uma partida pode existir fora de uma liga?</p>
+        <div class="dec-rec"><b>Não.</b> O jogo avulso é atendido por liga de duração “Um dia”, que já existe no wizard.</div>
+        <p class="dec-note">Mudar depois: alto — <span class="tag">leagueId</span> anulável é migração de dados.</p>
+      </div>
+
+      <div class="dec">
+        <span class="dec-id">DP-012</span>
+        <p class="dec-q">A jogatina é criada explicitamente?</p>
+        <div class="dec-rec"><b>Implícita,</b> com endpoint explícito disponível. “Iniciar partida” continua sendo um toque.</div>
+        <p class="dec-note">Mudar depois: médio — altera o fluxo mais usado do app.</p>
+      </div>
+
+      <div class="dec">
+        <span class="dec-id">DP-013</span>
+        <p class="dec-q">Duplas entram no MVP?</p>
+        <div class="dec-rec"><b>Modelar agora, habilitar depois.</b> O schema suporta lados com 1–2 jogadores; a API recusa duplas por feature flag.</div>
+        <p class="dec-note">Mudar depois: alto se <em>não</em> modelar agora.</p>
+      </div>
+
+      <div class="dec">
+        <span class="dec-id">DP-009</span>
+        <p class="dec-q">Qual é a fórmula e o desempate do ranking?</p>
+        <div class="dec-rec"><b>% de vitória → vitórias → menos derrotas → confronto direto → data de entrada.</b> Arredondamento half-up só na exibição.</div>
+        <p class="dec-note">Mudar depois: alto — reprocessa todo o histórico.</p>
+      </div>
+
+      <div class="dec">
+        <span class="dec-id">DP-014</span>
+        <p class="dec-q">A bola encaçapada registra quem a encaçapou?</p>
+        <div class="dec-rec"><b>Opcional.</b> O app informa quando souber; sem isso a grade de 8 bolas não gera nenhuma estatística.</div>
+        <p class="dec-note">Mudar depois: médio — dado histórico não é recuperável.</p>
+      </div>
+
+      <div class="dec">
+        <span class="dec-id">DP-004</span>
+        <p class="dec-q">Que dados aparecem no link público de compartilhamento?</p>
+        <div class="dec-rec"><b>Mínimo:</b> “Rodrigo B.”, iniciais, posição e vitórias. Sem <span class="tag">@username</span>, sem IDs, expira em 30 dias.</div>
+        <p class="dec-note">Mudar depois: alto — LGPD; links já publicados não voltam.</p>
+      </div>
+
+      <div class="dec soft">
+        <span class="dec-id">+26 decisões</span>
+        <p class="dec-q">As demais não bloqueiam</p>
+        <p class="dec-note">
+          Prazo de convite, catálogo de locais, avaliação de bares, geração de imagem, bloqueio de usuário
+          e mais. Todas com alternativas e recomendação — <strong>silêncio de Produto = adotar a recomendação</strong>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ MÓDULOS -->
+  <section id="modulos">
+    <div class="sec-head">
+      <div class="sec-title">
+        <span class="ball chalk">6</span>
+        <h2 class="h-sec">16 módulos, monólito modular</h2>
+      </div>
+      <p class="lead">
+        Domínio transacional e acoplado por natureza: finalizar uma partida atualiza ranking da liga,
+        pódio da noite, estatísticas e notificações. Distribuir isso no dia 1 trocaria um
+        <span class="tag">COMMIT</span> por saga distribuída sem nenhum ganho de escala.
+      </p>
+    </div>
+
+    <div class="stack">
+      <div class="mods">
+        <div class="mod"><span class="mod-n">Identity &amp; Auth</span><span class="mod-s">MVP</span></div>
+        <div class="mod"><span class="mod-n">Users</span><span class="mod-s">MVP</span></div>
+        <div class="mod"><span class="mod-n">Friendships</span><span class="mod-s">MVP</span></div>
+        <div class="mod"><span class="mod-n">Leagues</span><span class="mod-s">MVP</span></div>
+        <div class="mod"><span class="mod-n">League Members</span><span class="mod-s">MVP</span></div>
+        <div class="mod"><span class="mod-n">Invitations</span><span class="mod-s">MVP</span></div>
+        <div class="mod crit"><span class="mod-n">Play Sessions</span><span class="mod-s">MVP · crítico</span></div>
+        <div class="mod crit"><span class="mod-n">Matches</span><span class="mod-s">MVP · crítico</span></div>
+        <div class="mod"><span class="mod-n">Match Events</span><span class="mod-s">MVP</span></div>
+        <div class="mod crit"><span class="mod-n">Rankings</span><span class="mod-s">MVP · crítico</span></div>
+        <div class="mod"><span class="mod-n">Statistics</span><span class="mod-s">MVP</span></div>
+        <div class="mod"><span class="mod-n">Venues</span><span class="mod-s">MVP · leitura</span></div>
+        <div class="mod"><span class="mod-n">Notifications</span><span class="mod-s">MVP · in-app</span></div>
+        <div class="mod"><span class="mod-n">Audit Logs</span><span class="mod-s">MVP</span></div>
+        <div class="mod later"><span class="mod-n">Sharing · imagem</span><span class="mod-s">pós-MVP</span></div>
+        <div class="mod later"><span class="mod-n">Push</span><span class="mod-s">pós-MVP</span></div>
+      </div>
+
+      <div class="grid g2">
+        <div class="card stack-sm">
+          <span class="eyebrow">A regra mais delicada</span>
+          <h3 class="h-card"><span class="tag">businessDate</span> — o dia da jogatina</h3>
+          <p class="small">
+            A Liga da Terça joga 20h–00h. Uma partida finalizada à <strong>00h40</strong> pertence à
+            <strong>noite anterior</strong>. Um <span class="tag">CAST(finished_at AS date)</span> colocaria
+            essa partida na jogatina errada e quebraria pódio, head-to-head e o “N vitórias hoje” — de forma silenciosa.
+          </p>
+          <p class="small">É função pura de domínio, com 8 testes unitários dedicados e cobertura de 100 % antes de qualquer outra coisa.</p>
+        </div>
+
+        <div class="card stack-sm">
+          <span class="eyebrow">A garantia inegociável</span>
+          <h3 class="h-card">Ranking sem deriva</h3>
+          <p class="small">
+            Ranking materializado e atualizado na <strong>mesma transação</strong> da finalização — o usuário
+            volta para a tela e o número já está certo. Correção de resultado dispara
+            <strong>rebuild completo determinístico</strong>, nunca aplicação de delta.
+          </p>
+          <p class="small">Verificação diária de deriva com alvo de <strong>zero</strong>. Qualquer ocorrência é incidente P1, não ruído.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ ROADMAP -->
+  <section id="roadmap">
+    <div class="sec-head">
+      <div class="sec-title">
+        <span class="ball brass">2</span>
+        <h2 class="h-sec">16 semanas até o MVP</h2>
+      </div>
+      <p class="lead">
+        Sequenciado por dependência técnica e de decisão, não por área funcional. Premissa:
+        2 devs backend, 1 mobile, produto e design compartilhados.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="phase done">
+        <div class="pmark"><span class="ball cream">0</span><span class="prail"></span></div>
+        <div class="pbody">
+          <div class="ptop"><span class="pname">Fundação</span><span class="pwk">2 semanas</span></div>
+          <p class="pdesc">Esqueleto em Clean Architecture, IaC, CI/CD, observabilidade, tabelas transversais e o dataset canônico como seed. Testes de arquitetura e de vazamento de PII entram <em>antes</em> de existir código para violá-los.</p>
+          <div><span class="chip info"><span class="dot"></span>começa hoje</span></div>
+          <div class="gate">Só precisa de <b>2 itens</b>: acesso ao Azure e a convenção de nomenclatura CAF/LFTM.</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pmark"><span class="ball brass">1</span><span class="prail"></span></div>
+        <div class="pbody">
+          <div class="ptop"><span class="pname">Identidade e social</span><span class="pwk">3 semanas</span></div>
+          <p class="pdesc">Cadastro em 6 etapas, verificação de e-mail, login com anti-enumeração, refresh rotacionado com detecção de reuso, perfil, avatar, busca e convites de amizade. O app já loga e navega.</p>
+          <div class="gate">Depende de <b>provedor de e-mail com SPF, DKIM e DMARC</b> configurados.</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pmark"><span class="ball gold">2</span><span class="prail"></span></div>
+        <div class="pbody">
+          <div class="ptop"><span class="pname">Ligas</span><span class="pwk">3 semanas</span></div>
+          <p class="pdesc">Wizard completo, calendário com próxima jogatina derivada, regras com congelamento, membros e papéis, transferência atômica de propriedade, convites nominais e códigos ditáveis ao telefone.</p>
+        </div>
+      </div>
+
+      <div class="phase crit">
+        <div class="pmark"><span class="ball clay">3</span><span class="prail"></span></div>
+        <div class="pbody">
+          <div class="ptop"><span class="pname">O jogo</span><span class="pwk">4 semanas</span></div>
+          <p class="pdesc">Jogatina, partida, bolas, faltas, finalização transacional, ranking materializado, pódio, correção com reprocessamento e auditoria. É o coração e o maior risco do projeto.</p>
+          <div><span class="chip block"><span class="dot"></span>fase crítica</span></div>
+          <div class="gate">Não começa sem a <b>ata das 7 decisões bloqueantes</b>. Isso dá cinco semanas de folga — desde que a reunião esteja na agenda agora, e não quando a fase 2 terminar.</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pmark"><span class="ball chalk">4</span><span class="prail"></span></div>
+        <div class="pbody">
+          <div class="ptop"><span class="pname">Descoberta e engajamento</span><span class="pwk">2 semanas</span></div>
+          <p class="pdesc">Busca de locais por proximidade, notificações agrupadas com ações inline, lembrete de jogatina, estatísticas da Home e compartilhamento do pódio.</p>
+          <div class="gate">Depende de <b>DP-004 aprovado pelo DPO</b> e do catálogo inicial de locais.</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pmark"><span class="ball felt">5</span><span class="prail"></span></div>
+        <div class="pbody">
+          <div class="ptop"><span class="pname">Endurecimento e LGPD</span><span class="pwk">2 semanas</span></div>
+          <p class="pdesc">Rate limiting, revisão de autorização por rota, jobs de retenção, anonimização testada, teste de carga nos 8 cenários e runbooks — incluindo restauração de backup com reaplicação de anonimizações.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="pmark"><span class="ball eight">8</span></div>
+        <div class="pbody">
+          <div class="ptop"><span class="pname">Critério de aceite do MVP</span><span class="pwk">TC-E2E-002</span></div>
+          <p class="pdesc">
+            A noite canônica de 9 partidas, executada ponta a ponta, produz ranking
+            <span class="tag">8/2 · 7/4 · 5/4 · 4/6 · 3/7</span>, pódio <span class="tag">4 · 3 · 2 · 0</span>,
+            Home <span class="tag">47 / 62 % / 5</span> e head-to-head <span class="tag">5 × 3</span>.
+            Um teste, seis números, nenhuma ambiguidade.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tscroll" style="margin-top:14px">
+      <table>
+        <thead>
+          <tr><th>Pós-MVP</th><th>Esforço</th><th>Gatilho objetivo para priorizar</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Push notifications</td><td class="num">2 sem</td><td><p>Base de tokens já existe desde o MVP — maior ganho de retenção pelo menor esforço</p></td></tr>
+          <tr><td>Imagem do card de pódio</td><td class="num">2 sem</td><td><p>Compartilhamentos por jogatina acima de 0,3</p></td></tr>
+          <tr><td>Partidas em duplas</td><td class="num">2 sem</td><td><p>Schema já suporta; falta UI e ranking de duplas</p></td></tr>
+          <tr><td>Confirmação de resultado</td><td class="num">1 sem</td><td><p>Taxa de correção passar de <strong>2 %</strong> — dado, não opinião</p></td></tr>
+          <tr><td>Bloqueio de usuário</td><td class="num">1 sem</td><td><p>Primeiro relato de assédio</p></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================ ENTREGA -->
+  <section id="entrega">
+    <div class="sec-head">
+      <div class="sec-title">
+        <span class="ball gold">4</span>
+        <h2 class="h-sec">O que está em DocAPI</h2>
+      </div>
+      <p class="lead">25 arquivos Markdown e a OpenAPI, na pasta <span class="tag">DocAPI/</span> do projeto.</p>
+    </div>
+
+    <div class="stack">
+      <div class="files">
+        <div class="file"><span class="file-p">README.md</span><span class="file-d">Preâmbulo: o que foi confirmado, o que foi inferido, as 11 inconsistências e o dataset canônico</span></div>
+        <div class="file"><span class="file-p">02-analise-funcional.md</span><span class="file-d">Cada tela, aba, botão e filtro mapeado para a operação de backend correspondente</span></div>
+        <div class="file"><span class="file-p">03-atores-permissoes.md</span><span class="file-d">Matriz de permissões e autorização em nível de objeto — conhecer o ID nunca dá acesso</span></div>
+        <div class="file"><span class="file-p">05-modelo-de-dados.md</span><span class="file-d">38 tabelas, ER em Mermaid, índices, constraints e as 12 invariantes protegidas no banco</span></div>
+        <div class="file"><span class="file-p">06-regras-de-negocio.md</span><span class="file-d">181 regras com origem, exceções e impacto técnico</span></div>
+        <div class="file"><span class="file-p">08a…08e-endpoints-*.md</span><span class="file-d">~90 endpoints com validações por campo, exemplos completos e efeitos colaterais</span></div>
+        <div class="file"><span class="file-p">09-exemplos-contratos.md</span><span class="file-d">Uma noite inteira em 22 requisições HTTP reais e consistentes entre si</span></div>
+        <div class="file"><span class="file-p">11-maquinas-estado.md</span><span class="file-d">15 diagramas de estado com transições válidas, quem executa e que efeito produz</span></div>
+        <div class="file"><span class="file-p">12-ranking-calculos.md</span><span class="file-d">Fórmulas, desempates, reprocessamento e a verificação aritmética completa</span></div>
+        <div class="file"><span class="file-p">17-estrategia-testes.md</span><span class="file-d">269 casos em 7 níveis, com o dataset canônico como massa</span></div>
+        <div class="file"><span class="file-p">19-decisoes-pendentes.md</span><span class="file-d">33 decisões com alternativas, recomendação, impacto e responsável sugerido</span></div>
+        <div class="file"><span class="file-p">21-checklist-handoff.md</span><span class="file-d">70 itens de handoff, 21 deles bloqueantes, agrupados por dono</span></div>
+        <div class="file"><span class="file-p">openapi/</span><span class="file-d">OpenAPI 3.1 validada: 86 path items, 98 operações, 162 schemas, 0 erros</span></div>
+        <div class="file"><span class="file-p">redoc-static.html</span><span class="file-d">Referência de API navegável, já gerada — abra direto no navegador</span></div>
+      </div>
+
+      <div class="card stack-sm">
+        <span class="eyebrow">Para consulta durante a implementação</span>
+        <h3 class="h-card">Documentação de API navegável</h3>
+        <p class="small">Busca, exemplos de request e response e schemas expandíveis. O <span class="tag">redoc-static.html</span> já está gerado; para regerar depois de mudar a especificação:</p>
+<pre><span class="c"># na raiz do projeto</span>
+npx @redocly/cli lint <span class="k">DocAPI/openapi/openapi.yaml</span>
+npx @redocly/cli build-docs <span class="k">DocAPI/openapi/openapi.yaml</span> -o DocAPI/redoc-static.html</pre>
+        <p class="note">Para o Swagger Editor online, use <span class="tag">DocAPI/openapi/openapi.bundled.yaml</span> — é autocontido. O editor não resolve <span class="tag">$ref</span> para arquivos locais.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div>Encaçapei · Especificação técnica de backend · v1.0 draft para revisão de Produto e Engenharia</div>
+    <div>Fonte primária: mockup navegável de 12 telas em <span class="tag">/encacapei-mockup.html</span>. Método SDD: contexto, comportamento esperado, restrições, fora do escopo.</div>
+  </footer>
+
+</div>
+</body>
+</html>

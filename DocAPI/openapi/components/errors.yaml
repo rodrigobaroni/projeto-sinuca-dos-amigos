@@ -1,0 +1,845 @@
+# components/errors.yaml
+# Problem Details (RFC 9457) — schema, catálogo de códigos e respostas reutilizáveis.
+
+# ============================================================ SCHEMAS
+
+ProblemDetails:
+  type: object
+  description: |
+    Corpo padrão de erro conforme RFC 9457. Servido como `application/problem+json`.
+
+    O cliente **deve** ramificar lógica por `code` (estável), nunca por `title`
+    ou `detail` (texto apresentável, sujeito a mudança e tradução).
+  required: [type, title, status, code, detail, instance, traceId, timestamp, retryable]
+  properties:
+    type:
+      type: string
+      format: uri
+      description: URI documentada e estável do tipo de problema.
+      example: https://api.encacapei.com.br/problems/league-not-found
+    title:
+      type: string
+      description: Título curto em pt-BR, fixo por `code`.
+      example: Liga não encontrada
+    status:
+      type: integer
+      minimum: 400
+      maximum: 599
+      example: 404
+    code:
+      $ref: '#/ErrorCode'
+    detail:
+      type: string
+      description: Explicação apresentável ao usuário final; pode variar por instância.
+      example: A liga informada não existe ou não está disponível para este usuário.
+    instance:
+      type: string
+      description: Path da requisição que falhou.
+      example: /api/v1/leagues/0a1b2c3d-4e5f-4a6b-8c7d-000000000009
+    traceId:
+      type: string
+      pattern: '^[0-9a-f]{32}$'
+      description: Trace ID do W3C Trace Context. Exibível na tela de erro para suporte.
+      example: 0af7651916cd43dd8448eb211c80319c
+    timestamp:
+      type: string
+      format: date-time
+      example: '2026-07-28T14:02:10Z'
+    retryable:
+      type: boolean
+      description: '`true` quando repetir a requisição idêntica pode ter sucesso (429, 503, 409 in-progress).'
+      example: false
+    errors:
+      type: array
+      description: Erros por campo. Presente em `422`; acumula **todos** os problemas encontrados.
+      items:
+        $ref: '#/FieldError'
+      default: []
+  additionalProperties: true
+  examples:
+    - type: https://api.encacapei.com.br/problems/league-not-found
+      title: Liga não encontrada
+      status: 404
+      code: LEAGUE_NOT_FOUND
+      detail: A liga informada não existe ou não está disponível para este usuário.
+      instance: /api/v1/leagues/0a1b2c3d-4e5f-4a6b-8c7d-000000000009
+      traceId: 0af7651916cd43dd8448eb211c80319c
+      timestamp: '2026-07-28T14:02:10Z'
+      retryable: false
+      errors: []
+
+FieldError:
+  type: object
+  required: [field, code, message]
+  properties:
+    field:
+      type: string
+      description: Caminho do campo em notação de ponto.
+      example: password
+    code:
+      type: string
+      description: Código estável do erro de campo.
+      example: PASSWORD_MISSING_UPPERCASE
+    message:
+      type: string
+      description: Mensagem em pt-BR para exibição.
+      example: A senha deve conter ao menos uma letra maiúscula.
+
+ValidationProblem:
+  allOf:
+    - $ref: '#/ProblemDetails'
+    - type: object
+      properties:
+        code:
+          const: VALIDATION_ERROR
+        errors:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/FieldError'
+
+ConcurrencyProblem:
+  allOf:
+    - $ref: '#/ProblemDetails'
+    - type: object
+      description: Conflito de versão. `currentState` evita uma segunda leitura para reconciliar.
+      properties:
+        code:
+          const: CONCURRENT_MODIFICATION
+        expectedVersion:
+          type: integer
+          example: 3
+        currentVersion:
+          type: integer
+          example: 4
+        currentState:
+          type: object
+          additionalProperties: true
+          description: Estado atual do recurso, na projeção do endpoint.
+
+ErrorCode:
+  type: string
+  description: |
+    Catálogo fechado de códigos de erro. Um `code` nunca muda de significado
+    nem de status HTTP após publicado; novos casos ganham códigos novos.
+  enum:
+    # --- Autenticação
+    - UNAUTHENTICATED
+    - TOKEN_EXPIRED
+    - TOKEN_INVALID
+    - TOKEN_REVOKED
+    - INVALID_CREDENTIALS
+    - INVALID_CURRENT_PASSWORD
+    - INVALID_REFRESH_TOKEN
+    - REFRESH_TOKEN_REUSE_DETECTED
+    - RESET_TOKEN_INVALID
+    - RESET_TOKEN_EXPIRED
+    - VERIFICATION_TOKEN_INVALID
+    - VERIFICATION_TOKEN_EXPIRED
+    - ACCOUNT_DELETED
+    - EMAIL_NOT_VERIFIED
+    - EMAIL_ALREADY_VERIFIED
+    - TOO_MANY_LOGIN_ATTEMPTS
+    # --- Autorização
+    - FORBIDDEN
+    - INSUFFICIENT_LEAGUE_ROLE
+    - NOT_LEAGUE_MEMBER
+    - NOT_MATCH_PARTICIPANT
+    - NOT_SESSION_PARTICIPANT
+    - NOT_SHARE_OWNER
+    - PROFILE_PRIVATE
+    - PROFILE_FRIENDS_ONLY
+    - HEAD_TO_HEAD_NOT_ALLOWED
+    - USER_BLOCKED
+    - CORRECTION_WINDOW_EXPIRED
+    - REOPEN_WINDOW_EXPIRED
+    - LEAGUE_IS_PRIVATE
+    - SHARE_CONSENT_REQUIRED
+    # --- Não encontrado
+    - USER_NOT_FOUND
+    - LEAGUE_NOT_FOUND
+    - LEAGUE_MEMBER_NOT_FOUND
+    - PLAY_SESSION_NOT_FOUND
+    - MATCH_NOT_FOUND
+    - MATCH_EVENT_NOT_FOUND
+    - VENUE_NOT_FOUND
+    - FRIEND_REQUEST_NOT_FOUND
+    - FRIENDSHIP_NOT_FOUND
+    - INVITATION_NOT_FOUND
+    - INVITE_CODE_NOT_FOUND
+    - NOTIFICATION_NOT_FOUND
+    - SHARE_ARTIFACT_NOT_FOUND
+    - SHARE_NOT_FOUND
+    - UPLOAD_TOKEN_NOT_FOUND
+    - RANKING_REBUILD_NOT_FOUND
+    - EXPORT_NOT_FOUND
+    # --- Validação
+    - VALIDATION_ERROR
+    - SEARCH_QUERY_TOO_SHORT
+    - INVALID_SORT_FIELD
+    - INVALID_FILTER_VALUE
+    - CONFLICTING_FILTERS
+    - AMBIGUOUS_SELECTION
+    - INVALID_METRIC
+    - INVALID_GRANULARITY_FOR_PERIOD
+    - INVALID_COORDINATES
+    - RADIUS_OUT_OF_RANGE
+    - LOCATION_OR_QUERY_REQUIRED
+    - INVALID_IMAGE
+    - INVALID_PUSH_TOKEN
+    - CANNOT_DISABLE_SYSTEM_CATEGORY
+    - INVALID_QUIET_HOURS
+    - CANNOT_FRIEND_SELF
+    - CANNOT_COMPARE_WITH_SELF
+    - CANNOT_BLOCK_SELF
+    - TOO_MANY_INVITES
+    - TOO_MANY_PARTICIPANTS
+    - TOO_MANY_IDS
+    - IDEMPOTENCY_KEY_REUSE
+    - INVALID_IDEMPOTENCY_KEY
+    - INVALID_ROLE
+    - CORRECTION_NO_CHANGE
+    - CANCEL_NOTE_REQUIRED
+    - EXPIRES_IN_OUT_OF_RANGE
+    - BUSINESS_DATE_OUT_OF_RANGE
+    # --- Conflito
+    - CONCURRENT_MODIFICATION
+    - ALREADY_FRIENDS
+    - FRIEND_REQUEST_ALREADY_PENDING
+    - FRIEND_REQUEST_NOT_PENDING
+    - ALREADY_BLOCKED
+    - ALREADY_MEMBER
+    - INVITATION_NOT_PENDING
+    - LEAGUE_FINISHED
+    - LEAGUE_ALREADY_FINISHED
+    - LEAGUE_HAS_ACTIVE_SESSION
+    - LEAGUE_HAS_HISTORY
+    - LEAGUE_RULES_LOCKED
+    - OWNER_MUST_TRANSFER
+    - CANNOT_REMOVE_OWNER
+    - CANNOT_DEMOTE_SELF_AS_OWNER
+    - MEMBER_NOT_ACTIVE
+    - MEMBER_HAS_ACTIVE_MATCH
+    - OWNER_OF_ACTIVE_LEAGUES
+    - NOT_ENOUGH_MEMBERS
+    - SESSION_ALREADY_EXISTS
+    - SESSION_ALREADY_OPEN
+    - SESSION_CLOSED
+    - SESSION_ALREADY_CLOSED
+    - SESSION_NOT_CLOSED
+    - SESSION_HAS_ACTIVE_MATCHES
+    - SESSION_HAS_NO_MATCHES
+    - ANOTHER_SESSION_OPEN
+    - PLAYER_ALREADY_IN_MATCH
+    - MATCH_NOT_IN_PROGRESS
+    - MATCH_ALREADY_FINISHED
+    - MATCH_ALREADY_CANCELLED
+    - MATCH_CANCELLED
+    - MATCH_NOT_FINISHED
+    - BALL_ALREADY_POCKETED
+    - EVENT_ALREADY_UNDONE
+    - EVENT_TYPE_DISABLED
+    - EXPORT_ALREADY_IN_PROGRESS
+    - ALREADY_REVIEWED
+    - NEVER_PLAYED_HERE
+    - USERNAME_CHANGE_TOO_SOON
+    - IDEMPOTENT_REQUEST_IN_PROGRESS
+    - FEATURE_NOT_AVAILABLE
+    - SHARE_NOT_READY
+    - NOTIFICATION_HAS_PENDING_ACTION
+    # --- Expirado
+    - INVITATION_EXPIRED
+    - INVITE_CODE_EXPIRED
+    - INVITE_CODE_REVOKED
+    - INVITE_CODE_EXHAUSTED
+    - SHARE_EXPIRED
+    - SHARE_REVOKED
+    - EXPORT_EXPIRED
+    # --- Protocolo
+    - MALFORMED_REQUEST
+    - IDEMPOTENCY_KEY_REQUIRED
+    - MISSING_REQUIRED_HEADER
+    - METHOD_NOT_ALLOWED
+    - PAYLOAD_TOO_LARGE
+    - FILE_TOO_LARGE
+    - UNSUPPORTED_MEDIA_TYPE
+    - PRECONDITION_REQUIRED
+    # --- Limites e indisponibilidade
+    - RATE_LIMIT_EXCEEDED
+    - QUOTA_EXCEEDED
+    - INTERNAL_ERROR
+    - SERVICE_UNAVAILABLE
+    - MAINTENANCE_MODE
+    - DEPENDENCY_UNAVAILABLE
+
+# ============================================================ RESPONSES
+
+BadRequest:
+  description: Requisição malformada ou header obrigatório ausente.
+  headers:
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        idempotencyKeyRequired:
+          summary: Idempotency-Key ausente
+          value:
+            type: https://api.encacapei.com.br/problems/idempotency-key-required
+            title: Cabeçalho Idempotency-Key obrigatório
+            status: 400
+            code: IDEMPOTENCY_KEY_REQUIRED
+            detail: Esta operação exige o cabeçalho Idempotency-Key com um UUID.
+            instance: /api/v1/matches
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:02:10Z'
+            retryable: false
+            errors: []
+        malformed:
+          summary: JSON inválido
+          value:
+            type: https://api.encacapei.com.br/problems/malformed-request
+            title: Requisição inválida
+            status: 400
+            code: MALFORMED_REQUEST
+            detail: O corpo da requisição não é um JSON válido.
+            instance: /api/v1/leagues
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:02:10Z'
+            retryable: false
+            errors: []
+
+Unauthorized:
+  description: Não autenticado, token expirado ou revogado.
+  headers:
+    WWW-Authenticate:
+      schema:
+        type: string
+      example: Bearer realm="encacapei", error="invalid_token", error_description="The access token expired"
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        tokenExpired:
+          summary: Access token expirado (renovar e repetir)
+          value:
+            type: https://api.encacapei.com.br/problems/token-expired
+            title: Sessão expirada
+            status: 401
+            code: TOKEN_EXPIRED
+            detail: Seu acesso expirou. Renovando a sessão automaticamente.
+            instance: /api/v1/me
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:05:00Z'
+            retryable: true
+            errors: []
+        invalidCredentials:
+          summary: Login inválido (mensagem única, anti-enumeração)
+          value:
+            type: https://api.encacapei.com.br/problems/invalid-credentials
+            title: Credenciais inválidas
+            status: 401
+            code: INVALID_CREDENTIALS
+            detail: E-mail ou senha inválidos.
+            instance: /api/v1/auth/login
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:05:00Z'
+            retryable: false
+            errors: []
+        refreshReuse:
+          summary: Reuso de refresh token — família revogada
+          value:
+            type: https://api.encacapei.com.br/problems/refresh-token-reuse-detected
+            title: Acesso suspeito detectado
+            status: 401
+            code: REFRESH_TOKEN_REUSE_DETECTED
+            detail: Detectamos uso indevido da sua sessão. Faça login novamente.
+            instance: /api/v1/auth/refresh
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:05:00Z'
+            retryable: false
+            errors: []
+
+Forbidden:
+  description: Autenticado, recurso visível, mas sem permissão para a ação.
+  headers:
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        insufficientRole:
+          summary: Papel insuficiente na liga
+          value:
+            type: https://api.encacapei.com.br/problems/insufficient-league-role
+            title: Permissão insuficiente na liga
+            status: 403
+            code: INSUFFICIENT_LEAGUE_ROLE
+            detail: Apenas o dono da liga pode encerrá-la.
+            instance: /api/v1/leagues/0a1b2c3d-4e5f-4a6b-8c7d-000000000001/finish
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:06:00Z'
+            retryable: false
+            errors: []
+            requiredRole: OWNER
+            currentRole: PLAYER
+        notMatchParticipant:
+          summary: Não é participante da partida
+          value:
+            type: https://api.encacapei.com.br/problems/not-match-participant
+            title: Você não participa desta partida
+            status: 403
+            code: NOT_MATCH_PARTICIPANT
+            detail: Apenas os jogadores da partida ou um administrador da liga podem registrar eventos.
+            instance: /api/v1/matches/3f4a5b6c-7d8e-4f90-8a1b-000000000009/events
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:06:00Z'
+            retryable: false
+            errors: []
+        correctionWindowExpired:
+          summary: Janela de correção encerrada
+          value:
+            type: https://api.encacapei.com.br/problems/correction-window-expired
+            title: Prazo de correção encerrado
+            status: 403
+            code: CORRECTION_WINDOW_EXPIRED
+            detail: O prazo de 24 horas para corrigir este resultado expirou. Peça a um administrador da liga.
+            instance: /api/v1/matches/3f4a5b6c-7d8e-4f90-8a1b-000000000009/corrections
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-16T14:06:00Z'
+            retryable: false
+            errors: []
+            deadline: '2026-07-16T01:08:22Z'
+            correctionWindowHours: 24
+
+NotFound:
+  description: |
+    Recurso inexistente **ou** não disponível ao solicitante.
+    Recursos privados retornam `404` (não `403`) para não confirmar sua existência.
+  headers:
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        leagueNotFound:
+          value:
+            type: https://api.encacapei.com.br/problems/league-not-found
+            title: Liga não encontrada
+            status: 404
+            code: LEAGUE_NOT_FOUND
+            detail: A liga informada não existe ou não está disponível para este usuário.
+            instance: /api/v1/leagues/0a1b2c3d-4e5f-4a6b-8c7d-000000000009
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:07:00Z'
+            retryable: false
+            errors: []
+
+Conflict:
+  description: Conflito de estado do recurso ou de concorrência.
+  headers:
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+    Retry-After:
+      $ref: '../openapi.yaml#/components/headers/RetryAfter'
+    ETag:
+      $ref: '../openapi.yaml#/components/headers/ETag'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        concurrentModification:
+          summary: Outro dispositivo alterou o recurso
+          value:
+            type: https://api.encacapei.com.br/problems/concurrent-modification
+            title: Registro alterado por outra pessoa
+            status: 409
+            code: CONCURRENT_MODIFICATION
+            detail: Esta partida foi atualizada por João Pereira enquanto você estava na tela. Confira o estado atual.
+            instance: /api/v1/matches/3f4a5b6c-7d8e-4f90-8a1b-000000000009/finish
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-15T01:08:24Z'
+            retryable: false
+            errors: []
+            expectedVersion: 3
+            currentVersion: 4
+            currentState:
+              id: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+              status: FINISHED
+              winnerSide: 1
+              finishedAt: '2026-07-15T01:08:22Z'
+        ballAlreadyPocketed:
+          summary: Duplo toque na mesma bola
+          value:
+            type: https://api.encacapei.com.br/problems/ball-already-pocketed
+            title: Bola já encaçapada
+            status: 409
+            code: BALL_ALREADY_POCKETED
+            detail: A bola 2 já está fora da mesa nesta partida.
+            instance: /api/v1/matches/3f4a5b6c-7d8e-4f90-8a1b-000000000009/events
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-15T00:49:12Z'
+            retryable: false
+            errors: []
+            ballNumber: 2
+            existingEventId: ae1b2c3d-4e5f-4a60-8b71-000000000001
+        playerAlreadyInMatch:
+          summary: Jogador já está em partida em andamento
+          value:
+            type: https://api.encacapei.com.br/problems/player-already-in-match
+            title: Jogador já está em partida
+            status: 409
+            code: PLAYER_ALREADY_IN_MATCH
+            detail: João Pereira já está em uma partida em andamento. Finalize ou cancele antes de começar outra.
+            instance: /api/v1/matches
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-15T00:47:01Z'
+            retryable: false
+            errors: []
+            userId: 22222222-2222-4222-8222-222222222222
+            conflictingMatchId: 3f4a5b6c-7d8e-4f90-8a1b-000000000009
+        leagueFinished:
+          summary: Liga encerrada
+          value:
+            type: https://api.encacapei.com.br/problems/league-finished
+            title: Liga encerrada
+            status: 409
+            code: LEAGUE_FINISHED
+            detail: Esta liga foi encerrada e não aceita novas partidas.
+            instance: /api/v1/matches
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:08:00Z'
+            retryable: false
+            errors: []
+        alreadyMember:
+          summary: Já é membro da liga (tratar como sucesso na UI)
+          value:
+            type: https://api.encacapei.com.br/problems/already-member
+            title: Você já participa desta liga
+            status: 409
+            code: ALREADY_MEMBER
+            detail: Você já é membro da Liga da Terça.
+            instance: /api/v1/leagues/join-by-code
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:10:00Z'
+            retryable: false
+            errors: []
+            leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+        featureNotAvailable:
+          summary: Recurso desligado nesta versão
+          value:
+            type: https://api.encacapei.com.br/problems/feature-not-available
+            title: Recurso indisponível
+            status: 409
+            code: FEATURE_NOT_AVAILABLE
+            detail: Partidas em duplas ainda não estão disponíveis.
+            instance: /api/v1/leagues
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:11:00Z'
+            retryable: false
+            errors: []
+            feature: teamMatches
+        idempotentInProgress:
+          summary: Requisição idêntica em processamento
+          value:
+            type: https://api.encacapei.com.br/problems/idempotent-request-in-progress
+            title: Requisição em processamento
+            status: 409
+            code: IDEMPOTENT_REQUEST_IN_PROGRESS
+            detail: Uma requisição idêntica está sendo processada. Tente novamente em 1 segundo.
+            instance: /api/v1/matches
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:12:00Z'
+            retryable: true
+            errors: []
+
+Gone:
+  description: Recurso expirou ou foi revogado permanentemente.
+  headers:
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        invitationExpired:
+          value:
+            type: https://api.encacapei.com.br/problems/invitation-expired
+            title: Convite expirado
+            status: 410
+            code: INVITATION_EXPIRED
+            detail: Este convite para a Liga do Churrasco expirou em 01/08/2026. Peça um novo a Felipe Costa.
+            instance: /api/v1/league-invitations/8a9b0c1d-2e3f-4a5b-8c6d-000000000001/accept
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-08-05T10:00:00Z'
+            retryable: false
+            errors: []
+            expiredAt: '2026-08-01T14:30:00Z'
+            leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000004
+            invitedByDisplayName: Felipe Costa
+        inviteCodeRevoked:
+          value:
+            type: https://api.encacapei.com.br/problems/invite-code-revoked
+            title: Código de convite inválido
+            status: 410
+            code: INVITE_CODE_REVOKED
+            detail: Este código foi substituído por um novo. Peça o código atualizado a quem te convidou.
+            instance: /api/v1/leagues/join-by-code
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:11:00Z'
+            retryable: false
+            errors: []
+            revokedAt: '2026-07-27T19:45:00Z'
+        shareExpired:
+          value:
+            type: https://api.encacapei.com.br/problems/share-expired
+            title: Link expirado
+            status: 410
+            code: SHARE_EXPIRED
+            detail: Este link de compartilhamento expirou.
+            instance: /api/v1/public/shares/Jt7xK2mQ9pR4vN8sL1yB6cW3zA5dF0hG-eU
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-09-20T10:00:00Z'
+            retryable: false
+            errors: []
+
+PayloadTooLarge:
+  description: Corpo ou arquivo acima do limite.
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        fileTooLarge:
+          value:
+            type: https://api.encacapei.com.br/problems/file-too-large
+            title: Arquivo muito grande
+            status: 413
+            code: FILE_TOO_LARGE
+            detail: O avatar deve ter no máximo 5 MB.
+            instance: /api/v1/me/avatar/upload-url
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:13:00Z'
+            retryable: false
+            errors: []
+            maxBytes: 5242880
+
+UnsupportedMediaType:
+  description: Content-Type não suportado.
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        unsupported:
+          value:
+            type: https://api.encacapei.com.br/problems/unsupported-media-type
+            title: Formato não suportado
+            status: 415
+            code: UNSUPPORTED_MEDIA_TYPE
+            detail: Envie a imagem em JPEG, PNG ou WebP.
+            instance: /api/v1/me/avatar/upload-url
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:13:00Z'
+            retryable: false
+            errors: []
+
+UnprocessableEntity:
+  description: |
+    Requisição interpretável, mas semanticamente inválida.
+
+    Quando `code = VALIDATION_ERROR`, o corpo segue `ValidationProblem` e `errors[]`
+    acumula **todos** os campos com problema. Códigos de protocolo desta faixa
+    (`IDEMPOTENCY_KEY_REUSE`, `INVALID_IDEMPOTENCY_KEY`) usam `ProblemDetails` puro,
+    sem `errors[]`.
+  headers:
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        passwordPolicy:
+          summary: Senha viola a política (os 4 critérios que falharam)
+          value:
+            type: https://api.encacapei.com.br/problems/validation-error
+            title: Dados inválidos
+            status: 422
+            code: VALIDATION_ERROR
+            detail: Um ou mais campos estão inválidos.
+            instance: /api/v1/auth/register
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:02:10Z'
+            retryable: false
+            errors:
+              - field: password
+                code: PASSWORD_TOO_SHORT
+                message: A senha deve ter no mínimo 8 caracteres.
+              - field: password
+                code: PASSWORD_MISSING_UPPERCASE
+                message: A senha deve conter ao menos uma letra maiúscula.
+              - field: password
+                code: PASSWORD_MISSING_DIGIT
+                message: A senha deve conter ao menos um número.
+              - field: password
+                code: PASSWORD_MISSING_SPECIAL
+                message: A senha deve conter ao menos um caractere especial.
+        matchParticipants:
+          summary: Número de participantes inválido para 1v1
+          value:
+            type: https://api.encacapei.com.br/problems/validation-error
+            title: Dados inválidos
+            status: 422
+            code: VALIDATION_ERROR
+            detail: Uma partida 1v1 precisa de exatamente 2 participantes.
+            instance: /api/v1/matches
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-15T00:47:00Z'
+            retryable: false
+            errors:
+              - field: participants
+                code: INVALID_PARTICIPANT_COUNT
+                message: Uma partida 1v1 precisa de exatamente 2 participantes.
+        idempotencyReuse:
+          summary: Chave de idempotência reutilizada com corpo diferente
+          value:
+            type: https://api.encacapei.com.br/problems/idempotency-key-reuse
+            title: Chave de idempotência reutilizada
+            status: 422
+            code: IDEMPOTENCY_KEY_REUSE
+            detail: Esta chave de idempotência já foi usada com um corpo diferente. Gere uma nova chave.
+            instance: /api/v1/matches
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-15T00:47:05Z'
+            retryable: false
+            errors: []
+
+PreconditionRequired:
+  description: Cabeçalho `If-Match` obrigatório ausente.
+  headers:
+    ETag:
+      $ref: '../openapi.yaml#/components/headers/ETag'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        preconditionRequired:
+          value:
+            type: https://api.encacapei.com.br/problems/precondition-required
+            title: Cabeçalho If-Match obrigatório
+            status: 428
+            code: PRECONDITION_REQUIRED
+            detail: Esta operação exige o cabeçalho If-Match com a versão atual do recurso.
+            instance: /api/v1/leagues/0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:09:00Z'
+            retryable: false
+            errors: []
+            currentVersion: 7
+            currentETag: W/"7"
+
+TooManyRequests:
+  description: Limite de requisições excedido.
+  headers:
+    Retry-After:
+      $ref: '../openapi.yaml#/components/headers/RetryAfter'
+    X-RateLimit-Limit:
+      $ref: '../openapi.yaml#/components/headers/RateLimitLimit'
+    X-RateLimit-Remaining:
+      $ref: '../openapi.yaml#/components/headers/RateLimitRemaining'
+    X-RateLimit-Reset:
+      $ref: '../openapi.yaml#/components/headers/RateLimitReset'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        rateLimit:
+          value:
+            type: https://api.encacapei.com.br/problems/rate-limit-exceeded
+            title: Muitas tentativas
+            status: 429
+            code: RATE_LIMIT_EXCEEDED
+            detail: Você excedeu o limite de tentativas. Tente novamente em 42 segundos.
+            instance: /api/v1/auth/login
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:10:00Z'
+            retryable: true
+            errors: []
+            retryAfterSeconds: 42
+            limit: 5
+            windowSeconds: 60
+        quotaExceeded:
+          value:
+            type: https://api.encacapei.com.br/problems/quota-exceeded
+            title: Limite diário atingido
+            status: 429
+            code: QUOTA_EXCEEDED
+            detail: Você já criou 10 ligas hoje. Tente novamente amanhã.
+            instance: /api/v1/leagues
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:10:00Z'
+            retryable: true
+            errors: []
+            quota: 10
+            resetsAt: '2026-07-29T03:00:00Z'
+
+InternalError:
+  description: Erro interno. Nenhum detalhe técnico é exposto; o diagnóstico fica no log correlacionado por `traceId`.
+  headers:
+    X-Trace-Id:
+      $ref: '../openapi.yaml#/components/headers/TraceId'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        internal:
+          value:
+            type: https://api.encacapei.com.br/problems/internal-error
+            title: Erro inesperado
+            status: 500
+            code: INTERNAL_ERROR
+            detail: Ocorreu um erro inesperado. Tente novamente em alguns instantes.
+            instance: /api/v1/matches/3f4a5b6c-7d8e-4f90-8a1b-000000000009/finish
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T14:11:00Z'
+            retryable: true
+            errors: []
+
+ServiceUnavailable:
+  description: Serviço temporariamente indisponível.
+  headers:
+    Retry-After:
+      $ref: '../openapi.yaml#/components/headers/RetryAfter'
+  content:
+    application/problem+json:
+      schema:
+        $ref: '#/ProblemDetails'
+      examples:
+        maintenance:
+          value:
+            type: https://api.encacapei.com.br/problems/maintenance-mode
+            title: Manutenção programada
+            status: 503
+            code: MAINTENANCE_MODE
+            detail: Estamos em manutenção. Voltamos em instantes.
+            instance: /api/v1/me
+            traceId: 0af7651916cd43dd8448eb211c80319c
+            timestamp: '2026-07-28T06:00:00Z'
+            retryable: true
+            errors: []
+            estimatedEndAt: '2026-07-28T06:30:00Z'

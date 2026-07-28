@@ -1,0 +1,1317 @@
+# paths/leagues.yaml — ligas, membros, ranking e histórico
+
+Leagues:
+  post:
+    operationId: createLeague
+    summary: Criar liga (conclusão do wizard de 3 passos)
+    description: |
+      Em **uma transação**: `League` + regras + calendário + `LeagueMember(OWNER)` +
+      `RankingEntry` zerada + (opcional) código de convite + N convites nominais.
+      Se `durationType = ONE_DAY`, a jogatina do dia já é aberta (RN-LEAGUE-016).
+
+      A liga é válida com **1 membro** — o wizard diz "comece sozinho e convide depois".
+    tags: [Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateLeagueRequest'
+          examples:
+            wizard:
+              summary: Payload completo do wizard
+              value:
+                name: Liga da Terça
+                visibility: PRIVATE
+                venueId: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+                durationType: SIX_MONTHS
+                startsAt: '2026-07-28'
+                gameMode: ONE_VS_ONE
+                schedule:
+                  weekdays: [TUESDAY, FRIDAY]
+                  startTime: '20:00'
+                  endTime: '00:00'
+                  timezone: America/Sao_Paulo
+                  reminderMinutesBefore: 60
+                rules:
+                  trackPocketedBalls: true
+                  trackFouls: false
+                  ballsCount: 8
+                  correctionWindowHours: 24
+                inviteUserIds:
+                  - 22222222-2222-4222-8222-222222222222
+                  - 33333333-3333-4333-8333-333333333333
+                  - 44444444-4444-4444-8444-444444444444
+                  - 55555555-5555-4555-8555-555555555555
+                generateInviteCode: true
+            minimal:
+              summary: Mínimo aceito
+              value:
+                name: Sinuca de sábado
+                durationType: ONE_DAY
+    responses:
+      '201':
+        description: Liga criada.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+          Idempotent-Replay:
+            $ref: '../openapi.yaml#/components/headers/IdempotentReplay'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/League'
+            example:
+              id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+              name: Liga da Terça
+              description: null
+              visibility: PRIVATE
+              status: ACTIVE
+              gameMode: ONE_VS_ONE
+              durationType: SIX_MONTHS
+              startsAt: '2026-07-28'
+              endsAt: '2027-01-28'
+              owner:
+                id: 11111111-1111-4111-8111-111111111111
+                username: baroni
+                displayName: Rodrigo Baroni
+                avatarUrl: null
+                initials: RB
+                avatarColor: '#C1E778'
+              venue:
+                id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+                name: Bar do Zé
+                addressLine: R. Domingos de Morais, 1234
+                neighborhood: Vila Mariana
+                city: São Paulo
+                state: SP
+                latitude: -23.561414
+                longitude: -46.655881
+                status: ACTIVE
+              venueLabel: null
+              schedule:
+                weekdays: [TUESDAY, FRIDAY]
+                startTime: '20:00'
+                endTime: '00:00'
+                crossesMidnight: true
+                timezone: America/Sao_Paulo
+                reminderMinutesBefore: 60
+                humanReadable: Terças e sextas, 20h–00h
+              rules:
+                trackPocketedBalls: true
+                trackFouls: false
+                ballsCount: 8
+                requireOpponentConfirmation: false
+                correctionWindowHours: 24
+                minMatchesForRanking: 0
+                tiebreakerOrder: [WIN_RATE, WINS, FEWER_LOSSES, HEAD_TO_HEAD, JOINED_AT]
+                locked: false
+                lockedAt: null
+              counters: { membersCount: 1, matchesCount: 0, sessionsCount: 0 }
+              nextSessionAt: '2026-07-28T23:00:00Z'
+              lastActivityAt: null
+              currentSession: null
+              myMembership: { role: OWNER, status: ACTIVE, joinedAt: '2026-07-27T19:10:00Z' }
+              myRanking: { position: 1, wins: 0, losses: 0, winRate: 0.00 }
+              permissions:
+                canEdit: true
+                canFinish: true
+                canDelete: true
+                canInvite: true
+                canGenerateCode: true
+                canManageMembers: true
+                canLeave: false
+                canStartMatch: true
+              inviteCode:
+                code: TERCA-7K9M
+                shareUrl: https://encacapei.com.br/j/TERCA-7K9M
+                deepLink: encacapei://join?code=TERCA-7K9M
+                leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                maxUses: null
+                usesCount: 0
+                expiresAt: '2026-08-03T19:10:00Z'
+                createdAt: '2026-07-27T19:10:00Z'
+              invitationsSent: 4
+              createdAt: '2026-07-27T19:10:00Z'
+              updatedAt: '2026-07-27T19:10:00Z'
+              version: 1
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+MeLeagues:
+  get:
+    operationId: listMyLeagues
+    summary: Listar minhas ligas
+    description: |
+      Alimenta a Home (`?limit=3`, sem filtro de status) e a aba Liga
+      (`?status=ACTIVE` e `?status=FINISHED`).
+    tags: [Leagues]
+    parameters:
+      - name: status
+        in: query
+        description: Lista separada por vírgula.
+        schema:
+          type: string
+        example: ACTIVE
+      - $ref: '../openapi.yaml#/components/parameters/SearchQuery'
+      - $ref: '../openapi.yaml#/components/parameters/Page'
+      - $ref: '../openapi.yaml#/components/parameters/PageSize'
+      - name: limit
+        in: query
+        description: Atalho para a Home.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [name, -name, createdAt, -createdAt, lastActivityAt, -lastActivityAt, nextSessionAt, -nextSessionAt]
+          default: -lastActivityAt
+    responses:
+      '200':
+        description: Ligas do usuário.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/LeagueListItem'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaOffset'
+            example:
+              items:
+                - id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                  name: Liga da Terça
+                  status: ACTIVE
+                  visibility: PRIVATE
+                  gameMode: ONE_VS_ONE
+                  venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+                  counters: { membersCount: 5, matchesCount: 27, sessionsCount: 9 }
+                  nextSessionAt: '2026-07-28T23:00:00Z'
+                  lastActivityAt: '2026-07-15T01:08:22Z'
+                  myMembership: { role: OWNER, status: ACTIVE }
+                  myRanking: { position: 2, wins: 7, losses: 4, winRate: 63.64 }
+                  hasActiveSession: false
+                  scheduleSummary: Terças e sextas, 20h–00h
+                - id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000002
+                  name: Ranking do Bar do Zé
+                  status: ACTIVE
+                  visibility: PUBLIC
+                  gameMode: ONE_VS_ONE
+                  venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+                  counters: { membersCount: 8, matchesCount: 61, sessionsCount: 17 }
+                  nextSessionAt: '2026-07-31T00:00:00Z'
+                  lastActivityAt: '2026-07-24T02:40:00Z'
+                  myMembership: { role: PLAYER, status: ACTIVE }
+                  myRanking: { position: 4, wins: 12, losses: 9, winRate: 57.14 }
+                  hasActiveSession: false
+                  scheduleSummary: Sextas, 21h–01h
+              meta: { totalItems: 2, page: 1, pageSize: 20, totalPages: 1, hasMore: false }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+PublicLeagues:
+  get:
+    operationId: searchPublicLeagues
+    summary: Buscar ligas públicas
+    description: |
+      Busca full-text em ligas `PUBLIC` e `ACTIVE`. Ligas `PRIVATE` **nunca**
+      aparecem, mesmo por nome exato (RN-LEAGUE-013).
+    tags: [Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/SearchQuery'
+      - name: venueId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: lat
+        in: query
+        schema:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+      - name: lng
+        in: query
+        schema:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+      - name: radiusKm
+        in: query
+        schema:
+          type: number
+          minimum: 0.1
+          maximum: 50
+          default: 10
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+      - $ref: '../openapi.yaml#/components/parameters/Cursor'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [relevance, membersCount, lastActivityAt, distance]
+          default: relevance
+    responses:
+      '200':
+        description: Ligas públicas encontradas.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/PublicLeagueListItem'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+            example:
+              items:
+                - id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000002
+                  name: Ranking do Bar do Zé
+                  description: Todo mundo é bem-vindo, sexta à noite.
+                  status: ACTIVE
+                  visibility: PUBLIC
+                  gameMode: ONE_VS_ONE
+                  venue:
+                    id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+                    name: Bar do Zé
+                    neighborhood: Vila Mariana
+                    city: São Paulo
+                    distanceKm: 2.4
+                  owner:
+                    id: 33333333-3333-4333-8333-333333333333
+                    username: felipao
+                    displayName: Felipe Costa
+                    initials: FE
+                    avatarColor: '#f4a261'
+                  counters: { membersCount: 8, matchesCount: 61 }
+                  scheduleSummary: Sextas, 21h–01h
+                  nextSessionAt: '2026-07-31T00:00:00Z'
+                  alreadyMember: true
+                  canJoin: false
+                  joinPolicy: OPEN
+              meta: { totalItems: 1, pageSize: 20, hasMore: false, nextCursor: null }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+LeagueById:
+  get:
+    operationId: getLeague
+    summary: Consultar detalhes da liga
+    description: |
+      Membros recebem o recurso completo. Em liga `PUBLIC`, não-membros recebem uma
+      visão resumida com `canJoin: true`. Em liga `PRIVATE` sem vínculo, `404`.
+
+      `permissions` é calculado pelo servidor — o app não reimplementa autorização.
+      `rules.locked = true` indica que os campos de jogo devem estar desabilitados na UI.
+    tags: [Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - name: include
+        in: query
+        schema:
+          type: string
+        example: currentSession
+      - $ref: '../openapi.yaml#/components/parameters/IfNoneMatch'
+    responses:
+      '200':
+        description: Detalhes da liga.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/League'
+      '304':
+        $ref: '../openapi.yaml#/components/responses/NotModified'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+  patch:
+    operationId: updateLeague
+    summary: Editar liga
+    description: |
+      Requer `ADMIN` ou `OWNER`. Após a **primeira partida finalizada**, `gameMode`
+      e as regras de marcação tornam-se imutáveis (`409 LEAGUE_RULES_LOCKED`,
+      RN-LEAGUE-009). Também é este endpoint que atrela/desatrela um local
+      (`venueId` / `null`).
+    tags: [Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatch'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/UpdateLeagueRequest'
+          examples:
+            config:
+              summary: Salvar aba Config
+              value:
+                name: Liga da Terça
+                venueId: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+                rules:
+                  trackFouls: true
+            attachVenue:
+              summary: Atrelar liga a um local
+              value:
+                venueId: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+            detachVenue:
+              summary: Desatrelar local
+              value:
+                venueId: null
+    responses:
+      '200':
+        description: Liga atualizada.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/League'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '428':
+        $ref: '../openapi.yaml#/components/responses/PreconditionRequired'
+
+  delete:
+    operationId: deleteLeague
+    summary: Excluir liga
+    description: |
+      Somente `OWNER` e somente se a liga **nunca** teve partida finalizada
+      (`409 LEAGUE_HAS_HISTORY`). Caso contrário, use `POST /finish`.
+    tags: [Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatch'
+    responses:
+      '204':
+        description: Liga excluída.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '428':
+        $ref: '../openapi.yaml#/components/responses/PreconditionRequired'
+
+LeagueFinish:
+  post:
+    operationId: finishLeague
+    summary: Encerrar liga
+    description: |
+      Somente `OWNER`. **Congela o ranking final**, fecha jogatinas, cancela
+      partidas em aberto (com `force`), expira convites, revoga códigos e notifica
+      os membros.
+    tags: [Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatch'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/FinishLeagueRequest'
+          examples:
+            finish:
+              value:
+                reason: Fim do semestre
+                force: false
+    responses:
+      '200':
+        description: Liga encerrada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/FinishLeagueResponse'
+            example:
+              id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000003
+              name: Copa Fim de Ano
+              status: FINISHED
+              finishedAt: '2026-07-27T19:20:00Z'
+              finishedBy:
+                id: 11111111-1111-4111-8111-111111111111
+                username: baroni
+                displayName: Rodrigo Baroni
+                initials: RB
+                avatarColor: '#C1E778'
+              finalRanking:
+                frozenAt: '2026-07-27T19:20:00Z'
+                champion:
+                  userId: 33333333-3333-4333-8333-333333333333
+                  displayName: Felipe Costa
+                  wins: 12
+                  losses: 6
+                  winRate: 66.67
+                entriesCount: 6
+              sideEffects:
+                sessionsClosed: 0
+                matchesCancelled: 0
+                invitationsExpired: 2
+                inviteCodesRevoked: 1
+              version: 12
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '428':
+        $ref: '../openapi.yaml#/components/responses/PreconditionRequired'
+
+LeagueJoin:
+  post:
+    operationId: joinLeague
+    summary: Entrar em liga pública
+    description: |
+      Entrada direta quando `joinPolicy = OPEN`. Se a liga exigir aprovação
+      (`DP-006`), responde `202` com solicitação pendente.
+    tags: [Leagues, LeagueMembers]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    responses:
+      '201':
+        description: Membro criado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/JoinLeagueResponse'
+            example:
+              leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000002
+              leagueName: Ranking do Bar do Zé
+              membership: { role: PLAYER, status: ACTIVE, joinedAt: '2026-07-27T19:30:00Z', joinedVia: PUBLIC_JOIN }
+              ranking: { position: 9, wins: 0, losses: 0, winRate: 0.00 }
+      '202':
+        description: Solicitação de entrada pendente de aprovação.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  const: PENDING_APPROVAL
+                requestId:
+                  $ref: '../components/schemas.yaml#/Uuid'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+JoinByCode:
+  post:
+    operationId: joinLeagueByCode
+    summary: Entrar em liga por código de convite
+    description: |
+      O código é normalizado para maiúsculas. Cada estado inválido tem seu próprio
+      código de erro (`INVITE_CODE_EXPIRED`, `_REVOKED`, `_EXHAUSTED`), para o app
+      dar a mensagem certa (RN-INVITE-009).
+    tags: [Leagues, Invitations]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/JoinByCodeRequest'
+          examples:
+            lowercase:
+              summary: Aceita minúsculas
+              value:
+                code: terca-7k9m
+    responses:
+      '201':
+        description: Entrou na liga.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/JoinLeagueResponse'
+            example:
+              leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+              leagueName: Liga da Terça
+              membership: { role: PLAYER, status: ACTIVE, joinedAt: '2026-07-28T14:10:00Z', joinedVia: INVITE_CODE }
+              ranking: { position: 6, wins: 0, losses: 0, winRate: 0.00 }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '410':
+        $ref: '../openapi.yaml#/components/responses/Gone'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+LeagueLeave:
+  post:
+    operationId: leaveLeague
+    summary: Sair da liga
+    description: |
+      O `OWNER` precisa **transferir a propriedade** antes de sair
+      (`409 OWNER_MUST_TRANSFER`, com `eligibleSuccessors[]`). Se for o único
+      membro, sair encerra a liga. O histórico de partidas é preservado.
+    tags: [LeagueMembers]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+    responses:
+      '204':
+        description: Saiu da liga.
+      '200':
+        description: Era o único membro — a liga foi encerrada.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leagueFinished:
+                  type: boolean
+            example:
+              leagueFinished: true
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+LeagueMembers:
+  get:
+    operationId: listLeagueMembers
+    summary: Listar membros da liga
+    description: |
+      Também alimenta a **seleção de adversário**: com
+      `include=sessionStats&playSessionId=…`, cada membro traz `sessionStats.wins`,
+      que é o "**N vitórias hoje**" da tela.
+    tags: [LeagueMembers]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/SearchQuery'
+      - name: status
+        in: query
+        schema:
+          type: string
+          default: ACTIVE
+      - name: role
+        in: query
+        schema:
+          type: string
+      - $ref: '../openapi.yaml#/components/parameters/Page'
+      - $ref: '../openapi.yaml#/components/parameters/PageSize'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [displayName, -displayName, joinedAt, -joinedAt, role]
+          default: displayName
+      - name: include
+        in: query
+        schema:
+          type: string
+        example: sessionStats
+      - name: playSessionId
+        in: query
+        description: Contexto para `sessionStats`.
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Membros da liga.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/LeagueMember'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaOffset'
+            example:
+              items:
+                - userId: 11111111-1111-4111-8111-111111111111
+                  username: baroni
+                  displayName: Rodrigo Baroni
+                  avatarUrl: null
+                  initials: RB
+                  avatarColor: '#C1E778'
+                  role: OWNER
+                  status: ACTIVE
+                  joinedAt: '2026-01-14T22:10:00Z'
+                  joinedVia: CREATOR
+                  ranking: { position: 2, wins: 7, losses: 4, winRate: 63.64 }
+                  sessionStats: { wins: 3, losses: 0, matchesPlayed: 3, position: 1 }
+                  isMe: true
+                  canBeRemoved: false
+                  canChangeRole: false
+                - userId: 33333333-3333-4333-8333-333333333333
+                  username: felipao
+                  displayName: Felipe Costa
+                  avatarUrl: https://cdn.encacapei.com.br/avatars/33333333-3333-4333-8333-333333333333/256.webp
+                  initials: FE
+                  avatarColor: '#f4a261'
+                  role: ADMIN
+                  status: ACTIVE
+                  joinedAt: '2026-01-15T18:05:00Z'
+                  joinedVia: INVITATION
+                  ranking: { position: 1, wins: 8, losses: 2, winRate: 80.00 }
+                  sessionStats: { wins: 3, losses: 1, matchesPlayed: 4, position: 2 }
+                  isMe: false
+                  canBeRemoved: true
+                  canChangeRole: true
+                - userId: 22222222-2222-4222-8222-222222222222
+                  username: joaop
+                  displayName: João Pereira
+                  avatarUrl: https://cdn.encacapei.com.br/avatars/22222222-2222-4222-8222-222222222222/256.webp
+                  initials: JO
+                  avatarColor: '#8ecae6'
+                  role: PLAYER
+                  status: ACTIVE
+                  joinedAt: '2026-01-15T18:02:00Z'
+                  joinedVia: INVITATION
+                  ranking: { position: 3, wins: 5, losses: 4, winRate: 55.56 }
+                  sessionStats: { wins: 2, losses: 1, matchesPlayed: 3, position: 3 }
+                  isMe: false
+                  canBeRemoved: true
+                  canChangeRole: true
+                - userId: 44444444-4444-4444-8444-444444444444
+                  username: ander
+                  displayName: Anderson Lima
+                  avatarUrl: null
+                  initials: AN
+                  avatarColor: '#e9c46a'
+                  role: PLAYER
+                  status: ACTIVE
+                  joinedAt: '2026-01-20T19:44:00Z'
+                  joinedVia: INVITE_CODE
+                  ranking: { position: 5, wins: 3, losses: 7, winRate: 30.00 }
+                  sessionStats: { wins: 0, losses: 6, matchesPlayed: 6, position: 4 }
+                  isMe: false
+                  canBeRemoved: true
+                  canChangeRole: true
+                - userId: 55555555-5555-4555-8555-555555555555
+                  username: marcao
+                  displayName: Marcos Silva
+                  avatarUrl: null
+                  initials: MA
+                  avatarColor: '#c8b6ff'
+                  role: PLAYER
+                  status: ACTIVE
+                  joinedAt: '2026-02-03T20:11:00Z'
+                  joinedVia: INVITATION
+                  ranking: { position: 4, wins: 4, losses: 6, winRate: 40.00 }
+                  sessionStats: { wins: 0, losses: 0, matchesPlayed: 0, position: 5 }
+                  isMe: false
+                  canBeRemoved: true
+                  canChangeRole: true
+              meta: { totalItems: 5, page: 1, pageSize: 50, totalPages: 1, hasMore: false }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+LeagueMemberById:
+  patch:
+    operationId: changeMemberRole
+    summary: Alterar papel de membro
+    description: |
+      Exclusivo do `OWNER`. Promover alguém a `OWNER` **rebaixa o dono atual a
+      `ADMIN`** numa transação atômica — a liga sempre tem exatamente um dono,
+      garantido por unique constraint parcial no banco.
+    tags: [LeagueMembers]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/UserIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IfMatchOptional'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ChangeMemberRoleRequest'
+          examples:
+            promote:
+              summary: Promover a admin
+              value:
+                role: ADMIN
+            transfer:
+              summary: Transferir propriedade
+              value:
+                role: OWNER
+    responses:
+      '200':
+        description: Papel alterado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ChangeMemberRoleResponse'
+            examples:
+              promoted:
+                value:
+                  userId: 33333333-3333-4333-8333-333333333333
+                  displayName: Felipe Costa
+                  role: ADMIN
+                  previousRole: PLAYER
+                  status: ACTIVE
+                  changedAt: '2026-07-27T19:25:00Z'
+                  version: 2
+              transferred:
+                value:
+                  userId: 33333333-3333-4333-8333-333333333333
+                  displayName: Felipe Costa
+                  role: OWNER
+                  previousRole: ADMIN
+                  status: ACTIVE
+                  changedAt: '2026-07-27T19:26:00Z'
+                  ownershipTransferred: true
+                  previousOwner: { userId: 11111111-1111-4111-8111-111111111111, newRole: ADMIN }
+                  version: 3
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+  delete:
+    operationId: removeLeagueMember
+    summary: Remover membro da liga
+    description: |
+      `ADMIN` pode remover apenas `PLAYER`; `OWNER` pode remover qualquer um
+      (RN-MEMBER-005). Mantém histórico e a entrada de ranking marcada como inativa.
+    tags: [LeagueMembers]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/UserIdPath'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason:
+                type: string
+                maxLength: 300
+    responses:
+      '204':
+        description: Membro removido.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+LeagueRanking:
+  get:
+    operationId: getLeagueRanking
+    summary: Ranking da liga
+    description: |
+      Tabela `# | Jogador | V | D | %`. Ordenação é **regra de negócio**
+      (RN-RANKING-002), não preferência do cliente — este endpoint **não** aceita `sort`.
+
+      `winRate` vem com 2 casas exatas; o arredondamento para inteiro é do cliente
+      (half-up). `positionChange` compara com o ranking anterior.
+    tags: [Rankings, Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/PeriodFilter'
+      - name: playSessionId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: includeInactive
+        in: query
+        description: 'Inclui quem saiu da liga, com `isActive: false` (DP-025).'
+        schema:
+          type: boolean
+          default: true
+      - $ref: '../openapi.yaml#/components/parameters/IfNoneMatch'
+    responses:
+      '200':
+        description: Ranking materializado.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+          Cache-Control:
+            schema:
+              type: string
+            example: private, max-age=15, must-revalidate
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LeagueRanking'
+            example:
+              leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+              leagueName: Liga da Terça
+              leagueStatus: ACTIVE
+              period: ALL_TIME
+              frozen: false
+              frozenAt: null
+              tiebreakerOrder: [WIN_RATE, WINS, FEWER_LOSSES, HEAD_TO_HEAD, JOINED_AT]
+              minMatchesForRanking: 0
+              items:
+                - position: 1
+                  user: { id: 33333333-3333-4333-8333-333333333333, username: felipao, displayName: Felipe Costa, avatarUrl: 'https://cdn.encacapei.com.br/avatars/33333333-3333-4333-8333-333333333333/256.webp', initials: FE, avatarColor: '#f4a261' }
+                  wins: 8
+                  losses: 2
+                  matchesPlayed: 10
+                  winRate: 80.00
+                  currentWinStreak: 3
+                  longestWinStreak: 5
+                  lastMatchAt: '2026-07-14T23:38:52Z'
+                  isMe: false
+                  isActive: true
+                  previousPosition: 1
+                  positionChange: 0
+                - position: 2
+                  user: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, avatarUrl: null, initials: RB, avatarColor: '#C1E778' }
+                  wins: 7
+                  losses: 4
+                  matchesPlayed: 11
+                  winRate: 63.64
+                  currentWinStreak: 5
+                  longestWinStreak: 7
+                  lastMatchAt: '2026-07-15T01:08:22Z'
+                  isMe: true
+                  isActive: true
+                  previousPosition: 4
+                  positionChange: 2
+                - position: 3
+                  user: { id: 22222222-2222-4222-8222-222222222222, username: joaop, displayName: João Pereira, avatarUrl: 'https://cdn.encacapei.com.br/avatars/22222222-2222-4222-8222-222222222222/256.webp', initials: JO, avatarColor: '#8ecae6' }
+                  wins: 5
+                  losses: 4
+                  matchesPlayed: 9
+                  winRate: 55.56
+                  currentWinStreak: 0
+                  longestWinStreak: 2
+                  lastMatchAt: '2026-07-15T01:08:22Z'
+                  isMe: false
+                  isActive: true
+                  previousPosition: 3
+                  positionChange: 0
+                - position: 4
+                  user: { id: 55555555-5555-4555-8555-555555555555, username: marcao, displayName: Marcos Silva, avatarUrl: null, initials: MA, avatarColor: '#c8b6ff' }
+                  wins: 4
+                  losses: 6
+                  matchesPlayed: 10
+                  winRate: 40.00
+                  currentWinStreak: 0
+                  longestWinStreak: 2
+                  lastMatchAt: '2026-07-08T01:12:30Z'
+                  isMe: false
+                  isActive: true
+                  previousPosition: 5
+                  positionChange: 1
+                - position: 5
+                  user: { id: 44444444-4444-4444-8444-444444444444, username: ander, displayName: Anderson Lima, avatarUrl: null, initials: AN, avatarColor: '#e9c46a' }
+                  wins: 3
+                  losses: 7
+                  matchesPlayed: 10
+                  winRate: 30.00
+                  currentWinStreak: 0
+                  currentLossStreak: 6
+                  longestWinStreak: 3
+                  lastMatchAt: '2026-07-15T00:45:31Z'
+                  isMe: false
+                  isActive: true
+                  previousPosition: 2
+                  positionChange: -3
+              meta: { totalItems: 5, updatedAt: '2026-07-15T01:08:23Z' }
+      '304':
+        $ref: '../openapi.yaml#/components/responses/NotModified'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+LeagueMatches:
+  get:
+    operationId: listLeagueMatches
+    summary: Histórico de partidas da liga
+    description: |
+      Aba Histórico. `playSessionId` implementa o filtro "Todos os dias / 7 de julho
+      / 30 de junho"; `result` implementa "Todos / Vitórias / Derrotas" — sempre
+      **relativo ao usuário autenticado**.
+    tags: [Matches, Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - name: playSessionId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: businessDate
+        in: query
+        schema:
+          type: string
+          format: date
+      - name: result
+        in: query
+        schema:
+          $ref: '../components/schemas.yaml#/MatchResultForMe'
+      - name: status
+        in: query
+        schema:
+          type: string
+          default: FINISHED
+      - name: userId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: opponentId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - $ref: '../openapi.yaml#/components/parameters/FromFilter'
+      - $ref: '../openapi.yaml#/components/parameters/ToFilter'
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+      - $ref: '../openapi.yaml#/components/parameters/Cursor'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [finishedAt, -finishedAt, startedAt, -startedAt]
+          default: -finishedAt
+    responses:
+      '200':
+        description: Partidas da liga.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/MatchListItem'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+                links:
+                  $ref: '../components/schemas.yaml#/PaginationLinks'
+            example:
+              items:
+                - id: 3f4a5b6c-7d8e-4f90-8a1b-000000000023
+                  playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000002
+                  businessDate: '2026-07-07'
+                  status: FINISHED
+                  resultStatus: ORIGINAL
+                  gameMode: ONE_VS_ONE
+                  winnerSide: 1
+                  startedAt: '2026-07-08T00:14:02Z'
+                  finishedAt: '2026-07-08T00:32:41Z'
+                  durationSeconds: 1119
+                  participants:
+                    - { userId: 11111111-1111-4111-8111-111111111111, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778', side: 1, isWinner: true, ballsPocketed: 6, fouls: 0 }
+                    - { userId: 22222222-2222-4222-8222-222222222222, displayName: João Pereira, initials: JO, avatarColor: '#8ecae6', side: 2, isWinner: false, ballsPocketed: 3, fouls: 1 }
+                  myResult: WIN
+                  title: Você vs João
+                  canCorrect: false
+                  correctionCount: 0
+                - id: 3f4a5b6c-7d8e-4f90-8a1b-000000000022
+                  playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000002
+                  businessDate: '2026-07-07'
+                  status: FINISHED
+                  resultStatus: ORIGINAL
+                  gameMode: ONE_VS_ONE
+                  winnerSide: 2
+                  startedAt: '2026-07-07T23:47:10Z'
+                  finishedAt: '2026-07-08T00:04:55Z'
+                  durationSeconds: 1065
+                  participants:
+                    - { userId: 11111111-1111-4111-8111-111111111111, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778', side: 1, isWinner: false, ballsPocketed: 2, fouls: 2 }
+                    - { userId: 33333333-3333-4333-8333-333333333333, displayName: Felipe Costa, initials: FE, avatarColor: '#f4a261', side: 2, isWinner: true, ballsPocketed: 7, fouls: 0 }
+                  myResult: LOSS
+                  title: Você vs Felipe
+                  canCorrect: false
+                  correctionCount: 0
+                - id: 3f4a5b6c-7d8e-4f90-8a1b-000000000021
+                  playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000002
+                  businessDate: '2026-07-07'
+                  status: FINISHED
+                  resultStatus: ORIGINAL
+                  gameMode: ONE_VS_ONE
+                  winnerSide: 1
+                  startedAt: '2026-07-07T23:04:33Z'
+                  finishedAt: '2026-07-07T23:20:18Z'
+                  durationSeconds: 945
+                  participants:
+                    - { userId: 11111111-1111-4111-8111-111111111111, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778', side: 1, isWinner: true, ballsPocketed: 8, fouls: 0 }
+                    - { userId: 44444444-4444-4444-8444-444444444444, displayName: Anderson Lima, initials: AN, avatarColor: '#e9c46a', side: 2, isWinner: false, ballsPocketed: 1, fouls: 3 }
+                  myResult: WIN
+                  title: Você vs Anderson
+                  canCorrect: false
+                  correctionCount: 0
+              meta:
+                totalItems: 8
+                pageSize: 20
+                hasMore: true
+                nextCursor: eyJpZCI6IjNmNGE1YjZjLTdkOGUtNGY5MC04YTFiLTAwMDAwMDAwMDAyMSIsInQiOiIyMDI2LTA3LTA3VDIzOjIwOjE4WiJ9
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+LeaguePlaySessions:
+  get:
+    operationId: listLeaguePlaySessions
+    summary: Listar jogatinas da liga
+    description: Alimenta o select "Todos os dias / 7 de julho / 30 de junho" do histórico.
+    tags: [PlaySessions, Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - name: status
+        in: query
+        schema:
+          type: string
+      - $ref: '../openapi.yaml#/components/parameters/FromFilter'
+      - $ref: '../openapi.yaml#/components/parameters/ToFilter'
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+      - $ref: '../openapi.yaml#/components/parameters/Cursor'
+    responses:
+      '200':
+        description: Jogatinas da liga.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, meta]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '../components/schemas.yaml#/PlaySessionListItem'
+                meta:
+                  $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+            example:
+              items:
+                - id: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+                  businessDate: '2026-07-14'
+                  status: CLOSED
+                  label: 14 de julho
+                  matchesCount: 9
+                  participantsCount: 4
+                  openedAt: '2026-07-14T23:00:00Z'
+                  closedAt: '2026-07-15T01:15:00Z'
+                  venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+                  myWins: 4
+                  myLosses: 0
+                  myPosition: 1
+                - id: 7c8d9e0f-1a2b-4c3d-8e4f-000000000002
+                  businessDate: '2026-07-07'
+                  status: CLOSED
+                  label: 7 de julho
+                  matchesCount: 8
+                  participantsCount: 4
+                  openedAt: '2026-07-07T23:00:00Z'
+                  closedAt: '2026-07-08T02:55:00Z'
+                  venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+                  myWins: 3
+                  myLosses: 2
+                  myPosition: 2
+                - id: 7c8d9e0f-1a2b-4c3d-8e4f-000000000003
+                  businessDate: '2026-06-30'
+                  status: CLOSED
+                  label: 30 de junho
+                  matchesCount: 6
+                  participantsCount: 3
+                  openedAt: '2026-06-30T23:05:00Z'
+                  closedAt: '2026-07-01T02:20:00Z'
+                  venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+                  myWins: 0
+                  myLosses: 2
+                  myPosition: 3
+              meta: { totalItems: 9, pageSize: 20, hasMore: true, nextCursor: eyJkIjoiMjAyNi0wNi0zMCJ9 }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+LeagueCurrentPlaySession:
+  get:
+    operationId: getCurrentPlaySession
+    summary: Obter (ou abrir) a jogatina corrente da liga
+    description: |
+      A operação por trás do botão **"Iniciar partida"**.
+
+      Com `createIfMissing=true`, abre a jogatina do dia se não houver nenhuma
+      (`201`); se já existir, devolve a existente (`200`). Duas chamadas simultâneas
+      **nunca** criam duas jogatinas — o unique parcial `(leagueId, businessDate)`
+      garante isso, e quem perde a corrida relê e recebe `200`.
+
+      `businessDate` é calculado no **fuso da liga**, com corte deslocado quando a
+      janela cruza a meia-noite: uma chamada às 00:20 local do dia 15 ainda devolve
+      `2026-07-14`.
+    tags: [PlaySessions, Leagues]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/LeagueIdPath'
+      - name: createIfMissing
+        in: query
+        schema:
+          type: boolean
+          default: false
+      - name: include
+        in: query
+        schema:
+          type: string
+        example: ranking
+    responses:
+      '200':
+        description: Jogatina existente.
+        headers:
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PlaySession'
+            example:
+              id: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+              leagueName: Liga da Terça
+              businessDate: '2026-07-14'
+              label: Jogatina de 14 jul
+              status: IN_PROGRESS
+              venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+              timezone: America/Sao_Paulo
+              openedAt: '2026-07-14T23:00:00Z'
+              openedBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+              closedAt: null
+              outOfSchedule: false
+              counters: { matchesCount: 8, participantsCount: 4, activeMatchesCount: 0 }
+              myStats: { wins: 3, losses: 0, matchesPlayed: 3, position: 1 }
+              ranking:
+                - position: 1
+                  user: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+                  wins: 3
+                  losses: 0
+                  matchesPlayed: 3
+                  isMe: true
+                - position: 2
+                  user: { id: 33333333-3333-4333-8333-333333333333, username: felipao, displayName: Felipe Costa, initials: FE, avatarColor: '#f4a261' }
+                  wins: 3
+                  losses: 1
+                  matchesPlayed: 4
+                  isMe: false
+                - position: 3
+                  user: { id: 22222222-2222-4222-8222-222222222222, username: joaop, displayName: João Pereira, initials: JO, avatarColor: '#8ecae6' }
+                  wins: 2
+                  losses: 1
+                  matchesPlayed: 3
+                  isMe: false
+                - position: 4
+                  user: { id: 44444444-4444-4444-8444-444444444444, username: ander, displayName: Anderson Lima, initials: AN, avatarColor: '#e9c46a' }
+                  wins: 0
+                  losses: 6
+                  matchesPlayed: 6
+                  isMe: false
+              permissions: { canStartMatch: true, canAddParticipant: true, canClose: true, canShare: true }
+              createdAt: '2026-07-14T23:00:00Z'
+              updatedAt: '2026-07-15T00:45:31Z'
+              version: 9
+      '201':
+        description: Jogatina aberta agora.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+          ETag:
+            $ref: '../openapi.yaml#/components/headers/ETag'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PlaySession'
+      '204':
+        description: Não há jogatina aberta e `createIfMissing` é `false`.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'

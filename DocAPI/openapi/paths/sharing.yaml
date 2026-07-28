@@ -1,0 +1,309 @@
+# paths/sharing.yaml — resumo da jogatina, card compartilhável e link público
+
+PlaySessionSummary:
+  get:
+    operationId: getPlaySessionSummary
+    summary: Resumo da jogatina (dados do card de compartilhamento)
+    description: |
+      Alimenta o modal "Parabéns! 🎉". `shortName` ("Rodrigo", "Felipe") é o que o
+      card exibe e já é a forma **minimizada** exigida por `DP-004`.
+
+      `shareText` sai pronto do backend, com emojis e quebras de linha — o app só
+      entrega ao share sheet do sistema. O backend **não** integra com WhatsApp,
+      Instagram ou TikTok: não há OAuth, token social nem postagem programática.
+    tags: [Sharing]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/PlaySessionIdPath'
+    responses:
+      '200':
+        description: Resumo da jogatina.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SessionSummary'
+            example:
+              playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              businessDate: '2026-07-14'
+              label: Jogatina de 14 jul
+              league: { id: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001, name: Liga da Terça }
+              venue: { id: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001, name: Bar do Zé }
+              status: IN_PROGRESS
+              isFinal: false
+              headline: Você está em 1º lugar na jogatina de hoje da Liga da Terça.
+              myPosition: 1
+              myWins: 4
+              myLosses: 0
+              totalMatches: 9
+              podium:
+                - { position: 1, medal: GOLD, displayName: Rodrigo Baroni, shortName: Rodrigo, initials: RB, avatarColor: '#C1E778', wins: 4, losses: 0, isMe: true }
+                - { position: 2, medal: SILVER, displayName: Felipe Costa, shortName: Felipe, initials: FE, avatarColor: '#f4a261', wins: 3, losses: 1, isMe: false }
+                - { position: 3, medal: BRONZE, displayName: João Pereira, shortName: João, initials: JO, avatarColor: '#8ecae6', wins: 2, losses: 2, isMe: false }
+                - { position: 4, medal: null, displayName: Anderson Lima, shortName: Anderson, initials: AN, avatarColor: '#e9c46a', wins: 0, losses: 6, isMe: false }
+              shareText: "🎱 Jogatina de 14 jul — Liga da Terça\n\n🥇 Rodrigo — 4 vitórias\n🥈 Felipe — 3 vitórias\n🥉 João — 2 vitórias\n4º Anderson — 0 vitórias\n\nRegistrado no Encaçapei 🏆"
+              permissions: { canShare: true, canGenerateImage: false }
+              generatedAt: '2026-07-15T01:08:25Z'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+PlaySessionShare:
+  post:
+    operationId: createShare
+    summary: Criar compartilhamento da jogatina
+    description: |
+      `format=LINK` é **síncrono** (`201`). `format=IMAGE_STORY` / `IMAGE_SQUARE` é
+      **assíncrono** (`202` + `statusUrl`) e, no MVP, retorna
+      `409 FEATURE_NOT_AVAILABLE` (`DP-020`).
+
+      O `snapshot` do pódio é **congelado no momento da criação**: uma correção de
+      resultado posterior **não** altera um card já enviado ao grupo do WhatsApp
+      (RN-SHARE-002).
+
+      O token público tem 32 bytes de entropia e é opaco; o link expira em 30 dias
+      por padrão e é revogável.
+    tags: [Sharing]
+    parameters:
+      - $ref: '../openapi.yaml#/components/parameters/PlaySessionIdPath'
+      - $ref: '../openapi.yaml#/components/parameters/IdempotencyKey'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CreateShareRequest'
+          examples:
+            link:
+              summary: Link (síncrono)
+              value:
+                format: LINK
+                visibilityLevel: MINIMAL
+                expiresInDays: 30
+            story:
+              summary: Imagem 1080×1920 (assíncrono, pós-MVP)
+              value:
+                format: IMAGE_STORY
+                visibilityLevel: MINIMAL
+    responses:
+      '201':
+        description: Compartilhamento criado (formato `LINK`).
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+          Idempotent-Replay:
+            $ref: '../openapi.yaml#/components/headers/IdempotentReplay'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ShareArtifact'
+            example:
+              id: 4c5d6e7f-8091-42a3-b5c6-000000000001
+              playSessionId: 7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              kind: SESSION_PODIUM
+              format: LINK
+              status: READY
+              publicToken: Jt7xK2mQ9pR4vN8sL1yB6cW3zA5dF0hG-eU
+              shareUrl: https://encacapei.com.br/p/Jt7xK2mQ9pR4vN8sL1yB6cW3zA5dF0hG-eU
+              imageUrl: null
+              shareText: "🎱 Jogatina de 14 jul — Liga da Terça\n\n🥇 Rodrigo — 4 vitórias\n🥈 Felipe — 3 vitórias\n🥉 João — 2 vitórias\n4º Anderson — 0 vitórias\n\nVeja o resumo: https://encacapei.com.br/p/Jt7xK2mQ9pR4vN8sL1yB6cW3zA5dF0hG-eU"
+              visibilityLevel: MINIMAL
+              snapshotFrozenAt: '2026-07-15T01:10:00Z'
+              viewCount: 0
+              expiresAt: '2026-08-14T01:10:00Z'
+              createdBy: { id: 11111111-1111-4111-8111-111111111111, username: baroni, displayName: Rodrigo Baroni, initials: RB, avatarColor: '#C1E778' }
+              createdAt: '2026-07-15T01:10:00Z'
+      '202':
+        description: Geração de imagem enfileirada.
+        headers:
+          Location:
+            $ref: '../openapi.yaml#/components/headers/Location'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ShareArtifact'
+            example:
+              id: 4c5d6e7f-8091-42a3-b5c6-000000000002
+              kind: SESSION_PODIUM
+              format: IMAGE_STORY
+              status: PROCESSING
+              publicToken: Rq9wT4nZ8kM2xC6vB1yH5jL0pD7sF3gA-eK
+              shareUrl: https://encacapei.com.br/p/Rq9wT4nZ8kM2xC6vB1yH5jL0pD7sF3gA-eK
+              imageUrl: null
+              statusUrl: /api/v1/share-artifacts/4c5d6e7f-8091-42a3-b5c6-000000000002
+              estimatedReadySeconds: 4
+              visibilityLevel: MINIMAL
+              snapshotFrozenAt: '2026-07-15T01:10:30Z'
+              viewCount: 0
+              expiresAt: '2026-08-14T01:10:30Z'
+              createdAt: '2026-07-15T01:10:30Z'
+      '400':
+        $ref: '../openapi.yaml#/components/responses/BadRequest'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+ShareArtifactById:
+  get:
+    operationId: getShareArtifact
+    summary: Consultar status da geração do card
+    description: 'Polling recomendado com backoff: 1 s, 2 s, 4 s, 8 s; desistir em 30 s.'
+    tags: [Sharing]
+    parameters:
+      - name: shareArtifactId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 4c5d6e7f-8091-42a3-b5c6-000000000002
+    responses:
+      '200':
+        description: Status do artefato.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ShareArtifact'
+            examples:
+              ready:
+                value:
+                  id: 4c5d6e7f-8091-42a3-b5c6-000000000002
+                  kind: SESSION_PODIUM
+                  format: IMAGE_STORY
+                  status: READY
+                  publicToken: Rq9wT4nZ8kM2xC6vB1yH5jL0pD7sF3gA-eK
+                  shareUrl: https://encacapei.com.br/p/Rq9wT4nZ8kM2xC6vB1yH5jL0pD7sF3gA-eK
+                  imageUrl: https://cdn.encacapei.com.br/shares/4c5d6e7f-8091-42a3-b5c6-000000000002/story.png
+                  imageWidth: 1080
+                  imageHeight: 1920
+                  imageSizeBytes: 214512
+                  visibilityLevel: MINIMAL
+                  snapshotFrozenAt: '2026-07-15T01:10:30Z'
+                  viewCount: 0
+                  expiresAt: '2026-08-14T01:10:30Z'
+                  createdAt: '2026-07-15T01:10:30Z'
+                  failureReason: null
+              failed:
+                value:
+                  id: 4c5d6e7f-8091-42a3-b5c6-000000000002
+                  kind: SESSION_PODIUM
+                  format: IMAGE_STORY
+                  status: FAILED
+                  publicToken: Rq9wT4nZ8kM2xC6vB1yH5jL0pD7sF3gA-eK
+                  shareUrl: https://encacapei.com.br/p/Rq9wT4nZ8kM2xC6vB1yH5jL0pD7sF3gA-eK
+                  imageUrl: null
+                  visibilityLevel: MINIMAL
+                  snapshotFrozenAt: '2026-07-15T01:10:30Z'
+                  viewCount: 0
+                  expiresAt: '2026-08-14T01:10:30Z'
+                  createdAt: '2026-07-15T01:10:30Z'
+                  failureReason: RENDER_TIMEOUT
+                  retryable: true
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+  delete:
+    operationId: revokeShareArtifact
+    summary: Revogar compartilhamento
+    description: |
+      O link passa a responder `410` e a imagem é removida do CDN.
+      Permitido ao criador ou a `ADMIN`/`OWNER` da liga. Gera `AuditLog`.
+    tags: [Sharing]
+    parameters:
+      - name: shareArtifactId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '204':
+        description: Compartilhamento revogado.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '403':
+        $ref: '../openapi.yaml#/components/responses/Forbidden'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+PublicShare:
+  get:
+    operationId: getPublicShare
+    summary: Consultar compartilhamento público
+    description: |
+      **Endpoint público** — qualquer pessoa com o link acessa, sem autenticação.
+
+      O conteúdo é **minimizado** (`DP-004`, RN-SHARE-004): nomes vêm como
+      "Rodrigo B." (primeiro nome + inicial), e são deliberadamente omitidos
+      `userId`, `username`, avatar real, `leagueId`, `playSessionId`, e-mail,
+      estatísticas gerais e link para perfil. Quem optou por não aparecer vira
+      "Jogador", sem iniciais.
+
+      Resposta serve `X-Robots-Tag: noindex, nofollow` — nome de pessoa física não
+      é indexado.
+    tags: [Sharing]
+    security: []
+    parameters:
+      - name: publicToken
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 32
+          maxLength: 64
+        example: Jt7xK2mQ9pR4vN8sL1yB6cW3zA5dF0hG-eU
+    responses:
+      '200':
+        description: Resumo público minimizado.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: public, max-age=600
+          X-Robots-Tag:
+            schema:
+              type: string
+            example: noindex, nofollow
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PublicShare'
+            example:
+              kind: SESSION_PODIUM
+              date: '2026-07-14'
+              label: Jogatina de 14 jul
+              leagueName: Liga da Terça
+              venueName: Bar do Zé
+              city: São Paulo
+              podium:
+                - { position: 1, medal: GOLD, name: Rodrigo B., initials: RB, avatarColor: '#C1E778', wins: 4 }
+                - { position: 2, medal: SILVER, name: Felipe C., initials: FE, avatarColor: '#f4a261', wins: 3 }
+                - { position: 3, medal: BRONZE, name: João P., initials: JO, avatarColor: '#8ecae6', wins: 2 }
+                - { position: 4, medal: null, name: Anderson L., initials: AN, avatarColor: '#e9c46a', wins: 0 }
+              totalMatches: 9
+              imageUrl: null
+              appDeepLink: encacapei://play-sessions/7c8d9e0f-1a2b-4c3d-8e4f-000000000001
+              appStoreUrl: https://encacapei.com.br/app
+              expiresAt: '2026-08-14T01:10:00Z'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+      '410':
+        $ref: '../openapi.yaml#/components/responses/Gone'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'

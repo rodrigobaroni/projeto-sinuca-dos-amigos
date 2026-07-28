@@ -1,0 +1,481 @@
+# paths/notifications.yaml — caixa de entrada in-app, preferências e devices
+
+MeNotifications:
+  get:
+    operationId: listNotifications
+    summary: Listar notificações
+    description: |
+      Com `groupBy=category`, devolve `groups[]` espelhando as seções da tela:
+      "Convites de liga", "Convites de amigos", "Avisos de jogatina".
+
+      `actions[].href` permite ao app executar a ação inline (Aceitar/Recusar) sem
+      precisar montar a rota. `createdAt` é ISO UTC — o app formata como tempo
+      relativo ("há 2 horas"); o servidor **nunca** envia data relativa.
+    tags: [Notifications]
+    parameters:
+      - name: category
+        in: query
+        description: Lista separada por vírgula.
+        schema:
+          type: string
+        example: LEAGUE_INVITATIONS,FRIEND_REQUESTS
+      - name: unreadOnly
+        in: query
+        schema:
+          type: boolean
+          default: false
+      - name: pendingActionOnly
+        in: query
+        schema:
+          type: boolean
+          default: false
+      - name: groupBy
+        in: query
+        schema:
+          type: string
+          enum: [category]
+      - $ref: '../openapi.yaml#/components/parameters/Limit'
+      - $ref: '../openapi.yaml#/components/parameters/Cursor'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [createdAt, -createdAt]
+          default: -createdAt
+    responses:
+      '200':
+        description: Notificações, agrupadas ou planas.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  description: Presente quando `groupBy` não é informado.
+                  items:
+                    $ref: '../components/schemas.yaml#/Notification'
+                groups:
+                  type: array
+                  description: Presente com `groupBy=category`.
+                  items:
+                    $ref: '../components/schemas.yaml#/NotificationGroup'
+                meta:
+                  allOf:
+                    - $ref: '../components/schemas.yaml#/PaginationMetaCursor'
+                    - type: object
+                      properties:
+                        unreadCount:
+                          type: integer
+            examples:
+              grouped:
+                summary: Agrupado por categoria (as 3 seções da tela)
+                value:
+                  groups:
+                    - category: LEAGUE_INVITATIONS
+                      label: Convites de liga
+                      unreadCount: 1
+                      items:
+                        - id: 2b3c4d5e-6f70-4812-9a34-000000000001
+                          category: LEAGUE_INVITATIONS
+                          type: LEAGUE_INVITATION_RECEIVED
+                          title: Liga do Churrasco te convidou
+                          body: Felipe Costa quer você na Liga do Churrasco.
+                          payload:
+                            invitationId: 8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+                            leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000004
+                            leagueName: Liga do Churrasco
+                            invitedByUserId: 33333333-3333-4333-8333-333333333333
+                            expiresAt: '2026-08-01T14:30:00Z'
+                          actions:
+                            - { key: ACCEPT, label: Aceitar, style: PRIMARY, method: POST, href: /api/v1/league-invitations/8a9b0c1d-2e3f-4a5b-8c6d-000000000001/accept }
+                            - { key: DECLINE, label: Recusar, style: SECONDARY, method: POST, href: /api/v1/league-invitations/8a9b0c1d-2e3f-4a5b-8c6d-000000000001/decline }
+                          deepLink: encacapei://league-invitations/8a9b0c1d-2e3f-4a5b-8c6d-000000000001
+                          icon: ENVELOPE
+                          readAt: null
+                          resolvedAt: null
+                          expiresAt: '2026-08-01T14:30:00Z'
+                          createdAt: '2026-07-27T16:30:00Z'
+                    - category: FRIEND_REQUESTS
+                      label: Convites de amigos
+                      unreadCount: 1
+                      items:
+                        - id: 2b3c4d5e-6f70-4812-9a34-000000000002
+                          category: FRIEND_REQUESTS
+                          type: FRIEND_REQUEST_RECEIVED
+                          title: Carlos Mota quer ser seu amigo
+                          body: null
+                          payload:
+                            friendRequestId: 9f8e7d6c-5b4a-4392-8180-000000000001
+                            userId: 66666666-6666-4666-8666-666666666666
+                            displayName: Carlos Mota
+                            username: carlosmota
+                          actions:
+                            - { key: ACCEPT, label: Aceitar, style: PRIMARY, method: POST, href: /api/v1/friend-requests/9f8e7d6c-5b4a-4392-8180-000000000001/accept }
+                            - { key: DECLINE, label: Recusar, style: SECONDARY, method: POST, href: /api/v1/friend-requests/9f8e7d6c-5b4a-4392-8180-000000000001/decline }
+                          deepLink: encacapei://friend-requests/9f8e7d6c-5b4a-4392-8180-000000000001
+                          icon: USERS
+                          readAt: null
+                          resolvedAt: null
+                          expiresAt: null
+                          createdAt: '2026-07-27T13:30:00Z'
+                    - category: SESSION_ALERTS
+                      label: Avisos de jogatina
+                      unreadCount: 1
+                      items:
+                        - id: 2b3c4d5e-6f70-4812-9a34-000000000003
+                          category: SESSION_ALERTS
+                          type: SESSION_REMINDER
+                          title: Sua jogatina da Liga da Terça começa em 1 hora
+                          body: Hoje às 20h no Bar do Zé.
+                          payload:
+                            leagueId: 0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                            leagueName: Liga da Terça
+                            sessionStartsAt: '2026-07-28T23:00:00Z'
+                            venueId: 5e6f7a8b-9c0d-4e1f-8a2b-000000000001
+                            venueName: Bar do Zé
+                          actions: []
+                          deepLink: encacapei://leagues/0a1b2c3d-4e5f-4a6b-8c7d-000000000001
+                          icon: CLOCK
+                          readAt: null
+                          resolvedAt: null
+                          expiresAt: '2026-07-28T23:00:00Z'
+                          createdAt: '2026-07-28T22:00:00Z'
+                  meta: { totalItems: 3, unreadCount: 3, pageSize: 50, hasMore: false, nextCursor: null }
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+  delete:
+    operationId: clearNotificationHistory
+    summary: Limpar histórico de notificações
+    description: |
+      `scope=READ` (default) apaga apenas notificações **lidas ou já resolvidas** —
+      convites pendentes acionáveis **sobrevivem** (RN-NOTIF-005). Perder um convite
+      por ter tocado em "Limpar histórico" é pior que uma lista comprida.
+      `keptReason` permite à UI explicar por que alguns itens ficaram.
+    tags: [Notifications]
+    parameters:
+      - name: scope
+        in: query
+        schema:
+          type: string
+          enum: [READ, ALL]
+          default: READ
+      - name: category
+        in: query
+        schema:
+          $ref: '../components/schemas.yaml#/NotificationCategory'
+      - name: olderThan
+        in: query
+        schema:
+          type: string
+          format: date
+    responses:
+      '200':
+        description: Histórico limpo.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deletedCount, keptCount, unreadCount]
+              properties:
+                deletedCount:
+                  type: integer
+                keptCount:
+                  type: integer
+                keptReason:
+                  type: [string, 'null']
+                  enum: [PENDING_ACTION, null]
+                unreadCount:
+                  type: integer
+            example:
+              deletedCount: 41
+              keptCount: 2
+              keptReason: PENDING_ACTION
+              unreadCount: 2
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+
+UnreadCount:
+  get:
+    operationId: getUnreadCount
+    summary: Contador de notificações não lidas
+    description: |
+      Fonte dos badges do app. Endpoint de altíssima frequência (chamado a cada
+      foreground) — servido de cache Redis com TTL de 30 s, invalidado por evento.
+    tags: [Notifications]
+    responses:
+      '200':
+        description: Contadores.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+            example: private, max-age=30
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UnreadCount'
+            example:
+              total: 3
+              byCategory:
+                LEAGUE_INVITATIONS: 1
+                FRIEND_REQUESTS: 1
+                SESSION_ALERTS: 1
+                MATCH_RESULTS: 0
+                LEAGUE_UPDATES: 0
+                SYSTEM: 0
+              pendingActions: 2
+              computedAt: '2026-07-28T22:05:00Z'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+
+MarkOneRead:
+  post:
+    operationId: markNotificationRead
+    summary: Marcar notificação como lida
+    description: Idempotente — repetir devolve o `readAt` original.
+    tags: [Notifications]
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 2b3c4d5e-6f70-4812-9a34-000000000003
+    responses:
+      '200':
+        description: Notificação marcada como lida.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, readAt, unreadCount]
+              properties:
+                id:
+                  $ref: '../components/schemas.yaml#/Uuid'
+                readAt:
+                  type: string
+                  format: date-time
+                unreadCount:
+                  type: integer
+            example:
+              id: 2b3c4d5e-6f70-4812-9a34-000000000003
+              readAt: '2026-07-28T22:06:11Z'
+              unreadCount: 2
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+
+MarkManyRead:
+  post:
+    operationId: markNotificationsRead
+    summary: Marcar várias (ou todas) como lidas
+    tags: [Notifications]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/MarkReadRequest'
+          examples:
+            all:
+              summary: Todas
+              value:
+                all: true
+            byCategory:
+              summary: Por categoria
+              value:
+                category: SESSION_ALERTS
+            byIds:
+              summary: Por IDs
+              value:
+                notificationIds:
+                  - 2b3c4d5e-6f70-4812-9a34-000000000001
+                  - 2b3c4d5e-6f70-4812-9a34-000000000002
+    responses:
+      '200':
+        description: Notificações marcadas.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [markedCount, unreadCount]
+              properties:
+                markedCount:
+                  type: integer
+                unreadCount:
+                  type: integer
+                readAt:
+                  type: string
+                  format: date-time
+            example:
+              markedCount: 3
+              unreadCount: 0
+              readAt: '2026-07-28T22:06:30Z'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+NotificationById:
+  delete:
+    operationId: deleteNotification
+    summary: Excluir notificação
+    description: |
+      Soft delete. Notificação **acionável e pendente** exige `force=true`
+      (`409 NOTIFICATION_HAS_PENDING_ACTION`).
+    tags: [Notifications]
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: force
+        in: query
+        schema:
+          type: boolean
+          default: false
+    responses:
+      '204':
+        description: Notificação excluída.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
+      '409':
+        $ref: '../openapi.yaml#/components/responses/Conflict'
+
+NotificationPreferences:
+  get:
+    operationId: getNotificationPreferences
+    summary: Consultar preferências de notificação
+    description: |
+      `locked: true` em `SYSTEM` — avisos de segurança não podem ser desligados
+      (RN-NOTIF-009). `pushAvailable: false` no MVP faz o app esconder a coluna de
+      push em vez de mostrar um toggle inútil.
+    tags: [Notifications]
+    responses:
+      '200':
+        description: Preferências atuais.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/NotificationPreferences'
+            example:
+              items:
+                - { category: LEAGUE_INVITATIONS, label: Convites de liga, inAppEnabled: true, pushEnabled: true, emailEnabled: false, locked: false }
+                - { category: FRIEND_REQUESTS, label: Convites de amigos, inAppEnabled: true, pushEnabled: true, emailEnabled: false, locked: false }
+                - { category: SESSION_ALERTS, label: Avisos de jogatina, inAppEnabled: true, pushEnabled: true, emailEnabled: false, locked: false }
+                - { category: MATCH_RESULTS, label: Resultados, inAppEnabled: true, pushEnabled: false, emailEnabled: false, locked: false }
+                - { category: LEAGUE_UPDATES, label: Novidades da liga, inAppEnabled: true, pushEnabled: false, emailEnabled: false, locked: false }
+                - { category: SYSTEM, label: Avisos do sistema, inAppEnabled: true, pushEnabled: true, emailEnabled: true, locked: true }
+              quietHours: { enabled: true, startTime: '23:30', endTime: '08:00', timezone: America/Sao_Paulo }
+              pushAvailable: false
+              pushUnavailableReason: FEATURE_DISABLED
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+
+  put:
+    operationId: updateNotificationPreferences
+    summary: Atualizar preferências de notificação
+    tags: [Notifications]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/UpdateNotificationPreferencesRequest'
+          examples:
+            update:
+              value:
+                items:
+                  - { category: MATCH_RESULTS, pushEnabled: true }
+                  - { category: LEAGUE_UPDATES, inAppEnabled: false }
+                quietHours: { enabled: true, startTime: '23:30', endTime: '08:00', timezone: America/Sao_Paulo }
+    responses:
+      '200':
+        description: Preferências atualizadas.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/NotificationPreferences'
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+
+Devices:
+  post:
+    operationId: registerDevice
+    summary: Registrar device para push
+    description: |
+      Upsert por `pushToken`. **Entra no MVP mesmo com push desligado**, para que a
+      base de tokens já exista quando o Notification Hubs for ativado — evitando
+      esperar um ciclo de atualização nas lojas.
+    tags: [Notifications]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/RegisterDeviceRequest'
+          examples:
+            ios:
+              value:
+                pushToken: fA9kZ2mQ8pR4vN6sL1yB3cW7zA5dF0hGeUxT2nJ8kM4vC6bY1hL5jD7sF3gApQ9w
+                platform: IOS
+                deviceId: b1c2d3e4-f5a6-4b7c-8d9e-000000000001
+                deviceName: iPhone 15 de Rodrigo
+                appVersion: 1.0.0
+                osVersion: '18.2'
+                locale: pt-BR
+    responses:
+      '200':
+        description: Device registrado (ou atualizado).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Device'
+            example:
+              id: e7f8a9b0-c1d2-4e3f-8a4b-000000000001
+              platform: IOS
+              deviceName: iPhone 15 de Rodrigo
+              registeredAt: '2026-07-28T22:10:00Z'
+              lastSeenAt: '2026-07-28T22:10:00Z'
+              pushEnabled: false
+              note: Push notifications ainda não estão habilitadas nesta versão do produto.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '422':
+        $ref: '../openapi.yaml#/components/responses/UnprocessableEntity'
+      '429':
+        $ref: '../openapi.yaml#/components/responses/TooManyRequests'
+
+DeviceById:
+  delete:
+    operationId: unregisterDevice
+    summary: Remover device
+    description: Chamado no logout.
+    tags: [Notifications]
+    parameters:
+      - name: deviceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: e7f8a9b0-c1d2-4e3f-8a4b-000000000001
+    responses:
+      '204':
+        description: Device removido.
+      '401':
+        $ref: '../openapi.yaml#/components/responses/Unauthorized'
+      '404':
+        $ref: '../openapi.yaml#/components/responses/NotFound'
