@@ -61,6 +61,35 @@ describe("upsertBy", () => {
 
     expect(next).toEqual([{ tableId: "a", active: false }]);
   });
+
+  describe("com newerBy", () => {
+    it("substitui quando o campo da linha que chega é maior", () => {
+      const items = [{ id: "1", left_at: null, updated_at: "2026-06-25T20:00:00.000Z" }];
+      const next = upsertBy(items, { id: "1", left_at: "2026-06-25T20:05:00.000Z", updated_at: "2026-06-25T20:05:00.000Z" }, { newerBy: "updated_at" });
+
+      expect(next).toEqual([{ id: "1", left_at: "2026-06-25T20:05:00.000Z", updated_at: "2026-06-25T20:05:00.000Z" }]);
+    });
+
+    it("NÃO substitui quando o campo da linha que chega é menor (resposta HTTP atrasada por trás de um evento de realtime mais novo)", () => {
+      const items = [{ id: "1", left_at: "2026-06-25T20:05:00.000Z", updated_at: "2026-06-25T20:05:00.000Z" }];
+      const next = upsertBy(items, { id: "1", left_at: null, updated_at: "2026-06-25T20:00:00.000Z" }, { newerBy: "updated_at" });
+
+      expect(next).toEqual([{ id: "1", left_at: "2026-06-25T20:05:00.000Z", updated_at: "2026-06-25T20:05:00.000Z" }]);
+    });
+
+    it("substitui quando o campo é igual (a resposta HTTP do próprio comando que acabou de gravar)", () => {
+      const items = [{ id: "1", left_at: null, updated_at: "2026-06-25T20:00:00.000Z" }];
+      const next = upsertBy(items, { id: "1", left_at: "2026-06-25T19:55:00.000Z", updated_at: "2026-06-25T20:00:00.000Z" }, { newerBy: "updated_at" });
+
+      expect(next).toEqual([{ id: "1", left_at: "2026-06-25T19:55:00.000Z", updated_at: "2026-06-25T20:00:00.000Z" }]);
+    });
+
+    it("insere normalmente quando a linha ainda não existe, mesmo com newerBy", () => {
+      const next = upsertBy([], { id: "1", updated_at: "2026-06-25T20:00:00.000Z" }, { newerBy: "updated_at" });
+
+      expect(next).toEqual([{ id: "1", updated_at: "2026-06-25T20:00:00.000Z" }]);
+    });
+  });
 });
 
 describe("addIfAbsentBy", () => {

@@ -17,13 +17,40 @@ export function dedupeBy(items, key = "id") {
   return [...byKey.values()];
 }
 
-// Realtime: a linha que chega do WAL é sempre a verdade mais recente -> substitui.
-export function upsertBy(items, row, { key = "id", sort } = {}) {
+// Sem timestamp confiável para comparar (newerBy ausente), inválido dos dois
+// lados, ou empatado: substitui - é o comportamento original, "a linha que
+// chega é a verdade".
+function isAtLeastAsNew(row, existing, field) {
+  const rowTime = new Date(row[field]).getTime();
+  const existingTime = new Date(existing[field]).getTime();
+  if (!Number.isFinite(rowTime) || !Number.isFinite(existingTime)) return true;
+  return rowTime >= existingTime;
+}
+
+// Sem `newerBy`: a linha que chega substitui sempre. Vale para matches, onde
+// startMatch é sempre INSERT com id inédito e o realtime é a única fonte de
+// updates - não há duas escritas concorrentes na mesma linha para comparar.
+//
+// Com `newerBy` (ex.: "updated_at", presente em pool_tables e attendance,
+// que têm trigger de updated_at): só substitui se a linha que chega for
+// igual ou mais nova que a existente nesse campo. Isso resolve as duas
+// ordens de chegada possíveis quando a mesma linha pode aparecer duas vezes
+// por dois canais - resposta HTTP do próprio comando e evento de realtime -
+// e quando dois admins escrevem a mesma linha em paralelo: a resposta HTTP
+// aplica o que ela mesma acabou de gravar (empate de updated_at vence, por
+// isso >=), e um evento de realtime mais novo de outro admin não é
+// sobrescrito por uma resposta HTTP atrasada do comando anterior.
+export function upsertBy(items, row, { key = "id", sort, newerBy } = {}) {
   const deduped = dedupeBy(items, key);
-  const exists = deduped.some((item) => item[key] === row[key]);
-  const next = exists
-    ? deduped.map((item) => (item[key] === row[key] ? row : item))
-    : [...deduped, row];
+  const existing = deduped.find((item) => item[key] === row[key]);
+  let next;
+  if (!existing) {
+    next = [...deduped, row];
+  } else if (newerBy && !isAtLeastAsNew(row, existing, newerBy)) {
+    next = deduped;
+  } else {
+    next = deduped.map((item) => (item[key] === row[key] ? row : item));
+  }
   return sort ? sort(next) : next;
 }
 

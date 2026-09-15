@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { addIfAbsentBy, removeBy, upsertBy } from "../domain/collection.js";
+import { removeBy, upsertBy } from "../domain/collection.js";
 import { buildQueue } from "../domain/queue.js";
 import { gameDayKey } from "../utils/date.js";
 
@@ -15,14 +15,18 @@ const sortTables = (items) =>
 //
 // gameDay é fixado na montagem. Recalcular na virada do meio-dia com o
 // tablet ligado a noite toda é tratado à parte (fora desta rodada).
-export function useQueue({ repo, matches }) {
+//
+// enabled: a fila é feature de admin. Sem isso, todo visitante do placar
+// público dispararia a carga da fila e abriria dois canais de realtime a
+// mais só para jogar fora o resultado.
+export function useQueue({ repo, matches, enabled }) {
   const gameDay = useMemo(() => gameDayKey(Date.now()), []);
   const [tables, setTables] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [available, setAvailable] = useState(true);
 
   useEffect(() => {
-    if (!repo) return;
+    if (!repo || !enabled) return;
     let cancelled = false;
     repo.loadQueue(gameDay).then((data) => {
       if (cancelled) return;
@@ -33,32 +37,35 @@ export function useQueue({ repo, matches }) {
     return () => {
       cancelled = true;
     };
-  }, [repo, gameDay]);
+  }, [repo, gameDay, enabled]);
 
   useEffect(() => {
-    if (!repo) return;
+    if (!repo || !enabled) return;
     return repo.onPoolTablesChange(({ eventType, new: newRow, old: oldRow }) => {
       setTables((items) => {
         if (eventType === "DELETE") return removeBy(items, oldRow.id);
-        return upsertBy(items, newRow, { sort: sortTables });
+        return upsertBy(items, newRow, { sort: sortTables, newerBy: "updated_at" });
       });
     });
-  }, [repo]);
+  }, [repo, enabled]);
 
   useEffect(() => {
-    if (!repo) return;
+    if (!repo || !enabled) return;
     return repo.onAttendanceChange(({ eventType, new: newRow, old: oldRow }) => {
-      // A query de loadQueue já filtra por game_day (bate com o índice); sem
-      // esse descarte aqui, o realtime injetaria linhas de outra noite que a
-      // query nunca traria (consequência obrigatória da Tarefa 4 do plano).
-      const row = eventType === "DELETE" ? oldRow : newRow;
-      if (row?.game_day !== gameDay) return;
-      setAttendance((items) => {
-        if (eventType === "DELETE") return removeBy(items, oldRow.id);
-        return upsertBy(items, newRow);
-      });
+      // DELETE manda só a PK em oldRow (sem REPLICA IDENTITY FULL) - não dá
+      // pra checar game_day nesse ramo, e não precisa: remover um id que não
+      // está na lista já é no-op. O filtro por game_day vale só pra
+      // INSERT/UPDATE, onde newRow vem completo; sem ele o realtime
+      // injetaria linhas de outra noite que a query (filtrada por game_day)
+      // nunca traria.
+      if (eventType === "DELETE") {
+        setAttendance((items) => removeBy(items, oldRow.id));
+        return;
+      }
+      if (newRow?.game_day !== gameDay) return;
+      setAttendance((items) => upsertBy(items, newRow, { newerBy: "updated_at" }));
     });
-  }, [repo, gameDay]);
+  }, [repo, gameDay, enabled]);
 
   const activeTables = useMemo(() => tables.filter((table) => table.active), [tables]);
   const { holders, entries } = useMemo(
@@ -66,32 +73,38 @@ export function useQueue({ repo, matches }) {
     [tables, gameDay, matches, attendance],
   );
 
-  // Escritas aplicam a resposta HTTP com addIfAbsentBy, nunca upsertBy - é o
-  // bug corrigido em addMatchIfAbsent: a resposta do insert pode chegar
-  // depois do evento do WebSocket e voltaria a lista pra uma versão velha.
-  // updateTable é exceção legítima: devolve a linha nova, não há lacuna.
+  // Escritas aplicam a resposta HTTP com upsertBy + newerBy: "updated_at",
+  // nunca addIfAbsentBy. attendance e pool_tables não são só-insert como
+  // matches - enqueuePlayer é upsert (chave única game_day+player_id) e
+  // markDeparture/updateTable são sempre update de linha existente, então
+  // addIfAbsentBy (que devolve a lista inalterada quando o id já existe)
+  // jogaria a resposta fora sempre que a linha já estivesse no estado local:
+  // "foi embora" nunca apareceria na tela, e "voltou"/"perdeu e volta pro
+  // fim" ficariam com o enqueued_at velho, até o realtime chegar. newerBy
+  // resolve isso sem risco de regredir uma escrita mais nova vinda de outro
+  // admin pelo realtime: só substitui se updated_at for igual ou maior.
   // Sem patch otimista: são operações raras contra um banco na mesma região.
   const markArrived = async (playerId) => {
     const row = await repo.enqueuePlayer({ gameDay, playerId });
-    setAttendance((items) => addIfAbsentBy(items, row));
+    setAttendance((items) => upsertBy(items, row, { newerBy: "updated_at" }));
     return row;
   };
 
   const markDeparture = async (playerId) => {
     const row = await repo.markDeparture({ gameDay, playerId });
-    setAttendance((items) => addIfAbsentBy(items, row));
+    setAttendance((items) => upsertBy(items, row, { newerBy: "updated_at" }));
     return row;
   };
 
   const addTable = async (name) => {
     const row = await repo.addPoolTable(name);
-    setTables((items) => addIfAbsentBy(items, row, { sort: sortTables }));
+    setTables((items) => upsertBy(items, row, { sort: sortTables, newerBy: "updated_at" }));
     return row;
   };
 
   const updateTable = async (id, patch) => {
     const row = await repo.updatePoolTable(id, patch);
-    setTables((items) => upsertBy(items, row, { sort: sortTables }));
+    setTables((items) => upsertBy(items, row, { sort: sortTables, newerBy: "updated_at" }));
     return row;
   };
 

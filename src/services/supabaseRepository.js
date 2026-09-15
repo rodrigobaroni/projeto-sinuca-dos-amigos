@@ -107,12 +107,20 @@ export function createRepository(sb) {
     // de falha do app público. Por isso não lança: segue o precedente do
     // match_clips aqui em cima, que também vira lista vazia em erro.
     async loadQueue(gameDay) {
-      const [{ data: tables, error: tablesError }, { data: attendance, error: attendanceError }] = await Promise.all([
-        sb.from("pool_tables").select("*").order("sort_order", { ascending: true }),
-        sb.from("attendance").select("*").eq("game_day", gameDay),
-      ]);
-      if (tablesError || attendanceError) return { tables: [], attendance: [], available: false };
-      return { tables: tables || [], attendance: attendance || [], available: true };
+      // O contrato é "não lança em hipótese nenhuma" - checar error nas
+      // queries cobre o banco sem a migração, mas não cobre uma promise
+      // rejeitada (falha de rede, exceção do cliente). O try/catch cobre as
+      // duas.
+      try {
+        const [{ data: tables, error: tablesError }, { data: attendance, error: attendanceError }] = await Promise.all([
+          sb.from("pool_tables").select("*").order("sort_order", { ascending: true }),
+          sb.from("attendance").select("*").eq("game_day", gameDay),
+        ]);
+        if (tablesError || attendanceError) return { tables: [], attendance: [], available: false };
+        return { tables: tables || [], attendance: attendance || [], available: true };
+      } catch {
+        return { tables: [], attendance: [], available: false };
+      }
     },
 
     // Primitivo único para chegou / voltou / perdeu-e-volta: upsert com

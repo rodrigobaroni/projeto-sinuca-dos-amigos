@@ -43,7 +43,7 @@ export function App({ supabaseClient }) {
   const stats = useMemo(() => computeStats(players, finished), [players, finished]);
   const ranked = useMemo(() => rankedFrom(stats), [stats]);
   const doublesRanked = useMemo(() => rankedFrom(computeDoublesStats(players, finished)), [players, finished]);
-  const queue = useQueue({ repo, matches });
+  const queue = useQueue({ repo, matches, enabled: isAdmin });
 
   const playerById = (id) => players.find((player) => player.id === id);
   const playerName = (id) => playerById(id)?.name || "?";

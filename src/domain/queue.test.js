@@ -129,6 +129,24 @@ describe("tableHolders", () => {
 
     expect(holders[T1]).toEqual([]);
   });
+
+  it("desempata por id quando duas partidas finalizadas na mesma mesa empatam no timestamp mais recente", () => {
+    const matchA = finishedMatch({ id: "m-a", player_a: "a", player_b: "x", winner_id: "a", winner_side: "a", played_at: at("20"), ended_at: at("21") });
+    const matchB = finishedMatch({ id: "m-b", player_a: "b", player_b: "y", winner_id: "b", winner_side: "a", played_at: at("20"), ended_at: at("21") });
+    const holders = tableHolders({ tables, gameDay: GAME_DAY, matches: [matchA, matchB], attendance: [] });
+
+    // "m-b" > "m-a" na comparação de string - desempate determinístico, não
+    // preferência por uma partida específica.
+    expect(holders[T1]).toEqual(["b"]);
+  });
+
+  it("ended_at tem precedência sobre played_at: quem começou antes mas terminou depois é a mais recente", () => {
+    const startedFirstEndedLast = finishedMatch({ id: "m1", player_a: "a", player_b: "x", winner_id: "a", winner_side: "a", played_at: at("18"), ended_at: at("22") });
+    const startedLaterEndedFirst = finishedMatch({ id: "m2", player_a: "b", player_b: "y", winner_id: "b", winner_side: "a", played_at: at("20"), ended_at: at("20") });
+    const holders = tableHolders({ tables, gameDay: GAME_DAY, matches: [startedFirstEndedLast, startedLaterEndedFirst], attendance: [] });
+
+    expect(holders[T1]).toEqual(["a"]);
+  });
 });
 
 describe("queueForDay", () => {
@@ -222,6 +240,14 @@ describe("lastLossTableId", () => {
       team_a: ["a", "b"], team_b: ["c", "d"], winner_id: null, winner_side: "b",
     });
     const result = lastLossTableId({ playerId: "a", gameDay: GAME_DAY, finishedMatches: [match] });
+
+    expect(result).toBe(T2);
+  });
+
+  it("desempata por id quando duas derrotas empatam no timestamp mais recente", () => {
+    const lossA = finishedMatch({ id: "m-a", table_id: T1, player_a: "z", player_b: "x", winner_id: "x", winner_side: "b", played_at: at("20"), ended_at: at("20") });
+    const lossB = finishedMatch({ id: "m-b", table_id: T2, player_a: "z", player_b: "y", winner_id: "y", winner_side: "b", played_at: at("20"), ended_at: at("20") });
+    const result = lastLossTableId({ playerId: "z", gameDay: GAME_DAY, finishedMatches: [lossA, lossB] });
 
     expect(result).toBe(T2);
   });
@@ -330,5 +356,19 @@ describe("buildQueue", () => {
     const { entries } = buildQueue({ tables, gameDay: GAME_DAY, matches: [winMatch], attendance });
 
     expect(entries).toEqual([]);
+  });
+
+  it("mesa desativada com partida finalizada nela não gera dono, e o vencedor volta pra fila normal", () => {
+    const inactiveTables = [
+      { id: T1, name: "Mesa 1", active: false },
+      { id: T2, name: "Mesa 2", active: true },
+    ];
+    const match = finishedMatch({ id: "m1", table_id: T1, player_a: "a", player_b: "b", winner_id: "a", winner_side: "a" });
+    const attendance = [attendanceRow({ id: "att-a", player_id: "a", enqueued_at: at("19") })];
+
+    const { holders, entries } = buildQueue({ tables: inactiveTables, gameDay: GAME_DAY, matches: [match], attendance });
+
+    expect(holders[T1]).toBeUndefined();
+    expect(entries.map((entry) => entry.player_id)).toEqual(["a"]);
   });
 });
