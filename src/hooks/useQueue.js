@@ -13,17 +13,41 @@ const sortTables = (items) =>
 // muitas props. Com o hook, App.jsx cresce duas linhas e o AdminView ganha
 // só uma prop a mais.
 //
-// gameDay é fixado na montagem. Recalcular na virada do meio-dia com o
-// tablet ligado a noite toda é tratado à parte (fora desta rodada).
+// gameDay recalcula em visibilitychange/focus, nao so na montagem: o caso
+// que morde e o tablet ligado da sexta a noite ate sabado a noite - sem
+// isso, o gameDay do estado continua sendo o de sexta, a fila mostra a
+// presenca da noite passada como se fosse a de hoje, e o filtro de realtime
+// de attendance (ver onAttendanceChange) descarta silenciosamente todos os
+// eventos de hoje por serem de outro game_day. setInterval foi descartado:
+// o navegador estrangula timer em background, entao um evento ligado a
+// interacao real (aba volta a ficar visivel, janela recebe foco) e o unico
+// jeito confiavel de perceber a virada sem gastar bateria a noite toda.
 //
 // enabled: a fila é feature de admin. Sem isso, todo visitante do placar
 // público dispararia a carga da fila e abriria dois canais de realtime a
 // mais só para jogar fora o resultado.
 export function useQueue({ repo, matches, enabled }) {
-  const gameDay = useMemo(() => gameDayKey(Date.now()), []);
+  const [gameDay, setGameDay] = useState(() => gameDayKey(Date.now()));
   const [tables, setTables] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [available, setAvailable] = useState(true);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const recomputeGameDay = () => {
+      if (document.visibilityState === "hidden") return;
+      setGameDay((current) => {
+        const next = gameDayKey(Date.now());
+        return next === current ? current : next;
+      });
+    };
+    document.addEventListener("visibilitychange", recomputeGameDay);
+    window.addEventListener("focus", recomputeGameDay);
+    return () => {
+      document.removeEventListener("visibilitychange", recomputeGameDay);
+      window.removeEventListener("focus", recomputeGameDay);
+    };
+  }, [enabled]);
 
   useEffect(() => {
     if (!repo || !enabled) return;

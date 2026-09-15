@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PlayerBall, PoolBall, WhiteBall } from "../components/balls.jsx";
 import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
 import { FinishMatchButton } from "../components/FinishMatchButton.jsx";
@@ -7,6 +7,7 @@ import { PlayerPickerModal } from "../components/PlayerPickerModal.jsx";
 import { QueuePanel } from "../components/QueuePanel.jsx";
 import { getGameRules } from "../domain/rules.js";
 import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
+import { eligibleForTable } from "../domain/queue.js";
 import { loadGameSettings } from "../services/gameSettingsStorage.js";
 import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
 import { AdminSettings } from "./AdminSettings.jsx";
@@ -22,16 +23,23 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [adminTab, setAdminTab] = useState("partida");
-  const [lastWinnerId, setLastWinnerId] = useState("");
+  // prefill substitui o antigo lastWinnerId: alem do vencedor (jogador A),
+  // carrega a mesa da partida que terminou e quem deveria entrar como
+  // adversario (jogador B), calculados uma vez aqui e so aplicados pelo
+  // StartMatchPanel - nunca reimpostos a cada render dele (ver o efeito de
+  // stamp la, que e a parte que corrige o bug de sobrescrever escolha manual
+  // do admin).
+  const [prefill, setPrefill] = useState(null);
   const [selectedLiveMatchId, setSelectedLiveMatchId] = useState("");
   const [gameSettings, setGameSettings] = useState(loadGameSettings);
   const selectedLiveMatch = liveMatches.find((match) => match.id === selectedLiveMatchId) || null;
 
   // Perdedor(es) voltam pro fim da fila em qualquer caminho que finalize uma
-  // partida. Falha ao enfileirar não desfaz a partida finalizada (ela já foi
-  // gravada); só avisa, igual a qualquer outra escrita da fila.
-  const handleMatchFinished = async ({ winnerIds, loserIds }) => {
-    setLastWinnerId(winnerIds[0] || "");
+  // partida - isso independe de autoPickPlayers, que so controla o
+  // pre-preenchimento do formulario. Falha ao enfileirar não desfaz a
+  // partida finalizada (ela já foi gravada); só avisa, igual a qualquer
+  // outra escrita da fila.
+  const handleMatchFinished = async ({ winnerIds, loserIds, tableId, mode: finishedMode }) => {
     if (loserIds.length && queue.available !== false) {
       try {
         await queue.enqueuePlayers(loserIds);
@@ -39,6 +47,19 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
         showToast(`Erro: ${error.message}`);
       }
     }
+    if (!gameSettings.autoPickPlayers) return;
+    // A mesa só entra no prefill se ainda estiver ativa - desativada entre o
+    // fim da partida e agora, ou apagada, ela não pode ser pré-selecionada.
+    const validTableId = tableId && queue.activeTables.some((table) => table.id === tableId) ? tableId : "";
+    // Lado B vem da fila ANTES de enqueuePlayers aplicar (o estado só
+    // atualiza no próximo render): os próprios perdedores desta partida
+    // nunca entram como sugestão de adversário imediato, o que é o
+    // comportamento certo - eles acabaram de voltar pro fim da fila.
+    const neededB = finishedMode === "2x2" ? 2 : 1;
+    const nextB = validTableId
+      ? eligibleForTable(validTableId, queue.entries).slice(0, neededB).map((entry) => entry.player_id)
+      : [];
+    setPrefill({ stamp: Date.now(), mode: finishedMode, tableId: validTableId, a: winnerIds, b: nextB });
   };
 
   if (!isAdmin) {
@@ -118,7 +139,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
           {gameSettings.showQueuePanel && (
             <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
           )}
-          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} repo={repo} setMatches={setMatches} showToast={showToast} preferredPlayerA={lastWinnerId} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
+          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
         </section>
       )}
     </>
@@ -276,12 +297,16 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], repo, setMatches, showToast, preferredPlayerA = "", onStarted }) {
+function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], repo, setMatches, showToast, prefill, onStarted }) {
   const busyPlayerIds = new Set(liveMatches.flatMap(matchPlayerIds));
   const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
   const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
 
-  const initialPlayerA = preferredPlayerA && availablePlayers.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : availablePlayers[0]?.id || "";
+  // Default so pro primeiro uso da noite (sem prefill ainda): joga o
+  // primeiro disponivel em A, o segundo em B, pra nao abrir o formulario
+  // vazio. Calculado so na montagem - depois disso quem manda e o prefill
+  // (aplicado uma vez por stamp, efeito abaixo) e a escolha manual do admin.
+  const initialPlayerA = availablePlayers[0]?.id || "";
   const initialPlayerB = availablePlayers.find((player) => player.id !== initialPlayerA)?.id || "";
   const [mode, setMode] = useState("1x1");
   const [playerA, setPlayerA] = useState(initialPlayerA);
@@ -300,21 +325,44 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     return now.toISOString().slice(0, 16);
   });
+  // Guarda o ultimo stamp aplicado pra aplicar o prefill exatamente uma vez
+  // por partida finalizada - nao a cada render. Sem isso (era o bug: um
+  // unico efeito reagindo a players/liveMatches) o formulario sobrescrevia a
+  // escolha manual do admin toda vez que QUALQUER partida comecava ou
+  // terminava em QUALQUER mesa, nao so quando este prefill mudava.
+  const appliedPrefillStamp = useRef(null);
 
+  // Efeito 1: aplica o prefill (mesa, dupla A, dupla B) uma vez por stamp.
   useEffect(() => {
-    const nextA = preferredPlayerA && availablePlayers.some((player) => player.id === preferredPlayerA) ? preferredPlayerA : availablePlayers[0]?.id || "";
-    if (!nextA) return;
-    setPlayerA(nextA);
-    setPlayerB((current) => current && current !== nextA && availablePlayers.some((player) => player.id === current) ? current : availablePlayers.find((player) => player.id !== nextA)?.id || "");
+    if (!prefill || prefill.stamp === appliedPrefillStamp.current) return;
+    appliedPrefillStamp.current = prefill.stamp;
+    setMode(prefill.mode === "2x2" ? "2x2" : "1x1");
+    setPlayerA(prefill.a?.[0] || "");
+    setPlayerA2(prefill.a?.[1] || "");
+    // b vazio (ninguem elegivel pra essa mesa na fila) e resultado valido:
+    // o campo fica vazio, sem erro, e o admin escolhe na mao.
+    setPlayerB(prefill.b?.[0] || "");
+    setPlayerB2(prefill.b?.[1] || "");
+    setTableId(prefill.tableId || (activeTables.length === 1 ? activeTables[0].id : ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferredPlayerA, players, liveMatches]);
+  }, [prefill]);
 
+  // Efeito 2: so REMOVE selecoes que viraram invalidas (jogador entrou em
+  // partida ao vivo em outra mesa, mesa foi desativada) - nunca impõe uma
+  // nova escolha. E o que faz um toque em "iniciar partida" alhures, ou
+  // desativar mesa, não atropelar quem o admin já tinha selecionado aqui.
   useEffect(() => {
+    const clearIfInvalid = (id) => (id && availablePlayers.some((player) => player.id === id) ? id : "");
+    setPlayerA((current) => clearIfInvalid(current));
+    setPlayerA2((current) => clearIfInvalid(current));
+    setPlayerB((current) => clearIfInvalid(current));
+    setPlayerB2((current) => clearIfInvalid(current));
     setTableId((current) => {
       if (current && activeTables.some((table) => table.id === current)) return current;
       return activeTables.length === 1 ? activeTables[0].id : "";
     });
-  }, [activeTables]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players, liveMatches, activeTables]);
 
   if (players.length < 2) return <div className="empty small-empty">Cadastre pelo menos 2 jogadores acima pra iniciar uma partida.</div>;
   if (availablePlayers.length < 2) return <div className="empty small-empty">Todo mundo cadastrado já está em partida ao vivo agora.</div>;
