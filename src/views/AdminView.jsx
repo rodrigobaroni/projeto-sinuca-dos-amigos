@@ -19,7 +19,9 @@ function loadGameSettings() {
   }
 }
 
-export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatches, finished, currentPlayerId, onCurrentPlayerChange, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm }) {
+// queue (estado da fila, ver src/hooks/useQueue.js) chega pronto desta
+// rodada; o bloco da fila no painel ainda não existe - vem numa próxima.
+export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatches, finished, currentPlayerId, onCurrentPlayerChange, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm, queue }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");

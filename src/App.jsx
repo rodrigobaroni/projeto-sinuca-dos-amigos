@@ -6,6 +6,7 @@ import { MatchSheet, PlayerSheet } from "./components/sheets.jsx";
 import { NAV } from "./constants.js";
 import { upsertMatch } from "./domain/match.js";
 import { computeDoublesStats, computeStats, rankedFrom } from "./domain/stats.js";
+import { useQueue } from "./hooks/useQueue.js";
 import { createRepository } from "./services/supabaseRepository.js";
 import { AdminView } from "./views/AdminView.jsx";
 import { MatchesView } from "./views/MatchesView.jsx";
@@ -42,6 +43,7 @@ export function App({ supabaseClient }) {
   const stats = useMemo(() => computeStats(players, finished), [players, finished]);
   const ranked = useMemo(() => rankedFrom(stats), [stats]);
   const doublesRanked = useMemo(() => rankedFrom(computeDoublesStats(players, finished)), [players, finished]);
+  const queue = useQueue({ repo, matches });
 
   const playerById = (id) => players.find((player) => player.id === id);
   const playerName = (id) => playerById(id)?.name || "?";
@@ -296,7 +298,7 @@ export function App({ supabaseClient }) {
   else if (current === "partidas") content = <MatchesView finished={finished} liveMatches={liveMatches} clips={clips} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={deleteMatch} />)} go={go} />;
   else if (current === "records") content = <RecordsView players={players} finished={finished} stats={stats} />;
   else if (current === "regras") content = <RulesView />;
-  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatches={liveMatches} finished={finished} currentPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} />;
+  else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatches={liveMatches} finished={finished} currentPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} queue={queue} />;
 
   return (
     <>
