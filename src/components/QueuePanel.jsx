@@ -106,7 +106,14 @@ function ArrivalSheet({ players, queue, liveMatches, showToast, onClose }) {
     return "";
   };
 
-  const handleArrival = async (playerId) => {
+  // markArrived recarimba enqueued_at e manda a pessoa pro fim da fila - certo
+  // pra quem nunca chegou ou foi embora e voltou, mas um toque acidental em
+  // quem ja esta "na fila", "jogando" ou "na mesa" perderia a posicao dela
+  // sem aviso nem desfazer. So esses dois estados podem disparar o toque.
+  const canMarkArrival = (state) => state === "" || state === "foi embora";
+
+  const handleArrival = async (playerId, state) => {
+    if (!canMarkArrival(state)) return;
     try {
       await markArrived(playerId);
     } catch (error) {
@@ -123,12 +130,15 @@ function ArrivalSheet({ players, queue, liveMatches, showToast, onClose }) {
         <div className="identity-grid" aria-label="Quem chegou">
           {players.map((player) => {
             const state = stateFor(player.id);
+            const disabled = !canMarkArrival(state);
             return (
               <button
                 key={player.id}
                 type="button"
-                className="identity-player"
-                onClick={() => handleArrival(player.id)}
+                className={`identity-player ${disabled ? "disabled" : ""}`}
+                disabled={disabled}
+                aria-disabled={disabled}
+                onClick={() => handleArrival(player.id, state)}
               >
                 <PlayerBall player={player} size={40} />
                 <span>

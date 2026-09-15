@@ -355,6 +355,8 @@ label.fld span{display:block;font-family:'Space Mono';font-size:11px;letter-spac
 .identity-player:active{transform:scale(.99)}
 .identity-player:focus-visible{outline:none;box-shadow:var(--focus-ring)}
 .identity-player:hover{border-color:var(--gold);background:linear-gradient(100deg,var(--surface-gold),var(--surface-2))}
+.identity-player:disabled,.identity-player.disabled{cursor:not-allowed;opacity:.55;filter:grayscale(.35)}
+.identity-player:disabled:hover,.identity-player.disabled:hover{border-color:var(--line);background:var(--surface-2)}
 .identity-player span{display:grid;gap:4px;min-width:0}
 .identity-player strong{font-size:16px;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .identity-player em{font-style:normal;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
