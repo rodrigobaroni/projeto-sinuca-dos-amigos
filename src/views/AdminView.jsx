@@ -119,27 +119,37 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
           <div className="eyebrow">admin</div>
           <div className="viewtitle">Painel</div>
           <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
-          {liveMatches.map((match) => (
-            // Dois botoes nativos irmaos, nao um aninhado dentro do outro: o
-            // keydown de Enter/Espaço no botao de "Definir vencedor" nao pode
-            // borbulhar e tambem abrir a partida (ver ADENDO D1).
-            <div key={match.id} className="card live-card">
-              <button type="button" className="live-card-open" onClick={() => setSelectedLiveMatchId(match.id)}>
-                <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
-                <div className="live-row">
-                  <strong>{sideLabel(match, "a", playerName)} <span>vs</span> {sideLabel(match, "b", playerName)}</strong>
-                  <span className="rank-sub">{(match.ball_log || []).length} bolas</span>
-                </div>
-              </button>
-              {gameSettings.finishFromPanel && (
-                <FinishMatchButton match={match} playerName={playerName} persistMatch={persistMatch} auditLog={auditLog} adminUser={adminUser} showToast={showToast} onFinished={handleMatchFinished} buttonClassName="btn chalk small" />
-              )}
-            </div>
-          ))}
-          {gameSettings.showQueuePanel && (
-            <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
+          {/* Wrappers so de layout (ver styles.css, bloco @media (min-width:768px)):
+              em iPad/desktop as partidas ao vivo viram grid e a fila fica ao
+              lado do formulario. Abaixo de 768px nao ha regra nenhuma neles,
+              entao o empilhamento de hoje continua identico. */}
+          {liveMatches.length > 0 && (
+          <div className="panel-live-grid">
+            {liveMatches.map((match) => (
+              // Dois botoes nativos irmaos, nao um aninhado dentro do outro: o
+              // keydown de Enter/Espaço no botao de "Definir vencedor" nao pode
+              // borbulhar e tambem abrir a partida (ver ADENDO D1).
+              <div key={match.id} className="card live-card">
+                <button type="button" className="live-card-open" onClick={() => setSelectedLiveMatchId(match.id)}>
+                  <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
+                  <div className="live-row">
+                    <strong>{sideLabel(match, "a", playerName)} <span>vs</span> {sideLabel(match, "b", playerName)}</strong>
+                    <span className="rank-sub">{(match.ball_log || []).length} bolas</span>
+                  </div>
+                </button>
+                {gameSettings.finishFromPanel && (
+                  <FinishMatchButton match={match} playerName={playerName} persistMatch={persistMatch} auditLog={auditLog} adminUser={adminUser} showToast={showToast} onFinished={handleMatchFinished} buttonClassName="btn chalk small" />
+                )}
+              </div>
+            ))}
+          </div>
           )}
-          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} queueLoaded={queue.loaded} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
+          <div className="panel-start-grid">
+            {gameSettings.showQueuePanel && (
+              <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
+            )}
+            <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} queueLoaded={queue.loaded} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
+          </div>
         </section>
       )}
     </>
