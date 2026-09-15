@@ -139,7 +139,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
           {gameSettings.showQueuePanel && (
             <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
           )}
-          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
+          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} queueLoaded={queue.loaded} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
         </section>
       )}
     </>
@@ -297,7 +297,7 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], repo, setMatches, showToast, prefill, onStarted }) {
+function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], queueLoaded = false, repo, setMatches, showToast, prefill, onStarted }) {
   const busyPlayerIds = new Set(liveMatches.flatMap(matchPlayerIds));
   const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
   const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
@@ -331,11 +331,22 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
   // escolha manual do admin toda vez que QUALQUER partida comecava ou
   // terminava em QUALQUER mesa, nao so quando este prefill mudava.
   const appliedPrefillStamp = useRef(null);
+  // dirty marca que o admin mexeu na mao (escolheu jogador, mode ou mesa)
+  // desde o ultimo prefill aplicado. Existe pra cobrir o caso que o guard de
+  // stamp sozinho nao cobre: o admin monta a proxima partida da Mesa 1 na
+  // mao enquanto uma partida da Mesa 2 termina em outro lugar do painel -
+  // isso gera um stamp novo, valido, de uma mesa diferente da que ele esta
+  // montando. Sem dirty, esse prefill de outra mesa apagaria a escolha dele.
+  const [dirty, setDirty] = useState(false);
 
-  // Efeito 1: aplica o prefill (mesa, dupla A, dupla B) uma vez por stamp.
+  // Efeito 1: aplica o prefill (mesa, dupla A, dupla B) uma vez por stamp -
+  // exceto quando o formulario esta sujo com uma mesa diferente da do
+  // prefill, caso em que so consome o stamp (pra nao aplicar atrasado depois)
+  // sem tocar em nenhum campo.
   useEffect(() => {
     if (!prefill || prefill.stamp === appliedPrefillStamp.current) return;
     appliedPrefillStamp.current = prefill.stamp;
+    if (dirty && prefill.tableId !== tableId) return;
     setMode(prefill.mode === "2x2" ? "2x2" : "1x1");
     setPlayerA(prefill.a?.[0] || "");
     setPlayerA2(prefill.a?.[1] || "");
@@ -344,6 +355,7 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
     setPlayerB(prefill.b?.[0] || "");
     setPlayerB2(prefill.b?.[1] || "");
     setTableId(prefill.tableId || (activeTables.length === 1 ? activeTables[0].id : ""));
+    setDirty(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill]);
 
@@ -370,7 +382,13 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
   const requiredSlots = mode === "2x2" ? ["a", "a2", "b", "b2"] : ["a", "b"];
   const valid = requiredSlots.every((slot) => selections[slot])
     && new Set(requiredSlots.map((slot) => selections[slot])).size === requiredSlots.length
-    && (activeTables.length <= 1 || Boolean(tableId));
+    && (activeTables.length <= 1 || Boolean(tableId))
+    // Enquanto a fila do admin ainda não carregou, tables está [] e
+    // activeTables.length <= 1 dá falso positivo de "regra desligada" -
+    // deixaria iniciar sem table_id mesmo com duas mesas no banco. A janela
+    // é menor que 1s; travar o botão até loadQueue resolver evita a partida
+    // órfã (sem mesa, some do rastreio da fila em silêncio).
+    && queueLoaded;
   const pickerLabels = {
     a: "Quem começa (quebra)?",
     a2: "Parceiro de quem quebra",
@@ -384,11 +402,11 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
           Ocultamos da lista (já em partida ao vivo): {busyPlayers.map((player) => player.name).join(", ")}.
         </p>
       )}
-      <div className="fld"><span>modalidade</span><div className="mode-switch compact"><button type="button" className={mode === "1x1" ? "active" : ""} onClick={() => setMode("1x1")}>1x1</button><button type="button" className={mode === "2x2" ? "active" : ""} onClick={() => setMode("2x2")}>2x2</button></div></div>
+      <div className="fld"><span>modalidade</span><div className="mode-switch compact"><button type="button" className={mode === "1x1" ? "active" : ""} onClick={() => { setMode("1x1"); setDirty(true); }}>1x1</button><button type="button" className={mode === "2x2" ? "active" : ""} onClick={() => { setMode("2x2"); setDirty(true); }}>2x2</button></div></div>
       {activeTables.length > 1 && (
         <label className="fld">
           <span>mesa</span>
-          <select className="select no-margin" value={tableId} onChange={(event) => setTableId(event.target.value)}>
+          <select className="select no-margin" value={tableId} onChange={(event) => { setTableId(event.target.value); setDirty(true); }}>
             <option value="">Selecionar mesa</option>
             {activeTables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}
           </select>
@@ -416,6 +434,7 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
             else if (pickerFor === "a2") setPlayerA2(id);
             else if (pickerFor === "b") setPlayerB(id);
             else setPlayerB2(id);
+            setDirty(true);
             setPickerFor(null);
           }}
           onClose={() => setPickerFor(null)}
@@ -448,6 +467,10 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
           // Resposta do insert: so preenche a lacuna se o realtime ainda nao
           // tiver chegado primeiro com uma versao mais nova (ver domain/match.js).
           setMatches((items) => addMatchIfAbsent(items, createdMatch));
+          // Partida efetivamente iniciada: o que estava "sujo" acabou de virar
+          // uma partida ao vivo (o efeito 2 ja limpa os jogadores, que agora
+          // estao ocupados) - um prefill futuro pode voltar a aplicar normal.
+          setDirty(false);
           await auditLog?.({
             action: "match_started",
             entityType: "match",

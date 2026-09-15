@@ -89,6 +89,20 @@ describe("upsertBy", () => {
 
       expect(next).toEqual([{ id: "1", updated_at: "2026-06-25T20:00:00.000Z" }]);
     });
+
+    it("NÃO substitui quando o timestamp da linha que chega é inválido e o existente é válido", () => {
+      const items = [{ id: "1", left_at: "2026-06-25T20:05:00.000Z", updated_at: "2026-06-25T20:05:00.000Z" }];
+      const next = upsertBy(items, { id: "1", left_at: null, updated_at: "não é uma data" }, { newerBy: "updated_at" });
+
+      expect(next).toEqual([{ id: "1", left_at: "2026-06-25T20:05:00.000Z", updated_at: "2026-06-25T20:05:00.000Z" }]);
+    });
+
+    it("substitui quando o existente tem timestamp inválido, mesmo que o que chega também seja inválido", () => {
+      const items = [{ id: "1", left_at: "2026-06-25T20:05:00.000Z", updated_at: "não é uma data" }];
+      const next = upsertBy(items, { id: "1", left_at: null, updated_at: "2026-06-25T20:00:00.000Z" }, { newerBy: "updated_at" });
+
+      expect(next).toEqual([{ id: "1", left_at: null, updated_at: "2026-06-25T20:00:00.000Z" }]);
+    });
   });
 });
 

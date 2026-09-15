@@ -112,12 +112,27 @@ function ArrivalSheet({ players, queue, liveMatches, showToast, onClose }) {
   // sem aviso nem desfazer. So esses dois estados podem disparar o toque.
   const canMarkArrival = (state) => state === "" || state === "foi embora";
 
+  // Trava local por jogador: enquanto o id esta em pendingIds, o toque e
+  // no-op. `state` e um snapshot do render - sem isso, dois toques rapidos
+  // no mesmo nome, antes da resposta HTTP do primeiro voltar, disparam dois
+  // upserts, e o segundo recarimba enqueued_at de novo, mandando a pessoa pro
+  // fim da fila outra vez. Nao resolve dois admins em aparelhos diferentes
+  // tocando ao mesmo tempo - isso continua sendo o AUD-06 de sempre.
+  const [pendingIds, setPendingIds] = useState(() => new Set());
+
   const handleArrival = async (playerId, state) => {
-    if (!canMarkArrival(state)) return;
+    if (!canMarkArrival(state) || pendingIds.has(playerId)) return;
+    setPendingIds((current) => new Set(current).add(playerId));
     try {
       await markArrived(playerId);
     } catch (error) {
       showToast(`Erro: ${error.message}`);
+    } finally {
+      setPendingIds((current) => {
+        const next = new Set(current);
+        next.delete(playerId);
+        return next;
+      });
     }
   };
 
@@ -130,7 +145,7 @@ function ArrivalSheet({ players, queue, liveMatches, showToast, onClose }) {
         <div className="identity-grid" aria-label="Quem chegou">
           {players.map((player) => {
             const state = stateFor(player.id);
-            const disabled = !canMarkArrival(state);
+            const disabled = !canMarkArrival(state) || pendingIds.has(player.id);
             return (
               <button
                 key={player.id}

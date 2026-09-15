@@ -31,6 +31,13 @@ export function useQueue({ repo, matches, enabled }) {
   const [tables, setTables] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [available, setAvailable] = useState(true);
+  // loaded so vira true depois que o primeiro loadQueue resolve - inclusive
+  // quando available sai false (banco sem a migração 20260915), senão quem
+  // não rodou a migração ficaria travado pra sempre esperando um loaded que
+  // nunca chega. Existe pra StartMatchPanel não liberar "iniciar partida"
+  // sem table_id durante a janela (normalmente <1s) em que tables ainda está
+  // [] e activeTables.length <= 1 dá falso positivo de "regra desligada".
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -41,6 +48,10 @@ export function useQueue({ repo, matches, enabled }) {
         return next === current ? current : next;
       });
     };
+    // Recalcula na hora, não só nos próximos eventos: sem isso, uma página
+    // aberta antes do meio-dia e um admin que loga depois da virada sem
+    // trocar de aba nem focar a janela ficaria preso no gameDay de antes.
+    recomputeGameDay();
     document.addEventListener("visibilitychange", recomputeGameDay);
     window.addEventListener("focus", recomputeGameDay);
     return () => {
@@ -57,6 +68,7 @@ export function useQueue({ repo, matches, enabled }) {
       setTables(data.tables);
       setAttendance(data.attendance);
       setAvailable(data.available);
+      setLoaded(true);
     });
     return () => {
       cancelled = true;
@@ -159,6 +171,7 @@ export function useQueue({ repo, matches, enabled }) {
     activeTables,
     attendance,
     available,
+    loaded,
     holders,
     entries,
     markArrived,

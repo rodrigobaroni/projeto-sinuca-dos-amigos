@@ -17,13 +17,19 @@ export function dedupeBy(items, key = "id") {
   return [...byKey.values()];
 }
 
-// Sem timestamp confiável para comparar (newerBy ausente), inválido dos dois
-// lados, ou empatado: substitui - é o comportamento original, "a linha que
-// chega é a verdade".
+// Compara os timestamps de `row` (a linha que chega) e `existing` (a que já
+// está no estado) pra decidir se a que chega pode substituir. Empatado
+// substitui - é o comportamento original, "a linha que chega é a verdade"
+// quando não há razão pra preferir a antiga. Os dois casos de timestamp
+// inválido NÃO são simétricos: se o existente é inválido não há o que
+// preservar, então a que chega sempre vale; mas se é a que chega que vem
+// inválida e o existente é válido, substituir seria jogar fora a única
+// leitura confiável que se tem - o oposto do que newerBy existe pra evitar.
 function isAtLeastAsNew(row, existing, field) {
   const rowTime = new Date(row[field]).getTime();
   const existingTime = new Date(existing[field]).getTime();
-  if (!Number.isFinite(rowTime) || !Number.isFinite(existingTime)) return true;
+  if (!Number.isFinite(existingTime)) return true;
+  if (!Number.isFinite(rowTime)) return false;
   return rowTime >= existingTime;
 }
 
