@@ -77,17 +77,39 @@ na marra seria inventar dado. Partida sem mesa continua válida.
 Tudo isto é função pura, em `src/domain/queue.js`, testável sem banco — mesmo
 padrão dos helpers de `src/domain/match.js`.
 
+### Quem está segurando cada mesa
+
+Quem ganha permanece na mesa. Entre uma partida e a próxima ele não está
+jogando, mas também **não está esperando** — está de pé na mesa aguardando
+desafiante. A fila precisa saber disso, senão o vencedor reaparece na lista de
+espera (e, com o carimbo antigo, na primeira posição, como se fosse o próximo a
+entrar).
+
+```
+donoDaMesa(tableId, gameDay, partidas, attendance) =
+  se há partida ao vivo nessa mesa            -> ninguém (está em jogo)
+  senão, a partida finalizada mais recente
+  dessa noite nessa mesa -> os jogadores do lado VENCEDOR
+  filtrando quem foi embora (left_at) e quem
+  já entrou em partida ao vivo em outra mesa  -> ninguém, se sobrar vazio
+```
+
+No 1x1 é uma pessoa; no 2x2 é a dupla inteira. Partida sem `table_id` não gera
+dono de mesa nenhuma.
+
 ### Quem está na fila
 
 ```
-fila(gameDay, attendance, liveMatches) =
+fila(gameDay, attendance, liveMatches, partidas) =
   linhas de attendance com game_day === gameDay e left_at nulo
   menos quem está em qualquer partida ao vivo
+  menos quem é dono de alguma mesa
   ordenado por enqueued_at crescente
 ```
 
-Quem está jogando não aparece na fila — está na mesa. Volta sozinho quando a
-partida termina, porque deixa de estar em `liveMatches`.
+Quem está jogando não aparece na fila — está na mesa. Quem acabou de vencer
+também não: vira dono da mesa. Ele volta para a fila no momento em que perder,
+que é quando `enqueuePlayers` recarimba a posição dele.
 
 ### A mesa sugerida
 
@@ -135,13 +157,21 @@ Vizinho do formulário de iniciar partida; em tela de celular, **empilhado
 acima** dele, porque a fila é o que se consulta antes de montar a partida.
 
 ```
+MESA 1  ●  Baroni segurando
+MESA 2  ●  em jogo
+
 FILA DA NOITE · 4 esperando            [ quem chegou ]
 
-1   ●  Baroni          MESA 2      ⨯
-2   ●  Tiago           qualquer    ⨯
-3   ●  Régis           MESA 1      ⨯
-4   ●  Fernando        qualquer    ⨯
+1   ●  Tiago           MESA 2      ⨯
+2   ●  Régis           qualquer    ⨯
+3   ●  Fernando        MESA 1      ⨯
+4   ●  Zé              qualquer    ⨯
 ```
+
+O cabeçalho mostra, por mesa ativa: quem está segurando, `em jogo` quando há
+partida ao vivo, ou `livre` quando não há nem dono nem partida. Com uma mesa só
+ativa o cabeçalho continua aparecendo — ali ele é a única forma de saber quem
+está na mesa.
 
 - `⨯` marca "foi embora": preenche `left_at`, sai da fila na hora, sem diálogo.
 - **Quem chegou** abre uma folha com todos os jogadores cadastrados e marca
@@ -183,6 +213,8 @@ banco, porque são fato da noite e precisam bater em qualquer aparelho.
 |---|---|
 | Ninguém elegível na fila para a mesa | O campo de jogador fica vazio; o admin escolhe na mão. Sem erro. |
 | Fila vazia | Estado vazio; o formulário funciona como hoje. |
+| Vencedor vai embora logo após vencer | Marcar a saída tira ele de dono de mesa; a mesa fica `livre`. |
+| Vencedor é escalado pelo admin para outra mesa | Entra em partida ao vivo, deixa de ser dono da primeira; ela fica `livre`. |
 | Vira o dia de jogatina (12h) | `game_day` muda, a fila nasce vazia. A presença da noite anterior fica no histórico. |
 | Mesa desativada com partida ao vivo em cima | A partida mantém seu `table_id` e termina normal. A fila apenas deixa de sugerir aquela mesa. |
 | Partida apagada ou corrigida | A mesa sugerida se recalcula sozinha — é o motivo de não gravá-la. |
@@ -195,8 +227,14 @@ banco, porque são fato da noite e precisam bater em qualquer aparelho.
 
 Domínio puro, vitest em Node, sem banco e sem jsdom — igual ao que já existe:
 
-- `fila` exclui quem tem `left_at`, exclui quem está em partida ao vivo, e
-  ordena por `enqueued_at`.
+- `fila` exclui quem tem `left_at`, exclui quem está em partida ao vivo, exclui
+  quem é dono de mesa, e ordena por `enqueued_at`.
+- `donoDaMesa` devolve o vencedor da última partida finalizada da mesa.
+- `donoDaMesa` devolve ninguém quando há partida ao vivo na mesa.
+- `donoDaMesa` devolve a dupla inteira no 2x2.
+- `donoDaMesa` ignora o vencedor que foi embora (`left_at` preenchido).
+- `donoDaMesa` ignora o vencedor que já entrou em partida em outra mesa.
+- `donoDaMesa` devolve ninguém quando a mesa não teve partida na noite.
 - `mesaOndePerdeu` pega a derrota **mais recente**, ignora vitórias, ignora
   partidas de outras noites, e devolve nulo para quem não perdeu.
 - `mesaOndePerdeu` funciona no 2x2 (derrota é do lado, não do `winner_id`).
