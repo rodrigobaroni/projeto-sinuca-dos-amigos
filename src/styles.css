@@ -835,6 +835,10 @@ button.card,button.rank-row,button.match,button.select{font:inherit;color:inheri
   background:var(--felt-900);border:1px solid var(--line);border-radius:var(--radius-md);padding:10px;
 }
 .player-admin-row.editing{grid-template-columns:auto minmax(0,1fr) auto auto}
+/* Mesa nao tem PlayerBall (nao e jogador): sem a primeira coluna "auto" do
+   player-admin-row, so o nome + interruptor de ativa + editar/remover. */
+.table-admin-row{grid-template-columns:minmax(0,1fr) auto auto auto}
+.table-admin-row.editing{grid-template-columns:minmax(0,1fr) auto auto}
 .player-admin-main{min-width:0}
 .player-admin-main strong{display:block;font-size:16px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .player-admin-main span{display:block;margin-top:3px;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
@@ -891,7 +895,38 @@ button.card,button.rank-row,button.match,button.select{font:inherit;color:inheri
 }
 .knockout-color-picker>span{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
 
+.queue-panel{display:grid;gap:12px;margin-bottom:14px}
+.queue-tables-head{display:flex;flex-wrap:wrap;gap:8px}
+.queue-table-chip{
+  display:flex;align-items:center;gap:8px;background:var(--felt-900);border:1px solid var(--line);
+  border-radius:var(--radius-md);padding:8px 12px;min-width:0;
+}
+.queue-table-chip strong{font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brass);white-space:nowrap}
+.queue-table-chip span{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue-table-dot{width:8px;height:8px;border-radius:50%;background:var(--muted-200);flex:0 0 auto}
+.queue-table-chip.held .queue-table-dot{background:var(--gold)}
+.queue-table-chip.live .queue-table-dot{background:var(--chalk);box-shadow:0 0 8px var(--chalk)}
+.queue-head-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.queue-list{display:grid;gap:8px}
+.queue-row{
+  display:grid;grid-template-columns:20px auto minmax(0,1fr) auto auto;align-items:center;gap:10px;
+  background:var(--felt-900);border:1px solid var(--line);border-radius:var(--radius-md);padding:8px 10px;
+}
+.queue-position{font-family:var(--font-mono);font-size:13px;color:var(--muted);text-align:center}
+.queue-row-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue-table-label{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brass);white-space:nowrap;
+}
+.queue-remove{
+  grid-column:-1;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--muted);
+  font-size:15px;line-height:1;cursor:pointer;
+}
+.queue-remove:hover{border-color:var(--clay);color:var(--clay)}
+
 @media (max-width:520px){
+  .queue-table-chip{flex:1 1 calc(50% - 8px)}
+  .queue-row{grid-template-columns:16px auto minmax(0,1fr) auto}
+  .queue-table-label{display:none}
   .identity-grid{grid-template-columns:1fr}
   .player-metric-row{grid-template-columns:minmax(0,1fr) minmax(76px,auto);padding:10px}
   .player-metric-copy strong{font-size:13px}
@@ -900,6 +935,13 @@ button.card,button.rank-row,button.match,button.select{font:inherit;color:inheri
   .player-admin-row.editing{grid-template-columns:auto minmax(0,1fr)}
   .player-admin-row.editing .player-edit-input{grid-column:2}
   .player-admin-row.editing .player-row-action{width:100%;grid-column:1/-1}
+  /* Em ~390px, nome + interruptor + dois botoes numa linha so estoura. Nome
+     ocupa a linha inteira; o resto vem embaixo, numa segunda linha. */
+  .table-admin-row{grid-template-columns:1fr auto auto}
+  .table-admin-row .player-admin-main{grid-column:1/-1}
+  .table-admin-row.editing{grid-template-columns:1fr}
+  .table-admin-row.editing .player-edit-input{grid-column:1/-1}
+  .table-admin-row.editing .player-row-action{width:100%}
   .player-hero{align-items:flex-start}
   .player-hero-main h2{font-size:34px}
   .player-period-filters{grid-template-columns:1fr}

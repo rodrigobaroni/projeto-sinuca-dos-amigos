@@ -22,6 +22,13 @@ export const DEFAULT_SETTINGS = {
   openMatchOnStart: true,
   // UI nova (finalizar direto pelo card do painel) e opt-in.
   finishFromPanel: false,
+  // Pre-preenchimento de jogador A/B ao iniciar partida a partir da fila. Ja
+  // e o comportamento de hoje via preferredPlayerA - manter default true evita
+  // regressao silenciosa.
+  autoPickPlayers: true,
+  // Bloco da fila no painel e opt-in: liga-se pelo interruptor na primeira
+  // noite, pra poder desligar num toque se algo estiver errado.
+  showQueuePanel: false,
 };
 
 const MODEL_RULES = {

@@ -4,14 +4,18 @@ import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
 import { FinishMatchButton } from "../components/FinishMatchButton.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { PlayerPickerModal } from "../components/PlayerPickerModal.jsx";
+import { QueuePanel } from "../components/QueuePanel.jsx";
 import { getGameRules } from "../domain/rules.js";
 import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
 import { loadGameSettings } from "../services/gameSettingsStorage.js";
 import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
 import { AdminSettings } from "./AdminSettings.jsx";
 
-// queue (estado da fila, ver src/hooks/useQueue.js) chega pronto desta
-// rodada; o bloco da fila no painel ainda não existe - vem numa próxima.
+// queue (estado da fila, ver src/hooks/useQueue.js) alimenta a secao "fila"
+// das configuracoes (TablesAdmin) e o QueuePanel do painel, atras do
+// interruptor showQueuePanel - ainda nao entra no fluxo de iniciar/finalizar
+// partida (table_id no formulario e perdedor voltando pra fila ficam pra
+// proxima rodada).
 export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatches, finished, currentPlayerId, onCurrentPlayerChange, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm, queue }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,7 +67,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
       {adminTab === "jogadores" ? (
         <PlayerAdmin players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} showToast={showToast} />
       ) : adminTab === "configuracoes" ? (
-        <AdminSettings settings={gameSettings} onSettingsChange={setGameSettings} adminUser={adminUser} auditLog={auditLog} showToast={showToast} />
+        <AdminSettings settings={gameSettings} onSettingsChange={setGameSettings} adminUser={adminUser} auditLog={auditLog} showToast={showToast} queue={queue} requestConfirm={requestConfirm} />
       ) : adminTab === "logs" ? (
         <AdminLogs logs={auditLogs} refreshAuditLogs={refreshAuditLogs} />
       ) : selectedLiveMatch ? (
@@ -96,6 +100,9 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
               )}
             </div>
           ))}
+          {gameSettings.showQueuePanel && (
+            <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
+          )}
           <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} repo={repo} setMatches={setMatches} showToast={showToast} preferredPlayerA={lastWinnerId} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
         </section>
       )}
@@ -164,6 +171,9 @@ function auditActionLabel(action) {
     player_created: "Jogador criado",
     player_updated: "Jogador alterado",
     settings_updated: "Configuração alterada",
+    table_created: "Mesa criada",
+    table_updated: "Mesa alterada",
+    table_deleted: "Mesa removida",
   }[action] || action;
 }
 

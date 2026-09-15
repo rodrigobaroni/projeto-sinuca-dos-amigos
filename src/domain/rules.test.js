@@ -89,6 +89,21 @@ describe("pool rules domain", () => {
   it("preserva finishFromPanel ligado em vez de recair no default", () => {
     expect(normalizeGameSettings({ finishFromPanel: true }).finishFromPanel).toBe(true);
   });
+
+  it("aplica os defaults da fila quando nada foi salvo ainda", () => {
+    const settings = normalizeGameSettings({});
+
+    expect(settings.autoPickPlayers).toBe(DEFAULT_SETTINGS.autoPickPlayers);
+    expect(settings.showQueuePanel).toBe(DEFAULT_SETTINGS.showQueuePanel);
+  });
+
+  it("preserva autoPickPlayers desligado em vez de recair no default", () => {
+    expect(normalizeGameSettings({ autoPickPlayers: false }).autoPickPlayers).toBe(false);
+  });
+
+  it("preserva showQueuePanel ligado em vez de recair no default", () => {
+    expect(normalizeGameSettings({ showQueuePanel: true }).showQueuePanel).toBe(true);
+  });
 });
 
 describe("texto de falta", () => {

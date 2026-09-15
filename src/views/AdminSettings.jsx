@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { PoolBall } from "../components/balls.jsx";
+import { TablesAdmin } from "../components/TablesAdmin.jsx";
 import { GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
 import { GAME_SETTINGS_KEY } from "../services/gameSettingsStorage.js";
 
-export function AdminSettings({ settings, onSettingsChange, adminUser, auditLog, showToast }) {
+export function AdminSettings({ settings, onSettingsChange, adminUser, auditLog, showToast, queue, requestConfirm }) {
   const [choicePrompt, setChoicePrompt] = useState(null);
   const rules = getGameRules(settings);
 
@@ -185,6 +186,61 @@ export function AdminSettings({ settings, onSettingsChange, adminUser, auditLog,
           )}
         </div>
       </div>
+
+      <div className="settings-section">
+        <div className="record-section-title">fila</div>
+        <div className="settings-list">
+          <div className="settings-row">
+            <div className="settings-copy">
+              <strong>Seleção automática de jogador</strong>
+              <span>Quando ligado, ao finalizar uma partida o formulário de iniciar já vem preenchido com quem venceu e o próximo da fila.</span>
+            </div>
+            <button
+              className={`switch ${settings.autoPickPlayers ? "on" : ""}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.autoPickPlayers}
+              onClick={() => updateSetting("autoPickPlayers", !settings.autoPickPlayers)}
+            >
+              <span />
+            </button>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-copy">
+              <strong>Mostrar a fila no painel</strong>
+              <span>Quando desligado, o painel volta a ser exatamente o de hoje, sem o bloco da fila.</span>
+            </div>
+            <button
+              className={`switch ${settings.showQueuePanel ? "on" : ""}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.showQueuePanel}
+              onClick={() => updateSetting("showQueuePanel", !settings.showQueuePanel)}
+            >
+              <span />
+            </button>
+          </div>
+
+          <div className="settings-field">
+            <span>Mesas</span>
+            {queue?.available === false ? (
+              <div className="empty small-empty">Fila indisponível — a migração 20260915 ainda não rodou neste banco.</div>
+            ) : (
+              <TablesAdmin
+                tables={queue?.tables || []}
+                addTable={queue?.addTable}
+                updateTable={queue?.updateTable}
+                deleteTable={queue?.deleteTable}
+                adminUser={adminUser}
+                auditLog={auditLog}
+                showToast={showToast}
+                requestConfirm={requestConfirm}
+              />
+            )}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -198,6 +254,8 @@ function settingLabel(key) {
     knockoutColorB: "cor do adversário B",
     openMatchOnStart: "ir direto à partida criada",
     finishFromPanel: "gerenciar partidas em uma tela",
+    autoPickPlayers: "seleção automática de jogador",
+    showQueuePanel: "mostrar a fila no painel",
   }[key] || key;
 }
 
