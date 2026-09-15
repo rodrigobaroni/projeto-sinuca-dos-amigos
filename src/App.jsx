@@ -4,6 +4,7 @@ import { ConfirmDialog, Sheet, Toast } from "./components/layout.jsx";
 import { PlayerPickerModal } from "./components/PlayerPickerModal.jsx";
 import { MatchSheet, PlayerSheet } from "./components/sheets.jsx";
 import { NAV } from "./constants.js";
+import { upsertMatch } from "./domain/match.js";
 import { computeDoublesStats, computeStats, rankedFrom } from "./domain/stats.js";
 import { createRepository } from "./services/supabaseRepository.js";
 import { AdminView } from "./views/AdminView.jsx";
@@ -61,12 +62,18 @@ export function App({ supabaseClient }) {
     setConfirmRequest(null);
   };
 
-  const load = async () => {
-    setLoading(true);
+  // silent: recarrega sem passar pela tela de loading. Necessario porque
+  // setLoading(true) troca o "content" inteiro por <div className="loading">
+  // (ver abaixo), o que desmonta o AdminView e derruba estado local como o
+  // overlay de "Definir vencedor" aberto - o admin perderia a chance de tentar
+  // de novo justo quando a escrita falhou. O tratamento de erro (setError)
+  // continua igual nos dois modos.
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError("");
     if (!repo) {
       setError("Configure o Supabase nas variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON.");
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
     try {
@@ -81,10 +88,10 @@ export function App({ supabaseClient }) {
       }
     } catch (loadError) {
       setError(loadError.message);
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   useEffect(() => {
@@ -121,9 +128,9 @@ export function App({ supabaseClient }) {
     return repo.onMatchesChange(({ eventType, new: newRow, old: oldRow }) => {
       setMatches((items) => {
         if (eventType === "DELETE") return items.filter((match) => match.id !== oldRow.id);
-        const exists = items.some((match) => match.id === newRow.id);
-        if (exists) return items.map((match) => (match.id === newRow.id ? newRow : match));
-        return [...items, newRow];
+        // A linha que chega do realtime e sempre a verdade mais recente (o
+        // admin pode lancar uma partida retroativa; upsertMatch reordena).
+        return upsertMatch(items, newRow);
       });
     });
   }, [repo]);
@@ -170,13 +177,59 @@ export function App({ supabaseClient }) {
   };
 
   const persistMatch = async (id, patch) => {
+    // Capturado ANTES do patch otimista, a partir do matches que ja esta no
+    // closure - nao de dentro do updater funcional, pra nao colocar efeito
+    // colateral numa funcao que o StrictMode invoca duas vezes.
+    const previous = matches.find((match) => match.id === id);
     setMatches((items) => items.map((match) => (match.id === id ? { ...match, ...patch } : match)));
     try {
       await repo.updateMatch(id, patch);
+      return true;
     } catch (updateError) {
       showToast(`Erro: ${updateError.message}`);
-      await load();
+      // Reverte o patch otimista antes do reload. O patch otimista e aplicado
+      // no mesmo render do clique, entao um patch como o de finishMatchPatch
+      // (status: "finished") tira a partida de liveMatches na hora - o card do
+      // painel desmonta, e com ele o overlay de "Definir vencedor". Isso e
+      // inerente a UI otimista e acontece tambem no caminho de sucesso. O que
+      // a reversao faz e, na falha, devolver a partida pra liveMatches ja no
+      // commit do catch, em vez de so quando o load chegar do servidor: o
+      // card reaparece rapido e pronto pra nova tentativa. Isso vale pro
+      // fluxo de um admin so - dois admins gravando a mesma partida ao mesmo
+      // tempo continua sendo o AUD-06, fora do alcance daqui. O
+      // load({ silent: true }) que vem depois so cobre divergencia do estado
+      // local com o banco por outro motivo.
+      if (previous) setMatches((items) => items.map((match) => (match.id === id ? previous : match)));
+      await load({ silent: true });
+      return false;
     }
+  };
+
+  const deleteMatch = async (matchId) => {
+    const confirmed = await requestConfirm({
+      title: "Apagar partida?",
+      message: "Essa ação não dá pra desfazer.",
+      confirmLabel: "Apagar",
+    });
+    if (!confirmed) return;
+    const deleted = matches.find((item) => item.id === matchId);
+    setMatches((items) => items.filter((match) => match.id !== matchId));
+    try {
+      await repo.deleteMatch(matchId);
+    } catch (deleteError) {
+      showToast(`Erro: ${deleteError.message}`);
+      await load();
+      return;
+    }
+    setSheet(null);
+    await auditLog({
+      action: "match_deleted",
+      entityType: "match",
+      entityId: matchId,
+      message: `${adminUser?.email || "admin"} apagou a partida ${playerName(deleted?.player_a)} x ${playerName(deleted?.player_b)}`,
+      metadata: { match: deleted, players: [playerName(deleted?.player_a), playerName(deleted?.player_b)] },
+    });
+    showToast("Partida apagada");
   };
 
   const addPlayer = async (name) => {
@@ -239,58 +292,8 @@ export function App({ supabaseClient }) {
   if (loading) content = <div className="loading">engizAndo o taco...</div>;
   else if (error) content = <div className="empty">Nao consegui conectar no banco.<br /><small style={{ color: "var(--clay)" }}>{error}</small></div>;
   else if (current === "ranking") content = <RankingView players={players} finished={finished} stats={stats} ranked={ranked} doublesRanked={doublesRanked} isAdmin={isAdmin} showToast={showToast} playerById={playerById} openPlayer={(id) => setSheet(<PlayerSheet stat={stats[id]} rank={ranked.findIndex((item) => item.id === id) + 1} playerById={playerById} />)} />;
-  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} selectedPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
-    const confirmed = await requestConfirm({
-      title: "Apagar partida?",
-      message: "Essa ação não dá pra desfazer.",
-      confirmLabel: "Apagar",
-    });
-    if (!confirmed) return;
-    setMatches((items) => items.filter((match) => match.id !== matchId));
-    try {
-      await repo.deleteMatch(matchId);
-    } catch (deleteError) {
-      showToast(`Erro: ${deleteError.message}`);
-      await load();
-      return;
-    }
-    setSheet(null);
-    const deleted = matches.find((item) => item.id === matchId);
-    await auditLog({
-      action: "match_deleted",
-      entityType: "match",
-      entityId: matchId,
-      message: `${adminUser?.email || "admin"} apagou a partida ${playerName(deleted?.player_a)} x ${playerName(deleted?.player_b)}`,
-      metadata: { match: deleted, players: [playerName(deleted?.player_a), playerName(deleted?.player_b)] },
-    });
-    showToast("Partida apagada");
-  }} />)} />;
-  else if (current === "partidas") content = <MatchesView finished={finished} liveMatches={liveMatches} clips={clips} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={async (matchId) => {
-    const confirmed = await requestConfirm({
-      title: "Apagar partida?",
-      message: "Essa ação não dá pra desfazer.",
-      confirmLabel: "Apagar",
-    });
-    if (!confirmed) return;
-    setMatches((items) => items.filter((match) => match.id !== matchId));
-    try {
-      await repo.deleteMatch(matchId);
-    } catch (deleteError) {
-      showToast(`Erro: ${deleteError.message}`);
-      await load();
-      return;
-    }
-    setSheet(null);
-    const deleted = matches.find((item) => item.id === matchId);
-    await auditLog({
-      action: "match_deleted",
-      entityType: "match",
-      entityId: matchId,
-      message: `${adminUser?.email || "admin"} apagou a partida ${playerName(deleted?.player_a)} x ${playerName(deleted?.player_b)}`,
-      metadata: { match: deleted, players: [playerName(deleted?.player_a), playerName(deleted?.player_b)] },
-    });
-    showToast("Partida apagada");
-  }} />)} go={go} />;
+  else if (current === "jogador") content = <PlayerView players={players} finished={finished} stats={stats} clips={clips} selectedPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={deleteMatch} />)} />;
+  else if (current === "partidas") content = <MatchesView finished={finished} liveMatches={liveMatches} clips={clips} isAdmin={isAdmin} playerById={playerById} openMatch={(id) => setSheet(<MatchSheet match={matches.find((item) => item.id === id)} clips={clips.filter((clip) => clip.match_id === id)} playerById={playerById} playerName={playerName} isAdmin={isAdmin} onDelete={deleteMatch} />)} go={go} />;
   else if (current === "records") content = <RecordsView players={players} finished={finished} stats={stats} />;
   else if (current === "regras") content = <RulesView />;
   else content = <AdminView repo={repo} isAdmin={isAdmin} setIsAdmin={setIsAdmin} adminUser={adminUser} auditLogs={auditLogs} auditLog={auditLog} refreshAuditLogs={refreshAuditLogs} players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} liveMatches={liveMatches} finished={finished} currentPlayerId={currentPlayerId} onCurrentPlayerChange={(id) => chooseCurrentPlayer(id, { navigate: false })} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} requestConfirm={requestConfirm} />;

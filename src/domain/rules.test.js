@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyPot, deriveGroups, getGameRules, normalizeGameSettings } from "./rules.js";
+import { classifyPot, DEFAULT_SETTINGS, deriveGroups, getGameRules, normalizeGameSettings, foulReasonText } from "./rules.js";
 
 const match = { player_a: "a", player_b: "b" };
 
@@ -73,5 +73,28 @@ describe("pool rules domain", () => {
 
     expect(settings.knockoutColorA).toBe("blue");
     expect(settings.knockoutColorB).not.toBe("blue");
+  });
+
+  it("aplica os defaults das flags novas quando nada foi salvo ainda", () => {
+    const settings = normalizeGameSettings({});
+
+    expect(settings.openMatchOnStart).toBe(DEFAULT_SETTINGS.openMatchOnStart);
+    expect(settings.finishFromPanel).toBe(DEFAULT_SETTINGS.finishFromPanel);
+  });
+
+  it("preserva openMatchOnStart desligado em vez de recair no default", () => {
+    expect(normalizeGameSettings({ openMatchOnStart: false }).openMatchOnStart).toBe(false);
+  });
+
+  it("preserva finishFromPanel ligado em vez de recair no default", () => {
+    expect(normalizeGameSettings({ finishFromPanel: true }).finishFromPanel).toBe(true);
+  });
+});
+
+describe("texto de falta", () => {
+  it("usa a bola da própria entrada do log, não a configuração atual", () => {
+    expect(foulReasonText("trunfo", "8")).toBe("bola 8 fora da hora");
+    expect(foulReasonText("trunfo", "1")).toBe("bola 1 fora da hora");
+    expect(foulReasonText("oponente")).toBe("bola do oponente");
   });
 });

@@ -1,27 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayerBall, PoolBall, WhiteBall } from "../components/balls.jsx";
 import { DefaultPlayerPanel } from "../components/DefaultPlayerPanel.jsx";
+import { FinishMatchButton } from "../components/FinishMatchButton.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { PlayerPickerModal } from "../components/PlayerPickerModal.jsx";
-import { GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
-import { matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
+import { DEFAULT_SETTINGS, GAME_MODELS, getGameRules, KNOCKOUT_COLORS, normalizeGameSettings } from "../domain/rules.js";
+import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
 import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
 
 const GAME_SETTINGS_KEY = "sinuca-game-settings";
-const DEFAULT_GAME_SETTINGS = {
-  trackBalls: true,
-  gameModel: "even-odd",
-  penaltyBall: "1",
-  knockoutColorA: "red",
-  knockoutColorB: "yellow",
-};
 
 function loadGameSettings() {
   try {
     const stored = JSON.parse(window.localStorage.getItem(GAME_SETTINGS_KEY) || "null");
-    return normalizeGameSettings({ ...DEFAULT_GAME_SETTINGS, ...(stored || {}) });
+    return normalizeGameSettings({ ...DEFAULT_SETTINGS, ...(stored || {}) });
   } catch {
-    return normalizeGameSettings(DEFAULT_GAME_SETTINGS);
+    return normalizeGameSettings(DEFAULT_SETTINGS);
   }
 }
 
@@ -32,6 +26,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
   const [adminTab, setAdminTab] = useState("partida");
   const [lastWinnerId, setLastWinnerId] = useState("");
   const [selectedLiveMatchId, setSelectedLiveMatchId] = useState("");
+  const [gameSettings, setGameSettings] = useState(loadGameSettings);
   const selectedLiveMatch = liveMatches.find((match) => match.id === selectedLiveMatchId) || null;
 
   if (!isAdmin) {
@@ -75,7 +70,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
       {adminTab === "jogadores" ? (
         <PlayerAdmin players={players} addPlayer={addPlayer} updatePlayer={updatePlayer} showToast={showToast} />
       ) : adminTab === "configuracoes" ? (
-        <AdminSettings adminUser={adminUser} auditLog={auditLog} showToast={showToast} />
+        <AdminSettings settings={gameSettings} onSettingsChange={setGameSettings} adminUser={adminUser} auditLog={auditLog} showToast={showToast} />
       ) : adminTab === "logs" ? (
         <AdminLogs logs={auditLogs} refreshAuditLogs={refreshAuditLogs} />
       ) : selectedLiveMatch ? (
@@ -84,7 +79,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
             <button className="btn ghost small" onClick={() => setSelectedLiveMatchId("")}>← outras partidas ao vivo ({liveMatches.length - 1})</button>
           )}
           <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
-          <LiveMatchRouter adminUser={adminUser} auditLog={auditLog} liveMatch={selectedLiveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} requestConfirm={requestConfirm} />
+          <LiveMatchRouter settings={gameSettings} adminUser={adminUser} auditLog={auditLog} liveMatch={selectedLiveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} requestConfirm={requestConfirm} />
         </section>
       ) : (
         <section className="panel">
@@ -92,29 +87,36 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
           <div className="viewtitle">Painel</div>
           <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
           {liveMatches.map((match) => (
-            <button key={match.id} className="card live-card" onClick={() => setSelectedLiveMatchId(match.id)}>
-              <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
-              <div className="live-row">
-                <strong>{sideLabel(match, "a", playerName)} <span>vs</span> {sideLabel(match, "b", playerName)}</strong>
-                <span className="rank-sub">{(match.ball_log || []).length} bolas</span>
-              </div>
-            </button>
+            // Dois botoes nativos irmaos, nao um aninhado dentro do outro: o
+            // keydown de Enter/Espaço no botao de "Definir vencedor" nao pode
+            // borbulhar e tambem abrir a partida (ver ADENDO D1).
+            <div key={match.id} className="card live-card">
+              <button type="button" className="live-card-open" onClick={() => setSelectedLiveMatchId(match.id)}>
+                <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
+                <div className="live-row">
+                  <strong>{sideLabel(match, "a", playerName)} <span>vs</span> {sideLabel(match, "b", playerName)}</strong>
+                  <span className="rank-sub">{(match.ball_log || []).length} bolas</span>
+                </div>
+              </button>
+              {gameSettings.finishFromPanel && (
+                <FinishMatchButton match={match} playerName={playerName} persistMatch={persistMatch} auditLog={auditLog} adminUser={adminUser} showToast={showToast} onFinished={setLastWinnerId} buttonClassName="btn chalk small" />
+              )}
+            </div>
           ))}
-          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} repo={repo} setMatches={setMatches} showToast={showToast} preferredPlayerA={lastWinnerId} onStarted={setSelectedLiveMatchId} />
+          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} repo={repo} setMatches={setMatches} showToast={showToast} preferredPlayerA={lastWinnerId} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
         </section>
       )}
     </>
   );
 }
 
-function AdminSettings({ adminUser, auditLog, showToast }) {
-  const [settings, setSettings] = useState(loadGameSettings);
+function AdminSettings({ settings, onSettingsChange, adminUser, auditLog, showToast }) {
   const [choicePrompt, setChoicePrompt] = useState(null);
   const rules = getGameRules(settings);
 
   const saveSettings = (nextSettings, changedKey, changedValue) => {
     const next = normalizeGameSettings(nextSettings);
-    setSettings(next);
+    onSettingsChange(next);
     window.localStorage.setItem(GAME_SETTINGS_KEY, JSON.stringify(next));
     auditLog?.({
       action: "settings_updated",
@@ -185,6 +187,38 @@ function AdminSettings({ adminUser, auditLog, showToast }) {
               role="switch"
               aria-checked={settings.trackBalls}
               onClick={() => updateSetting("trackBalls", !settings.trackBalls)}
+            >
+              <span />
+            </button>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-copy">
+              <strong>Ir direto à partida criada</strong>
+              <span>Quando ligado, ao iniciar a partida o painel abre a tela da partida em andamento.</span>
+            </div>
+            <button
+              className={`switch ${settings.openMatchOnStart ? "on" : ""}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.openMatchOnStart}
+              onClick={() => updateSetting("openMatchOnStart", !settings.openMatchOnStart)}
+            >
+              <span />
+            </button>
+          </div>
+
+          <div className="settings-row">
+            <div className="settings-copy">
+              <strong>Gerenciar partidas em uma tela</strong>
+              <span>Quando ligado, cada partida ao vivo pode ser finalizada direto pelo painel.</span>
+            </div>
+            <button
+              className={`switch ${settings.finishFromPanel ? "on" : ""}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.finishFromPanel}
+              onClick={() => updateSetting("finishFromPanel", !settings.finishFromPanel)}
             >
               <span />
             </button>
@@ -269,11 +303,13 @@ function settingLabel(key) {
     penaltyBall: "bola de castigo",
     knockoutColorA: "cor do adversário A",
     knockoutColorB: "cor do adversário B",
+    openMatchOnStart: "ir direto à partida criada",
+    finishFromPanel: "gerenciar partidas em uma tela",
   }[key] || key;
 }
 
 function settingValueLabel(key, value) {
-  if (key === "trackBalls") return value ? "ligado" : "desligado";
+  if (typeof value === "boolean") return value ? "ligado" : "desligado";
   if (key === "gameModel") return GAME_MODELS.find((model) => model.value === value)?.label || value;
   if (key === "penaltyBall") return `Bola ${value}`;
   if (key === "knockoutColorA" || key === "knockoutColorB" || key === "knockoutColor") return KNOCKOUT_COLORS.find((color) => color.value === value)?.label || value;
@@ -466,6 +502,7 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
   const [playerB, setPlayerB] = useState(initialPlayerB);
   const [playerB2, setPlayerB2] = useState("");
   const [pickerFor, setPickerFor] = useState(null);
+  const [starting, setStarting] = useState(false);
   const [when, setWhen] = useState(() => {
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -526,7 +563,11 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
           onClose={() => setPickerFor(null)}
         />
       )}
-      <button className="btn chalk" disabled={!valid || (mode === "2x2" && availablePlayers.length < 4)} onClick={async () => {
+      <button className="btn chalk" disabled={starting || !valid || (mode === "2x2" && availablePlayers.length < 4)} onClick={async () => {
+        // Sem esta trava, dois toques criam duas partidas ao vivo com os mesmos
+        // jogadores - e o banco nao impede, porque varias mesas sao esperadas.
+        if (starting) return;
+        setStarting(true);
         const match = {
           mode,
           player_a: playerA,
@@ -542,7 +583,9 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
         const playerBName = players.find((player) => player.id === playerB)?.name;
         try {
           const createdMatch = await repo.startMatch(match);
-          setMatches((items) => [...items, createdMatch]);
+          // Resposta do insert: so preenche a lacuna se o realtime ainda nao
+          // tiver chegado primeiro com uma versao mais nova (ver domain/match.js).
+          setMatches((items) => addMatchIfAbsent(items, createdMatch));
           await auditLog?.({
             action: "match_started",
             entityType: "match",
@@ -554,15 +597,20 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
           showToast("Partida iniciada");
         } catch (startError) {
           showToast(`Erro: ${startError.message}`);
+        } finally {
+          setStarting(false);
         }
-      }}>Iniciar partida</button>
+      }}>{starting ? "Iniciando..." : "Iniciar partida"}</button>
     </div>
   );
 }
 
-function LiveMatchRouter(props) {
-  const settings = loadGameSettings();
-  const rules = getGameRules(settings);
+function LiveMatchRouter({ settings, ...props }) {
+  // As settings agora vivem no AdminView (D5: AdminSettings e LiveMatchRouter
+  // sao ramos mutuamente exclusivos do mesmo ternario, entao nunca mudam sob os
+  // pes de uma partida ao vivo aberta). O useMemo evita recriar o objeto de
+  // regras a cada render enquanto a referencia de settings nao mudar.
+  const rules = useMemo(() => getGameRules(settings), [settings]);
   if (matchMode(props.liveMatch) === "2x2" || !settings.trackBalls || rules.simpleOnly) return <SimpleLiveMatchPanel {...props} settings={settings} rules={rules} />;
   return <LiveMatchPanel {...props} settings={settings} rules={rules} />;
 }
@@ -612,25 +660,8 @@ function matchPlayersLabel(liveMatch, playerName) {
 }
 
 function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules, requestConfirm }) {
-  const [selectingWinner, setSelectingWinner] = useState(false);
   const playerA = playerById(liveMatch.player_a);
   const playerB = playerById(liveMatch.player_b);
-  const doubles = matchMode(liveMatch) === "2x2";
-  const finishMatch = async (side) => {
-    const winnerId = side === "a" ? liveMatch.player_a : liveMatch.player_b;
-    const winnerLabel = sideLabel(liveMatch, side, playerName);
-    await persistMatch(liveMatch.id, { winner_id: doubles ? null : winnerId, winner_side: side, status: "finished", ended_at: new Date().toISOString() });
-    await auditLog?.({
-      action: "match_finished",
-      entityType: "match",
-      entityId: liveMatch.id,
-      message: `${adminUser?.email || "admin"} definiu ${winnerLabel} como vencedor da partida ${matchPlayersLabel(liveMatch, playerName)}`,
-      metadata: { match: liveMatch, winnerSide: side, winnerName: winnerLabel, players: matchPlayerIds(liveMatch).map(playerName) },
-    });
-    onFinished?.(winnerId);
-    setSelectingWinner(false);
-    showToast(`Vitória de ${winnerLabel} registrada`);
-  };
 
   return (
     <div className="live-table simple-live-table">
@@ -681,20 +712,7 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
         </div>
       </section>
 
-      <button className="btn chalk simple-winner-btn" onClick={() => setSelectingWinner(true)}>Definir vencedor</button>
-
-      {selectingWinner && (
-        <div className="define-overlay">
-          <div>
-            <div className="eyebrow">quem venceu?</div>
-            <div className="define-actions">
-              <button className="btn chalk" onClick={() => finishMatch("a")}>{sideLabel(liveMatch, "a", playerName)}</button>
-              <button className="btn chalk" onClick={() => finishMatch("b")}>{sideLabel(liveMatch, "b", playerName)}</button>
-            </div>
-            <button className="btn ghost small" onClick={() => setSelectingWinner(false)}>Cancelar</button>
-          </div>
-        </div>
-      )}
+      <FinishMatchButton match={liveMatch} playerName={playerName} persistMatch={persistMatch} auditLog={auditLog} adminUser={adminUser} showToast={showToast} onFinished={onFinished} buttonClassName="btn chalk simple-winner-btn" />
     </div>
   );
 }
@@ -702,6 +720,20 @@ function SimpleLiveMatchPanel({ adminUser, auditLog, liveMatch, finished, player
 function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, playerName, persistMatch, setMatches, load, showToast, repo, onFinished, rules, requestConfirm }) {
   const [pendingDefinition, setPendingDefinition] = useState(null);
   const [pendingPenalty, setPendingPenalty] = useState(false);
+  // Cada anotacao reescreve o ball_log inteiro a partir da copia local. Sem esta
+  // trava, dois toques rapidos leem o mesmo log e o segundo apaga a bola do
+  // primeiro. (Nao resolve duas mesas anotando junto - isso precisa de escrita
+  // atomica no banco, ver AUD-06 no vault.)
+  const [writing, setWriting] = useState(false);
+  const serialize = async (run) => {
+    if (writing) return;
+    setWriting(true);
+    try {
+      await run();
+    } finally {
+      setWriting(false);
+    }
+  };
   const playerA = playerById(liveMatch.player_a);
   const playerB = playerById(liveMatch.player_b);
   const log = liveMatch.ball_log || [];
@@ -711,7 +743,7 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
   const availableGroupBalls = rules.setupBalls().filter((num) => !removedNumbered.has(num));
   const penaltyBall = rules.penaltyBall;
 
-  const removeBall = async (ball) => {
+  const removeBall = (ball) => serialize(async () => {
     const removedEntry = log.find((entry) => Number(entry.ball) === Number(ball));
     const nextLog = log
       .filter((entry) => Number(entry.ball) !== Number(ball))
@@ -724,9 +756,9 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
       message: `${adminUser?.email || "admin"} removeu a bola ${ball} da partida ${matchPlayersLabel(liveMatch, playerName)}`,
       metadata: { matchId: liveMatch.id, ball: String(ball), removedEntry, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
     });
-  };
+  });
 
-  const appendBall = async (ball, by, type = "pot", reason = "", brk = false) => {
+  const appendBall = (ball, by, type = "pot", reason = "", brk = false) => serialize(async () => {
     const entry = { n: log.length + 1, ball: String(ball), by, type, ...(reason ? { reason } : {}), ...(brk ? { brk: true } : {}) };
     const nextLog = [...log, entry];
     await persistMatch(liveMatch.id, { ball_log: nextLog });
@@ -737,7 +769,7 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
       message: `${adminUser?.email || "admin"} anotou bola ${ball} para ${playerName(by)} na partida ${matchPlayersLabel(liveMatch, playerName)}`,
       metadata: { matchId: liveMatch.id, entry, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
     });
-  };
+  });
 
   const entryForBall = (ball) => log.find((entry) => Number(entry.ball) === Number(ball));
   const isGroupCleared = (playerId) => {
@@ -760,7 +792,7 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
     appendBall(ball, ownerId, result.type, result.reason);
   };
 
-  const finishWithPenalty = async (by) => {
+  const finishWithPenalty = (by) => serialize(async () => {
     const canWin = isGroupCleared(by);
     const winnerId = canWin ? by : (by === liveMatch.player_a ? liveMatch.player_b : liveMatch.player_a);
     const cleanLog = log.filter((entry) => Number(entry.ball) !== Number(penaltyBall));
@@ -779,9 +811,9 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
     });
     onFinished?.(winnerId);
     showToast(canWin ? `${playerName(by)} venceu na bola ${penaltyBall}` : `Bola ${penaltyBall} fora da hora: vitória de ${playerName(winnerId)}`);
-  };
+  });
 
-  const undoEntry = async (indexToRemove) => {
+  const undoEntry = (indexToRemove) => serialize(async () => {
     const removedEntry = log[indexToRemove];
     const nextLog = log
       .filter((_, index) => index !== indexToRemove)
@@ -794,7 +826,7 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
       message: `${adminUser?.email || "admin"} desfez uma anotação de bola na partida ${matchPlayersLabel(liveMatch, playerName)}`,
       metadata: { matchId: liveMatch.id, removedEntry, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
     });
-  };
+  });
 
   const defineGroup = (side) => {
     if (!pendingDefinition) return;

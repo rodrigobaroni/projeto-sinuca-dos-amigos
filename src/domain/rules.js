@@ -12,12 +12,16 @@ export const KNOCKOUT_COLORS = [
   { value: "blue", label: "Azuis", color: "#2379d4" },
 ];
 
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS = {
   trackBalls: true,
   gameModel: "even-odd",
   penaltyBall: "1",
   knockoutColorA: "red",
   knockoutColorB: "yellow",
+  // Preserva o comportamento de hoje: iniciar a partida ja abre a tela dela.
+  openMatchOnStart: true,
+  // UI nova (finalizar direto pelo card do painel) e opt-in.
+  finishFromPanel: false,
 };
 
 const MODEL_RULES = {
@@ -212,8 +216,6 @@ export function getGameRules(settings) {
   return new GameRules(settings);
 }
 
-const defaultRules = getGameRules(DEFAULT_SETTINGS);
-
 export function groupBalls(group, settings) {
   return getGameRules(settings || DEFAULT_SETTINGS).groupBalls(group);
 }
@@ -230,8 +232,11 @@ export function classifyPot(payload, settings) {
   return getGameRules(settings || DEFAULT_SETTINGS).classifyPot(payload);
 }
 
-export function foulReasonText(reason) {
+// A bola de castigo varia por modo de jogo, e a partida nao guarda sob qual
+// modo foi jogada. Mas a propria entrada do log tem o numero da bola, entao ela
+// e a fonte correta - em vez da configuracao que estiver valendo agora.
+export function foulReasonText(reason, ball) {
   if (reason === "oponente") return "bola do oponente";
-  if (reason === "trunfo") return `bola ${defaultRules.penaltyBall} fora da hora`;
+  if (reason === "trunfo") return ball ? `bola ${ball} fora da hora` : "bola de castigo fora da hora";
   return "falta";
 }

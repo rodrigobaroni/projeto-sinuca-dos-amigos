@@ -1,4 +1,16 @@
 import { matchMode, matchSides, playerWon, teamKey, winnerSide } from "./match.js";
+import { gameDayKey, sortByPlayedAt } from "../utils/date.js";
+
+// Vencedor e perdedor de um 1x1, resolvidos por winner_side OU winner_id.
+// Devolve null quando a partida nao tem vencedor definido, para nao inventar
+// derrota pra ninguem.
+function singlesOutcome(match) {
+  const side = winnerSide(match);
+  if (!side) return null;
+  return side === "a"
+    ? { winner: match.player_a, loser: match.player_b }
+    : { winner: match.player_b, loser: match.player_a };
+}
 
 export function computeStats(players, matches) {
   const stats = Object.fromEntries(players.map((player) => [player.id, {
@@ -13,18 +25,20 @@ export function computeStats(players, matches) {
     history: [],
   }]));
 
-  matches.filter((match) => matchMode(match) === "1x1").forEach((match) => {
-    const loser = match.winner_id === match.player_a ? match.player_b : match.player_a;
-    if (stats[match.winner_id]) {
-      stats[match.winner_id].wins += 1;
-      stats[match.winner_id].total += 1;
+  sortByPlayedAt(matches.filter((match) => matchMode(match) === "1x1")).forEach((match) => {
+    const outcome = singlesOutcome(match);
+    if (!outcome) return;
+    const { winner, loser } = outcome;
+    if (stats[winner]) {
+      stats[winner].wins += 1;
+      stats[winner].total += 1;
     }
     if (stats[loser]) {
       stats[loser].losses += 1;
       stats[loser].total += 1;
     }
-    [match.winner_id, loser].forEach((id) => {
-      if (stats[id]) stats[id].history.push({ match, won: id === match.winner_id });
+    [winner, loser].forEach((id) => {
+      if (stats[id]) stats[id].history.push({ match, won: id === winner });
     });
   });
 
@@ -53,6 +67,7 @@ export function computeDoublesStats(players, matches) {
   matches.filter((match) => matchMode(match) === "2x2").forEach((match) => {
     const sides = matchSides(match);
     const winningSide = winnerSide(match);
+    if (!winningSide) return;
     ["a", "b"].forEach((side) => {
       const ids = sides[side].slice().sort();
       if (ids.length !== 2) return;
@@ -171,13 +186,14 @@ export function h2hRecords(players, matches) {
   const name = (id) => players.find((player) => player.id === id)?.name || "-";
   const pairs = {};
   matches.filter((match) => matchMode(match) === "1x1").forEach((match) => {
+    const outcome = singlesOutcome(match);
+    if (!outcome) return;
     const ids = [match.player_a, match.player_b].sort();
     const key = ids.join("|");
-    const loser = match.winner_id === match.player_a ? match.player_b : match.player_a;
     if (!pairs[key]) pairs[key] = { ids, games: 0, wins: {}, losses: {} };
     pairs[key].games += 1;
-    pairs[key].wins[match.winner_id] = (pairs[key].wins[match.winner_id] || 0) + 1;
-    pairs[key].losses[loser] = (pairs[key].losses[loser] || 0) + 1;
+    pairs[key].wins[outcome.winner] = (pairs[key].wins[outcome.winner] || 0) + 1;
+    pairs[key].losses[outcome.loser] = (pairs[key].losses[outcome.loser] || 0) + 1;
   });
   const rows = Object.values(pairs);
   const classic = rows.sort((a, b) => b.games - a.games)[0];
@@ -209,13 +225,20 @@ export function specialRecordCounts(players, matches) {
     donated: 0,
   }]));
   matches.filter((match) => matchMode(match) === "1x1").forEach((match) => {
-    const loser = match.winner_id === match.player_a ? match.player_b : match.player_a;
-    const one = (match.ball_log || []).find((entry) => Number(entry.ball) === 1);
-    if (one?.by === match.winner_id && one.type !== "foul" && counts[match.winner_id]) counts[match.winner_id].oneWins += 1;
+    const outcome = singlesOutcome(match);
+    if (!outcome) return;
+    const { winner, loser } = outcome;
+    const log = match.ball_log || [];
+    const one = log.find((entry) => Number(entry.ball) === 1);
+    if (one?.by === winner && one.type !== "foul" && counts[winner]) counts[winner].oneWins += 1;
     if (one?.type === "foul" && one.reason === "trunfo" && counts[one.by]) counts[one.by].earlyOne += 1;
-    const loserPots = (match.ball_log || []).filter((entry) => entry.by === loser && entry.type !== "foul" && Number(entry.ball) >= 2 && Number(entry.ball) <= 15).length;
-    if (loserPots === 0 && counts[match.winner_id]) counts[match.winner_id].washouts += 1;
-    (match.ball_log || []).forEach((entry) => {
+    // Sem anotacao de bolas nao da pra afirmar que o adversario nao encacapou
+    // nada: registrar a ordem das bolas e opcional. "Nao sei" nao e "7x0".
+    if (log.length) {
+      const loserPots = log.filter((entry) => entry.by === loser && entry.type !== "foul" && Number(entry.ball) >= 2 && Number(entry.ball) <= 15).length;
+      if (loserPots === 0 && counts[winner]) counts[winner].washouts += 1;
+    }
+    log.forEach((entry) => {
       if (entry.type !== "foul" || !counts[entry.by]) return;
       if (entry.reason === "scratch" || entry.reason === "branca") counts[entry.by].scratches += 1;
       counts[entry.by].donated += 1;
@@ -228,7 +251,9 @@ export function marathonRecord(players, matches) {
   const name = (id) => players.find((player) => player.id === id)?.name || "sem registro";
   const perPlayerDay = {};
   matches.forEach((match) => {
-    const day = new Date(match.played_at).toISOString().slice(0, 10);
+    // Dia de jogatina (12h-12h), nao dia de calendario: a jogatina vira a
+    // madrugada e o dia UTC partia a mesma noite em duas.
+    const day = gameDayKey(match.played_at);
     const sides = matchSides(match);
     [...sides.a, ...sides.b].forEach((id) => {
       const key = `${id}|${day}`;

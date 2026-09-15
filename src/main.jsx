@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 import "./styles.css";
 import { App } from "./App.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 
 const cleanEnv = (value) => String(value || "").trim().replace(/^['"]|['"]$/g, "");
 const SUPABASE_URL = cleanEnv(import.meta.env.VITE_SUPABASE_URL);
@@ -17,6 +18,8 @@ const supabaseClient = hasSupabaseConfig ? createClient(SUPABASE_URL, SUPABASE_A
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App supabaseClient={supabaseClient} />
+    <ErrorBoundary>
+      <App supabaseClient={supabaseClient} />
+    </ErrorBoundary>
   </React.StrictMode>,
 );

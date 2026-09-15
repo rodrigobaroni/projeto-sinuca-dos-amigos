@@ -1,0 +1,14 @@
+{
+  "collapse-filter": false,
+  "search": "",
+  "showTags": true,
+  "showAttachments": false,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    { "query": "path:Auditoria", "color": { "a": 1, "rgb": 14840154 } },
+    { "query": "path:Domínio", "color": { "a": 1, "rgb": 4637920 } },
+    { "query": "path:Arquitetura", "color": { "a": 1, "rgb": 4638432 } },
+    { "query": "path:Código", "color": { "a": 1, "rgb": 10267220 } }
+  ],
+  "scale": 1
+}

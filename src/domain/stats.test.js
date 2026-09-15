@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDoublesStats, computeStats, doublesPlayerStats, rankedFrom, specialRecordCounts } from "./stats.js";
+import { computeDoublesStats, computeStats, doublesPlayerStats, marathonRecord, rankedFrom, specialRecordCounts } from "./stats.js";
 
 const players = [
   { id: "a", name: "Ana" },
@@ -56,5 +56,55 @@ describe("stats domain", () => {
     ]);
 
     expect(records.find((item) => item.id === "a").washouts).toBe(1);
+  });
+
+  it("não conta lavada quando a partida não teve a ordem das bolas registrada", () => {
+    const records = specialRecordCounts(players, [
+      { id: "1", player_a: "a", player_b: "b", winner_id: "a", ball_log: [] },
+    ]);
+
+    expect(records.find((item) => item.id === "a").washouts).toBe(0);
+  });
+
+  it("agrupa a maratona por dia de jogatina, não por dia de calendário", () => {
+    // mesma noite: 23h de 23/06 e 01h de 24/06 no horário de Brasília
+    const record = marathonRecord(players, [
+      { id: "1", player_a: "a", player_b: "b", winner_id: "a", played_at: "2026-06-24T02:00:00.000Z" },
+      { id: "2", player_a: "a", player_b: "b", winner_id: "a", played_at: "2026-06-24T04:00:00.000Z" },
+    ]);
+
+    expect(record).toMatchObject({ value: 2, holder: "Ana" });
+  });
+
+  it("calcula sequências pela cronologia, não pela ordem do array", () => {
+    const cronologico = [
+      { id: "1", player_a: "a", player_b: "b", winner_id: "b", played_at: "2026-06-01T20:00:00.000Z" },
+      { id: "2", player_a: "a", player_b: "b", winner_id: "a", played_at: "2026-06-02T20:00:00.000Z" },
+      { id: "3", player_a: "a", player_b: "b", winner_id: "a", played_at: "2026-06-03T20:00:00.000Z" },
+    ];
+    const embaralhado = [cronologico[2], cronologico[0], cronologico[1]];
+
+    expect(computeStats(players, embaralhado).a).toMatchObject(
+      { curStreak: computeStats(players, cronologico).a.curStreak, bestStreak: 2 },
+    );
+    expect(computeStats(players, embaralhado).a.curStreak).toBe(2);
+  });
+
+  it("não inventa derrota quando o 1x1 foi finalizado só com winner_side", () => {
+    const stats = computeStats(players, [
+      { id: "1", player_a: "a", player_b: "b", winner_id: null, winner_side: "b" },
+    ]);
+
+    expect(stats.b).toMatchObject({ wins: 1, losses: 0 });
+    expect(stats.a).toMatchObject({ wins: 0, losses: 1 });
+  });
+
+  it("ignora partida sem vencedor definido em vez de dar derrota ao player_a", () => {
+    const stats = computeStats(players, [
+      { id: "1", player_a: "a", player_b: "b", winner_id: null, winner_side: null },
+    ]);
+
+    expect(stats.a).toMatchObject({ wins: 0, losses: 0, total: 0 });
+    expect(stats.b).toMatchObject({ wins: 0, losses: 0, total: 0 });
   });
 });

@@ -62,7 +62,7 @@ export function MatchSheet({ match, clips = [], playerById, playerName, isAdmin,
         <div className="ballrow" key={`${entry.n}-${entry.ball}-${entry.by}`}>
           <span className="n">{entry.n}</span>
           <BallLogLabel ball={entry.ball} />
-          <span className="log-desc">— {entry.type === "foul" ? `falta de ${playerName(entry.by)}${foulReasonText(entry.reason) ? ` (${foulReasonText(entry.reason)})` : ""}` : `${playerName(entry.by)}${entry.brk ? " (estouro)" : ""}`}</span>
+          <span className="log-desc">— {entry.type === "foul" ? `falta de ${playerName(entry.by)}${foulReasonText(entry.reason, entry.ball) ? ` (${foulReasonText(entry.reason, entry.ball)})` : ""}` : `${playerName(entry.by)}${entry.brk ? " (estouro)" : ""}`}</span>
         </div>
       )) : <div className="empty small-empty">{live ? "Ainda sem bolas marcadas." : "Essa partida não teve a ordem das bolas registrada."}</div>}
       <div className="eyebrow sheet-section">clipes da partida</div>
