@@ -134,11 +134,15 @@ export function createRepository(sb) {
     // "set enqueued_at = now()" via PostgREST sem uma função RPC - custo
     // aceito e documentado junto do AUD-06 (relógios dessincronizados podem
     // inverter duas posições por alguns segundos).
-    async enqueuePlayer({ gameDay, playerId }) {
+    // enqueuedAt é parâmetro (não sempre new Date()) para o chamador poder
+    // carimbar vários jogadores com timestamps distintos - ver enqueuePlayers
+    // no useQueue, que garante ordem determinística entre os dois perdedores
+    // de um 2x2.
+    async enqueuePlayer({ gameDay, playerId, enqueuedAt = new Date().toISOString() }) {
       const { data, error } = await sb
         .from("attendance")
         .upsert(
-          { game_day: gameDay, player_id: playerId, enqueued_at: new Date().toISOString(), left_at: null },
+          { game_day: gameDay, player_id: playerId, enqueued_at: enqueuedAt, left_at: null },
           { onConflict: "game_day,player_id" },
         )
         .select()

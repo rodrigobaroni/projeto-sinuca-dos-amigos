@@ -90,6 +90,22 @@ export function useQueue({ repo, matches, enabled }) {
     return row;
   };
 
+  // Perdedor volta pro fim da fila. No 2x2 os dois perdedores voltam juntos;
+  // carimbos 1ms apartados (base, base+1, ...) garantem ordem determinística
+  // entre eles - sem isso dois enqueuePlayer em paralelo poderiam colidir no
+  // mesmo milissegundo e cair no desempate por id de queueForDay, que não
+  // tem relação nenhuma com quem perdeu primeiro.
+  const enqueuePlayers = async (playerIds) => {
+    const base = Date.now();
+    const rows = await Promise.all(
+      playerIds.map((playerId, index) =>
+        repo.enqueuePlayer({ gameDay, playerId, enqueuedAt: new Date(base + index).toISOString() }),
+      ),
+    );
+    setAttendance((items) => rows.reduce((acc, row) => upsertBy(acc, row, { newerBy: "updated_at" }), items));
+    return rows;
+  };
+
   const markDeparture = async (playerId) => {
     const row = await repo.markDeparture({ gameDay, playerId });
     setAttendance((items) => upsertBy(items, row, { newerBy: "updated_at" }));
@@ -123,6 +139,7 @@ export function useQueue({ repo, matches, enabled }) {
     entries,
     markArrived,
     markDeparture,
+    enqueuePlayers,
     addTable,
     updateTable,
     deleteTable,

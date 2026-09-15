@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { finishMatchPatch, matchPlayerIds, sideLabel } from "../domain/match.js";
+import { finishMatchPatch, matchMode, matchPlayerIds, matchSides, sideLabel } from "../domain/match.js";
 
 // "Definir vencedor" usado tanto no painel de partida simples quanto (com a
 // flag finishFromPanel) no card da lista de partidas ao vivo. Com a flag
@@ -23,7 +23,7 @@ export function FinishMatchButton({ match, playerName, persistMatch, auditLog, a
       // escrita tendo falhado no Supabase.
       if (!ok) return;
       const winnerLabel = sideLabel(match, side, playerName);
-      const sideLeadId = side === "a" ? match.player_a : match.player_b;
+      const loserSide = side === "a" ? "b" : "a";
       await auditLog?.({
         action: "match_finished",
         entityType: "match",
@@ -31,7 +31,14 @@ export function FinishMatchButton({ match, playerName, persistMatch, auditLog, a
         message: `${adminUser?.email || "admin"} definiu ${winnerLabel} como vencedor da partida ${sideLabel(match, "a", playerName)} x ${sideLabel(match, "b", playerName)}`,
         metadata: { match, winnerSide: side, winnerName: winnerLabel, players: matchPlayerIds(match).map(playerName) },
       });
-      onFinished?.(sideLeadId);
+      onFinished?.({
+        match,
+        winnerSide: side,
+        winnerIds: matchSides(match)[side],
+        loserIds: matchSides(match)[loserSide],
+        tableId: match.table_id ?? null,
+        mode: matchMode(match),
+      });
       setSelectingWinner(false);
       showToast(`Vitória de ${winnerLabel} registrada`);
     } finally {

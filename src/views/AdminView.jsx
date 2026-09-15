@@ -12,10 +12,11 @@ import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "..
 import { AdminSettings } from "./AdminSettings.jsx";
 
 // queue (estado da fila, ver src/hooks/useQueue.js) alimenta a secao "fila"
-// das configuracoes (TablesAdmin) e o QueuePanel do painel, atras do
-// interruptor showQueuePanel - ainda nao entra no fluxo de iniciar/finalizar
-// partida (table_id no formulario e perdedor voltando pra fila ficam pra
-// proxima rodada).
+// das configuracoes (TablesAdmin), o QueuePanel do painel (atras do
+// interruptor showQueuePanel), a mesa gravada em toda partida iniciada
+// (StartMatchPanel) e o retorno do perdedor pro fim da fila ao finalizar
+// (handleMatchFinished, ver onFinished nos tres pontos que finalizam
+// partida: LiveMatchRouter, o FinishMatchButton do card e finishWithPenalty).
 export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, auditLog, refreshAuditLogs, players, addPlayer, updatePlayer, liveMatches, finished, currentPlayerId, onCurrentPlayerChange, playerById, playerName, persistMatch, setMatches, load, showToast, requestConfirm, queue }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,6 +26,20 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
   const [selectedLiveMatchId, setSelectedLiveMatchId] = useState("");
   const [gameSettings, setGameSettings] = useState(loadGameSettings);
   const selectedLiveMatch = liveMatches.find((match) => match.id === selectedLiveMatchId) || null;
+
+  // Perdedor(es) voltam pro fim da fila em qualquer caminho que finalize uma
+  // partida. Falha ao enfileirar não desfaz a partida finalizada (ela já foi
+  // gravada); só avisa, igual a qualquer outra escrita da fila.
+  const handleMatchFinished = async ({ winnerIds, loserIds }) => {
+    setLastWinnerId(winnerIds[0] || "");
+    if (loserIds.length && queue.available !== false) {
+      try {
+        await queue.enqueuePlayers(loserIds);
+      } catch (error) {
+        showToast(`Erro: ${error.message}`);
+      }
+    }
+  };
 
   if (!isAdmin) {
     return (
@@ -76,7 +91,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
             <button className="btn ghost small" onClick={() => setSelectedLiveMatchId("")}>← outras partidas ao vivo ({liveMatches.length - 1})</button>
           )}
           <DefaultPlayerPanel players={players} currentPlayerId={currentPlayerId} onCurrentPlayerChange={onCurrentPlayerChange} />
-          <LiveMatchRouter settings={gameSettings} adminUser={adminUser} auditLog={auditLog} liveMatch={selectedLiveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={setLastWinnerId} requestConfirm={requestConfirm} />
+          <LiveMatchRouter settings={gameSettings} adminUser={adminUser} auditLog={auditLog} liveMatch={selectedLiveMatch} finished={finished} playerById={playerById} playerName={playerName} persistMatch={persistMatch} setMatches={setMatches} load={load} showToast={showToast} repo={repo} onFinished={handleMatchFinished} requestConfirm={requestConfirm} />
         </section>
       ) : (
         <section className="panel">
@@ -96,14 +111,14 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
                 </div>
               </button>
               {gameSettings.finishFromPanel && (
-                <FinishMatchButton match={match} playerName={playerName} persistMatch={persistMatch} auditLog={auditLog} adminUser={adminUser} showToast={showToast} onFinished={setLastWinnerId} buttonClassName="btn chalk small" />
+                <FinishMatchButton match={match} playerName={playerName} persistMatch={persistMatch} auditLog={auditLog} adminUser={adminUser} showToast={showToast} onFinished={handleMatchFinished} buttonClassName="btn chalk small" />
               )}
             </div>
           ))}
           {gameSettings.showQueuePanel && (
             <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
           )}
-          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} repo={repo} setMatches={setMatches} showToast={showToast} preferredPlayerA={lastWinnerId} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
+          <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} repo={repo} setMatches={setMatches} showToast={showToast} preferredPlayerA={lastWinnerId} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
         </section>
       )}
     </>
@@ -261,7 +276,7 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo, setMatches, showToast, preferredPlayerA = "", onStarted }) {
+function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], repo, setMatches, showToast, preferredPlayerA = "", onStarted }) {
   const busyPlayerIds = new Set(liveMatches.flatMap(matchPlayerIds));
   const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
   const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
@@ -273,6 +288,11 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
   const [playerA2, setPlayerA2] = useState("");
   const [playerB, setPlayerB] = useState(initialPlayerB);
   const [playerB2, setPlayerB2] = useState("");
+  // Com 0 ou 1 mesa ativa nao ha campo pra escolher - a unica mesa (se
+  // houver) e usada direto, sem UI, pro formulario continuar identico ao de
+  // hoje nesse caso (ver tableHolders, que so rastreia dono de mesa quando a
+  // partida carrega table_id).
+  const [tableId, setTableId] = useState(() => (activeTables.length === 1 ? activeTables[0].id : ""));
   const [pickerFor, setPickerFor] = useState(null);
   const [starting, setStarting] = useState(false);
   const [when, setWhen] = useState(() => {
@@ -289,11 +309,20 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preferredPlayerA, players, liveMatches]);
 
+  useEffect(() => {
+    setTableId((current) => {
+      if (current && activeTables.some((table) => table.id === current)) return current;
+      return activeTables.length === 1 ? activeTables[0].id : "";
+    });
+  }, [activeTables]);
+
   if (players.length < 2) return <div className="empty small-empty">Cadastre pelo menos 2 jogadores acima pra iniciar uma partida.</div>;
   if (availablePlayers.length < 2) return <div className="empty small-empty">Todo mundo cadastrado já está em partida ao vivo agora.</div>;
   const selections = { a: playerA, a2: playerA2, b: playerB, b2: playerB2 };
   const requiredSlots = mode === "2x2" ? ["a", "a2", "b", "b2"] : ["a", "b"];
-  const valid = requiredSlots.every((slot) => selections[slot]) && new Set(requiredSlots.map((slot) => selections[slot])).size === requiredSlots.length;
+  const valid = requiredSlots.every((slot) => selections[slot])
+    && new Set(requiredSlots.map((slot) => selections[slot])).size === requiredSlots.length
+    && (activeTables.length <= 1 || Boolean(tableId));
   const pickerLabels = {
     a: "Quem começa (quebra)?",
     a2: "Parceiro de quem quebra",
@@ -308,6 +337,15 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
         </p>
       )}
       <div className="fld"><span>modalidade</span><div className="mode-switch compact"><button type="button" className={mode === "1x1" ? "active" : ""} onClick={() => setMode("1x1")}>1x1</button><button type="button" className={mode === "2x2" ? "active" : ""} onClick={() => setMode("2x2")}>2x2</button></div></div>
+      {activeTables.length > 1 && (
+        <label className="fld">
+          <span>mesa</span>
+          <select className="select no-margin" value={tableId} onChange={(event) => setTableId(event.target.value)}>
+            <option value="">Selecionar mesa</option>
+            {activeTables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}
+          </select>
+        </label>
+      )}
       <div className={mode === "2x2" ? "team-picker-grid" : ""}>
         <div className="team-picker-side">
           {mode === "2x2" && <strong>Dupla A</strong>}
@@ -350,6 +388,10 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], repo,
           played_at: new Date(when).toISOString(),
           ball_log: [],
           status: "live",
+          // table_id fora do payload quando nao ha mesa: table_id: null fixo
+          // faria o PostgREST devolver 400 num banco sem a migração 20260915,
+          // e iniciar partida é o caminho mais quente do painel.
+          ...(tableId ? { table_id: tableId } : {}),
         };
         const playerAName = players.find((player) => player.id === playerA)?.name;
         const playerBName = players.find((player) => player.id === playerB)?.name;
@@ -573,7 +615,12 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
       { n: cleanLog.length + 1, ball: String(penaltyBall), by, type: canWin ? "pot" : "foul", reason: "trunfo" },
     ].map((entry, index) => ({ ...entry, n: index + 1 }));
     setPendingPenalty(false);
-    await persistMatch(liveMatch.id, { ball_log: nextLog, winner_id: winnerId, status: "finished", ended_at: new Date().toISOString() });
+    const ok = await persistMatch(liveMatch.id, { ball_log: nextLog, winner_id: winnerId, status: "finished", ended_at: new Date().toISOString() });
+    // persistMatch ja mostrou o toast de erro e recarregou o estado; sem o
+    // sinal de sucesso a gente mandaria o perdedor pra fila de uma partida
+    // que nao terminou de verdade no banco (mesmo bug que o FinishMatchButton
+    // ja evitava - so nao tinha sido copiado pra cá ainda).
+    if (!ok) return;
     await auditLog?.({
       action: "match_finished",
       entityType: "match",
@@ -581,7 +628,16 @@ function LiveMatchPanel({ adminUser, auditLog, liveMatch, finished, playerById, 
       message: `${adminUser?.email || "admin"} definiu ${playerName(winnerId)} como vencedor da partida ${matchPlayersLabel(liveMatch, playerName)}`,
       metadata: { match: liveMatch, winnerId, winnerName: playerName(winnerId), penaltyBall, penaltyBallBy: by, players: [playerName(liveMatch.player_a), playerName(liveMatch.player_b)] },
     });
-    onFinished?.(winnerId);
+    const side = winnerId === liveMatch.player_a ? "a" : "b";
+    const loserSide = side === "a" ? "b" : "a";
+    onFinished?.({
+      match: liveMatch,
+      winnerSide: side,
+      winnerIds: matchSides(liveMatch)[side],
+      loserIds: matchSides(liveMatch)[loserSide],
+      tableId: liveMatch.table_id ?? null,
+      mode: matchMode(liveMatch),
+    });
     showToast(canWin ? `${playerName(by)} venceu na bola ${penaltyBall}` : `Bola ${penaltyBall} fora da hora: vitória de ${playerName(winnerId)}`);
   });
 
