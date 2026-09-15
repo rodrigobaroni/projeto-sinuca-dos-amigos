@@ -4,8 +4,8 @@ data: 2026-09-15
 ---
 # 2026-09-15 — Mesas livres no formulário de partida
 
-> [!success] APROVADO COM RESSALVAS pelo Prumo — ainda não commitado
-> Reconferência final depois da correção dos dois bloqueios abaixo. `git status` no momento desta nota ainda mostra `src/domain/queue.js`, `src/domain/queue.test.js`, `src/views/AdminView.jsx` modificados sobre `HEAD 6fc6ad8` — falta o commit. Resta uma ressalva **baixa**, de cobertura de teste, que não impede o commit. Quando commitado, mover o registro pra `Registro/Commits/` e linkar aqui.
+> [!success] APROVADO COM RESSALVAS pelo Prumo — commit [[2026-09-15 790f1ce - mesas-livres|790f1ce]]
+> Reconferência final depois da correção dos dois bloqueios abaixo. Commitado sobre `HEAD 6fc6ad8`. Resta uma ressalva **baixa**, de cobertura de teste, virou o card [[2026-09-15 - Cards MESA-01 MESA-02 MESA-03|MESA-02]] no Kanban. Ver a nota de commit para o detalhe do que entrou; esta nota fica como registro da revisão.
 
 ## O que a mudança faz
 
@@ -48,6 +48,6 @@ Prumo confirmou os dois bloqueios corrigidos e sem regressão em dirty/prefill/e
 
 ## Próximo passo
 
-Pronto pra commit. A ressalva de cobertura de teste pode virar um card de qualidade separado, se o Sumula/Rodrigo quiser tratá-la; não é bloqueante. Quando commitado, mover o registro pra `Registro/Commits/` e linkar aqui.
+Commitado como [[2026-09-15 790f1ce - mesas-livres|790f1ce]]. A ressalva de cobertura de teste virou o card MESA-02 no [[Kanban]] (ver [[2026-09-15 - Cards MESA-01 MESA-02 MESA-03]]), a cargo do Tabela.
 
-Relacionado: [[Partida ao Vivo]] · [[Diario de Trabalho]] · [[2026-09-15 - Pedido de mudança - grid no painel]]
+Relacionado: [[Partida ao Vivo]] · [[Diario de Trabalho]] · [[2026-09-15 - Pedido de mudança - grid no painel]] · [[2026-09-15 790f1ce - mesas-livres]]
