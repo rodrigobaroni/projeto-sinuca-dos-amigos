@@ -1,37 +1,15 @@
 import { sortByPlayedAt } from "../utils/date.js";
+import { addIfAbsentBy, upsertBy } from "./collection.js";
 
-// Colapsa duplicatas do mesmo id antes de aplicar a escrita. Conserta quem
-// estiver com o array sujo (dois eventos aplicados fora de ordem) sem
-// precisar de reload.
-// Politica de desempate deliberada, nao um acidente do Map: mantem a ULTIMA
-// ocorrencia, porque e a que chegou por ultimo no estado - a mais provavel de
-// ser a mais recente na ausencia de qualquer timestamp ou numero de versao na
-// linha. Se um dia a partida ganhar um updated_at (ou similar), o desempate
-// correto passa a ser por esse campo, e e aqui que se resolve.
-function dedupeById(matches) {
-  const byId = new Map();
-  for (const match of matches) byId.set(match.id, match);
-  return [...byId.values()];
-}
-
-// Realtime: a linha que chega do WAL e sempre a verdade mais recente -> substitui.
+// upsertBy/addIfAbsentBy fazem o trabalho genérico (dedupe + merge por id);
+// aqui só se fixa a ordenação cronológica que é específica de partida.
+// Ver collection.js para a política de desempate do dedupe.
 export function upsertMatch(matches, row) {
-  const deduped = dedupeById(matches);
-  const exists = deduped.some((match) => match.id === row.id);
-  const next = exists
-    ? deduped.map((match) => (match.id === row.id ? row : match))
-    : [...deduped, row];
-  return sortByPlayedAt(next);
+  return upsertBy(matches, row, { sort: sortByPlayedAt });
 }
 
-// Resposta do insert: so preenche a lacuna se o realtime ainda nao tiver chegado.
-// Nunca sobrescreve uma versao ja presente - ela pode ser mais nova que esta,
-// se o WebSocket entregou a linha antes da resposta HTTP do proprio insert.
 export function addMatchIfAbsent(matches, row) {
-  const deduped = dedupeById(matches);
-  const exists = deduped.some((match) => match.id === row.id);
-  const next = exists ? deduped : [...deduped, row];
-  return sortByPlayedAt(next);
+  return addIfAbsentBy(matches, row, { sort: sortByPlayedAt });
 }
 
 // Reproduz o patch de "Definir vencedor": no 2x2 nao ha um unico id vencedor
