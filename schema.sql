@@ -181,6 +181,104 @@ insert into storage.buckets (id, name, public)
 values ('match-clips', 'match-clips', true)
 on conflict (id) do update set public = true;
 
+-- Mesas de sinuca -----------------------------------------------
+-- As mesas moram no banco, nao no localStorage, porque a fila e
+-- compartilhada: se o nome fosse local, um segundo aparelho mostraria
+-- "mesa 1" enquanto o primeiro mostra "mesa do fundo". O flag active e
+-- como se diz "hoje e noite de mesa so" - com uma mesa ativa, a regra
+-- de nao voltar pra mesa onde perdeu se desliga sozinha.
+create table if not exists pool_tables (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  sort_order integer not null default 0,
+  active     boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint pool_tables_name_not_blank check (btrim(name) <> '')
+);
+
+create unique index if not exists pool_tables_name_idx on pool_tables (lower(btrim(name)));
+
+-- Presença da noite ----------------------------------------------
+-- Uma linha por pessoa por noite. enqueued_at E a posicao na fila:
+-- chegou, carimba; perdeu, recarimba e volta pro fim. Sem coluna de
+-- posicao numerica, entao nao ha renumeracao nem duas linhas brigando
+-- pelo mesmo lugar.
+--
+-- left_at preenchido = foi embora, sai da fila. Voltou? Limpa left_at
+-- e recarimba enqueued_at.
+--
+-- game_day e a chave 'YYYY-MM-DD' do dia de jogatina (12h as 12h),
+-- calculada no app por gameDayKey() em src/utils/date.js - nao e a
+-- data de calendario.
+create table if not exists attendance (
+  id          uuid primary key default gen_random_uuid(),
+  game_day    text not null,
+  player_id   uuid not null references players(id) on delete cascade,
+  arrived_at  timestamptz not null default now(),
+  enqueued_at timestamptz not null default now(),
+  left_at     timestamptz,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  constraint attendance_game_day_format check (game_day ~ '^\d{4}-\d{2}-\d{2}$'),
+  constraint attendance_unique_player_per_day unique (game_day, player_id)
+);
+
+create index if not exists attendance_queue_idx on attendance (game_day, enqueued_at);
+
+-- Mesa onde a partida foi jogada -----------------------------------
+-- Nulo de proposito: as partidas que ja existem foram jogadas antes de
+-- haver mesa nomeada, e preencher na marra seria inventar dado.
+alter table matches add column if not exists table_id uuid references pool_tables(id) on delete set null;
+
+create index if not exists matches_table_id_idx on matches (table_id);
+
+create or replace function touch_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists pool_tables_touch_updated_at on pool_tables;
+create trigger pool_tables_touch_updated_at
+  before update on pool_tables
+  for each row
+  execute function touch_updated_at();
+
+drop trigger if exists attendance_touch_updated_at on attendance;
+create trigger attendance_touch_updated_at
+  before update on attendance
+  for each row
+  execute function touch_updated_at();
+
+-- Realtime: quem marca presença num aparelho tem que aparecer no outro
+-- sem reload.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'pool_tables'
+  ) then
+    alter publication supabase_realtime add table public.pool_tables;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'attendance'
+  ) then
+    alter publication supabase_realtime add table public.attendance;
+  end if;
+end $$;
+
+-- Duas mesas pra comecar.
+insert into pool_tables (name, sort_order, active)
+values ('Mesa 1', 1, true), ('Mesa 2', 2, true)
+on conflict do nothing;
+
 -- ============================================================
 --  RLS (Row Level Security)
 --  Leitura: liberada para todos (qualquer pessoa com o link).
@@ -190,6 +288,8 @@ alter table players enable row level security;
 alter table matches enable row level security;
 alter table audit_logs enable row level security;
 alter table match_clips enable row level security;
+alter table pool_tables enable row level security;
+alter table attendance enable row level security;
 
 -- Leitura publica
 drop policy if exists "leitura publica players" on players;
@@ -207,6 +307,14 @@ create policy "leitura admin audit_logs"
 drop policy if exists "leitura publica match_clips" on match_clips;
 create policy "leitura publica match_clips"
   on match_clips for select using (true);
+
+drop policy if exists "leitura publica pool_tables" on pool_tables;
+create policy "leitura publica pool_tables"
+  on pool_tables for select using (true);
+
+drop policy if exists "leitura publica attendance" on attendance;
+create policy "leitura publica attendance"
+  on attendance for select using (true);
 
 -- Escrita somente para logado (admin)
 drop policy if exists "escrita admin players" on players;
@@ -229,6 +337,18 @@ create policy "escrita admin audit_logs"
 drop policy if exists "escrita admin match_clips" on match_clips;
 create policy "escrita admin match_clips"
   on match_clips for all
+  using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
+
+drop policy if exists "escrita admin pool_tables" on pool_tables;
+create policy "escrita admin pool_tables"
+  on pool_tables for all
+  using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
+
+drop policy if exists "escrita admin attendance" on attendance;
+create policy "escrita admin attendance"
+  on attendance for all
   using (auth.role() = 'authenticated')
   with check (auth.role() = 'authenticated');
 
