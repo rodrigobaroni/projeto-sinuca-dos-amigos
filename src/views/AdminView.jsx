@@ -7,7 +7,7 @@ import { PlayerPickerModal } from "../components/PlayerPickerModal.jsx";
 import { QueuePanel } from "../components/QueuePanel.jsx";
 import { getGameRules } from "../domain/rules.js";
 import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
-import { eligibleForTable } from "../domain/queue.js";
+import { eligibleForTable, freeTables, tableHolderSuggestion } from "../domain/queue.js";
 import { loadGameSettings } from "../services/gameSettingsStorage.js";
 import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
 import { AdminSettings } from "./AdminSettings.jsx";
@@ -148,7 +148,7 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
             {gameSettings.showQueuePanel && (
               <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
             )}
-            <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} queueLoaded={queue.loaded} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
+            <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} holders={queue.holders} queueLoaded={queue.loaded} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
           </div>
         </section>
       )}
@@ -307,7 +307,7 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], queueLoaded = false, repo, setMatches, showToast, prefill, onStarted }) {
+function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], holders = {}, queueLoaded = false, repo, setMatches, showToast, prefill, onStarted }) {
   const busyPlayerIds = new Set(liveMatches.flatMap(matchPlayerIds));
   const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
   const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
@@ -323,11 +323,13 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
   const [playerA2, setPlayerA2] = useState("");
   const [playerB, setPlayerB] = useState(initialPlayerB);
   const [playerB2, setPlayerB2] = useState("");
-  // Com 0 ou 1 mesa ativa nao ha campo pra escolher - a unica mesa (se
-  // houver) e usada direto, sem UI, pro formulario continuar identico ao de
-  // hoje nesse caso (ver tableHolders, que so rastreia dono de mesa quando a
-  // partida carrega table_id).
-  const [tableId, setTableId] = useState(() => (activeTables.length === 1 ? activeTables[0].id : ""));
+  // Mesa ocupada nao e opcao: so entram no seletor as mesas sem partida ao
+  // vivo em cima. Com 0 ou 1 mesa LIVRE nao ha campo pra escolher - a unica
+  // (se houver) e usada direto, sem UI, pro formulario continuar identico ao
+  // de hoje nesse caso (ver tableHolders, que so rastreia dono de mesa
+  // quando a partida carrega table_id).
+  const availableTables = useMemo(() => freeTables({ activeTables, liveMatches }), [activeTables, liveMatches]);
+  const [tableId, setTableId] = useState(() => (availableTables.length === 1 ? availableTables[0].id : ""));
   const [pickerFor, setPickerFor] = useState(null);
   const [starting, setStarting] = useState(false);
   const [when, setWhen] = useState(() => {
@@ -379,20 +381,38 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
     setPlayerA2((current) => clearIfInvalid(current));
     setPlayerB((current) => clearIfInvalid(current));
     setPlayerB2((current) => clearIfInvalid(current));
+    // Mesa que era valida e acabou de receber uma partida ao vivo tambem
+    // "virou invalida" - mesma regra de sempre, agora medida contra as mesas
+    // livres. Nao impoe escolha nova: so cai na unica livre quando sobra uma
+    // so, exatamente como ja fazia quando sobrava uma mesa ativa so.
     setTableId((current) => {
-      if (current && activeTables.some((table) => table.id === current)) return current;
-      return activeTables.length === 1 ? activeTables[0].id : "";
+      if (current && availableTables.some((table) => table.id === current)) return current;
+      return availableTables.length === 1 ? availableTables[0].id : "";
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [players, liveMatches, activeTables]);
+  }, [players, liveMatches, availableTables]);
 
   if (players.length < 2) return <div className="empty small-empty">Cadastre pelo menos 2 jogadores acima pra iniciar uma partida.</div>;
   if (availablePlayers.length < 2) return <div className="empty small-empty">Todo mundo cadastrado já está em partida ao vivo agora.</div>;
+  // Sem mesa livre nao da pra comecar nada - melhor dizer isso do que deixar
+  // o admin montar uma partida que o botao nunca vai aceitar. So vale quando
+  // ha mesa cadastrada: sem nenhuma mesa ativa a regra de mesa esta
+  // desligada e o formulario funciona como sempre funcionou.
+  if (activeTables.length > 0 && availableTables.length === 0) {
+    return <div className="empty small-empty">Todas as mesas estão ocupadas com partida ao vivo. Finalize uma pra liberar a mesa e começar a próxima.</div>;
+  }
   const selections = { a: playerA, a2: playerA2, b: playerB, b2: playerB2 };
   const requiredSlots = mode === "2x2" ? ["a", "a2", "b", "b2"] : ["a", "b"];
   const valid = requiredSlots.every((slot) => selections[slot])
     && new Set(requiredSlots.map((slot) => selections[slot])).size === requiredSlots.length
-    && (activeTables.length <= 1 || Boolean(tableId))
+    // Conteudo, nao cardinalidade: "sobrou uma mesa livre" nao pode liberar
+    // o envio sozinho. Quando availableTables encolhe (o realtime avisa que a
+    // Mesa 2 acabou de receber partida), quem conserta tableId e o Efeito 2 -
+    // efeito passivo, que o React pode rodar depois de pintar. Nessa janela
+    // uma checagem por contagem aceitaria tableId apontando pra mesa recem
+    // ocupada, ou vazio. Exigir que tableId esteja de fato entre as livres
+    // fecha a janela: no maximo o botao fica travado ate o efeito rodar.
+    && (activeTables.length === 0 || availableTables.some((table) => table.id === tableId))
     // Enquanto a fila do admin ainda não carregou, tables está [] e
     // activeTables.length <= 1 dá falso positivo de "regra desligada" -
     // deixaria iniciar sem table_id mesmo com duas mesas no banco. A janela
@@ -413,12 +433,37 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
         </p>
       )}
       <div className="fld"><span>modalidade</span><div className="mode-switch compact"><button type="button" className={mode === "1x1" ? "active" : ""} onClick={() => { setMode("1x1"); setDirty(true); }}>1x1</button><button type="button" className={mode === "2x2" ? "active" : ""} onClick={() => { setMode("2x2"); setDirty(true); }}>2x2</button></div></div>
-      {activeTables.length > 1 && (
+      {availableTables.length > 1 && (
         <label className="fld">
           <span>mesa</span>
-          <select className="select no-margin" value={tableId} onChange={(event) => { setTableId(event.target.value); setDirty(true); }}>
+          <select className="select no-margin" value={tableId} onChange={(event) => {
+            const nextTableId = event.target.value;
+            setTableId(nextTableId);
+            setDirty(true);
+            // Sugerir o dono da mesa no lado A mora AQUI, no onChange, e nao
+            // num efeito: isto e acao direta do admin (ele acabou de escolher
+            // a mesa), nao prefill vindo de fora. Num efeito brigaria com a
+            // guarda dirty - trocar de mesa marca o formulario como sujo, que
+            // e justamente o sinal que impede prefill de sobrescrever escolha
+            // manual (ver Efeito 1).
+            const holder = tableHolderSuggestion({
+              tableId: nextTableId,
+              holders,
+              availablePlayerIds: availablePlayers.map((player) => player.id),
+              // So os slots ativos no modo atual, mesmo criterio que o
+              // PlayerPickerModal usa logo abaixo: em 1x1 os campos de dupla
+              // estao escondidos, mas o estado deles sobrevive a um 2x2
+              // anterior - contar esse residuo faria o dono da mesa parecer
+              // "ja escalado" e matava a sugestao sem motivo. playerA fica de
+              // fora de proposito: e o campo que estamos preenchendo.
+              takenPlayerIds: requiredSlots.filter((slot) => slot !== "a").map((slot) => selections[slot]).filter(Boolean),
+            });
+            // Sem sugestao (mesa sem dono, dono ocupado ou ja escalado) o
+            // lado A fica como esta - sugestao nao limpa escolha de ninguem.
+            if (holder) setPlayerA(holder);
+          }}>
             <option value="">Selecionar mesa</option>
-            {activeTables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}
+            {availableTables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}
           </select>
         </label>
       )}

@@ -4,8 +4,8 @@ data: 2026-09-15
 ---
 # 2026-09-15 — Pedido de mudança: grid no painel (iPad)
 
-> [!warning] PARADO — aguardando QA da fila
-> Pedido feito pelo Pessoal (Rodrigo) e ainda **sem nenhuma linha de código tocada**. O Efeito está com o app aberto testando a fila (ver [[Partida ao Vivo]] / feature de fila e mesas) neste exato momento — mexer no código agora invalidaria o que ele já verificou. Esta nota registra a intenção; a implementação só entra depois do veredito do QA.
+> [!success] Entregue — commit [[2026-09-15 6fc6ad8 - grid-no-painel|6fc6ad8]]
+> Implementado depois que o Efeito fechou o QA da fila. Prumo revisou o diff sem achados; 105 testes e build verdes. Ver a nota de commit para os arquivos tocados e detalhe técnico — esta nota fica como registro do pedido original.
 
 ## Pedido
 

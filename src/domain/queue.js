@@ -61,6 +61,28 @@ export function tableHolders({ tables, gameDay, matches, attendance }) {
   return holders;
 }
 
+// Mesas em que dá pra iniciar uma partida agora: as ativas sem partida ao
+// vivo em cima. Partida ao vivo sem table_id (banco sem a migração 20260915,
+// ou partida criada antes dela) não ocupa mesa nenhuma - senão uma única
+// partida órfã esconderia todas as mesas do formulário de uma vez.
+export function freeTables({ activeTables, liveMatches }) {
+  const busyTableIds = new Set(liveMatches.map((match) => match.table_id).filter(Boolean));
+  return activeTables.filter((table) => !busyTableIds.has(table.id));
+}
+
+// Quem sugerir no lado A quando o admin escolhe uma mesa no formulário: o
+// dono dela - o vencedor da última partida ali, já sem quem foi embora e sem
+// quem está em partida ao vivo (tableHolders resolve isso). Devolve null
+// quando não há sugestão: mesa sem dono, dono que não está mais disponível,
+// ou dono já escolhido noutro campo do formulário. É sugestão, não trava -
+// quem chama nunca limpa o campo por causa de um null.
+export function tableHolderSuggestion({ tableId, holders, availablePlayerIds, takenPlayerIds = [] }) {
+  if (!tableId) return null;
+  const available = new Set(availablePlayerIds);
+  const taken = new Set(takenPlayerIds);
+  return (holders?.[tableId] || []).find((id) => available.has(id) && !taken.has(id)) ?? null;
+}
+
 // Quem está esperando: presença da noite, sem left_at, menos quem está
 // jogando e menos quem é dono de alguma mesa (holders já resolvido por
 // tableHolders - não recalculado aqui para as duas funções não divergirem).

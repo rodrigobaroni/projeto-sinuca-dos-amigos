@@ -5,7 +5,9 @@ tags: [registro, moc]
 
 Índice cronológico invertido (mais recente primeiro) das sessões de trabalho registradas no vault.
 
-- [[2026-09-15 - Pedido de mudança - grid no painel]] — ⚠️ PARADO, aguardando veredito do QA da fila; pedido do Rodrigo para grid ≥2 colunas nas partidas ao vivo e `StartMatchPanel`/`QueuePanel` lado a lado acima de 768px.
+- [[2026-09-15 - Mesas livres no formulario de partida]] — ✅ APROVADO COM RESSALVAS pelo Prumo na reconferência (os 2 bloqueios corrigidos; ressalva baixa de cobertura de teste); 119 testes e build verdes; ainda não commitado.
+- [[2026-09-15 6fc6ad8 - grid-no-painel]] — commit que fechou o pedido de grid no painel; Prumo sem achados, 105 testes e build verdes.
+- [[2026-09-15 - Pedido de mudança - grid no painel]] — ✅ entregue no commit acima; pedido do Rodrigo para grid ≥2 colunas nas partidas ao vivo e `StartMatchPanel`/`QueuePanel` lado a lado acima de 768px.
 - [[2026-08-20 - Correções da auditoria de 20-08]] — correção de 10 dos 12 achados da [[Auditoria 2026-08-20]]; AUD-01 aceito conscientemente, AUD-09 pendente de decisão.
 
 Relacionado: [[Home]] · [[Auditoria 2026-08-20]]

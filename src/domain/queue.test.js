@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildQueue,
   eligibleForTable,
+  freeTables,
   lastLossTableId,
   nextForTable,
   queueForDay,
   suggestedTableIds,
+  tableHolderSuggestion,
   tableHolders,
   tableSuggestionLabel,
 } from "./queue.js";
@@ -370,5 +372,105 @@ describe("buildQueue", () => {
 
     expect(holders[T1]).toBeUndefined();
     expect(entries.map((entry) => entry.player_id)).toEqual(["a"]);
+  });
+});
+
+describe("freeTables", () => {
+  it("tira do formulário a mesa que tem partida ao vivo em cima", () => {
+    const result = freeTables({ activeTables: tables, liveMatches: [liveMatch({ table_id: T2 })] });
+    expect(result.map((table) => table.id)).toEqual([T1, T3]);
+  });
+
+  it("devolve todas as mesas quando não há partida rolando", () => {
+    expect(freeTables({ activeTables: tables, liveMatches: [] })).toEqual(tables);
+  });
+
+  it("devolve vazio quando todas as mesas estão ocupadas", () => {
+    const live = [liveMatch({ id: "l1", table_id: T1 }), liveMatch({ id: "l2", table_id: T2 }), liveMatch({ id: "l3", table_id: T3 })];
+    expect(freeTables({ activeTables: tables, liveMatches: live })).toEqual([]);
+  });
+
+  // Partida sem mesa é o estado de quem não rodou a migração 20260915: ela
+  // não pode ocupar (nem esconder) mesa nenhuma.
+  it("ignora partida ao vivo sem table_id", () => {
+    const live = [liveMatch({ table_id: null }), liveMatch({ id: "l2", table_id: undefined })];
+    expect(freeTables({ activeTables: tables, liveMatches: live })).toEqual(tables);
+  });
+
+  it("não considera mesa inativa - o chamador já passa só as ativas", () => {
+    expect(freeTables({ activeTables: [], liveMatches: [] })).toEqual([]);
+  });
+});
+
+describe("tableHolderSuggestion", () => {
+  const holders = { [T1]: ["a"], [T2]: ["b", "c"], [T3]: [] };
+
+  it("sugere o dono da mesa escolhida", () => {
+    const suggestion = tableHolderSuggestion({ tableId: T1, holders, availablePlayerIds: ["a", "b", "c"] });
+    expect(suggestion).toBe("a");
+  });
+
+  it("devolve null quando a mesa não tem dono (ninguém ganhou ali ainda)", () => {
+    expect(tableHolderSuggestion({ tableId: T3, holders, availablePlayerIds: ["a", "b", "c"] })).toBeNull();
+  });
+
+  it("devolve null quando nenhuma mesa foi escolhida", () => {
+    expect(tableHolderSuggestion({ tableId: "", holders, availablePlayerIds: ["a"] })).toBeNull();
+  });
+
+  it("devolve null para mesa que nem está no mapa de donos", () => {
+    expect(tableHolderSuggestion({ tableId: "table-9", holders, availablePlayerIds: ["a"] })).toBeNull();
+  });
+
+  it("pula o dono que não está disponível (entrou em partida ao vivo)", () => {
+    expect(tableHolderSuggestion({ tableId: T1, holders, availablePlayerIds: ["b", "c"] })).toBeNull();
+  });
+
+  it("pula o dono já escolhido noutro campo e sugere o parceiro da dupla", () => {
+    const suggestion = tableHolderSuggestion({
+      tableId: T2,
+      holders,
+      availablePlayerIds: ["a", "b", "c"],
+      takenPlayerIds: ["b"],
+    });
+    expect(suggestion).toBe("c");
+  });
+
+  it("devolve null quando a dupla inteira já está escolhida noutros campos", () => {
+    const suggestion = tableHolderSuggestion({
+      tableId: T2,
+      holders,
+      availablePlayerIds: ["a", "b", "c"],
+      takenPlayerIds: ["b", "c"],
+    });
+    expect(suggestion).toBeNull();
+  });
+
+  // Regressao 2x2 -> 1x1: o formulario guarda o parceiro escolhido num 2x2
+  // anterior mesmo depois de voltar pro 1x1, onde esse campo nem aparece. Se
+  // o chamador passar esse residuo em takenPlayerIds, o dono da mesa vira
+  // "ja escalado" e a sugestao some sem motivo - por isso quem chama manda
+  // so os slots ativos no modo atual (ver o onChange do seletor de mesa).
+  it("sugere o dono que so ocupa slot inativo do modo atual (1x1 herdando A2 de um 2x2)", () => {
+    const soloHolders = { [T1]: ["joao"] };
+    const escalados1x1 = ["b"]; // em 1x1 so o lado B conta; o A2 herdado fica de fora
+    expect(tableHolderSuggestion({
+      tableId: T1,
+      holders: soloHolders,
+      availablePlayerIds: ["joao", "b"],
+      takenPlayerIds: escalados1x1,
+    })).toBe("joao");
+    // E o contrario segue valendo: em 2x2, com o joao realmente no A2, nao ha
+    // sugestao - ninguem pode ser escalado duas vezes na mesma partida.
+    expect(tableHolderSuggestion({
+      tableId: T1,
+      holders: soloHolders,
+      availablePlayerIds: ["joao", "b"],
+      takenPlayerIds: ["joao", "b"],
+    })).toBeNull();
+  });
+
+  it("aceita holders ausente sem quebrar", () => {
+    expect(tableHolderSuggestion({ tableId: T1, holders: undefined, availablePlayerIds: ["a"] })).toBeNull();
   });
 });
