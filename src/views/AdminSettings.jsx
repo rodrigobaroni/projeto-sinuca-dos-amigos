@@ -222,6 +222,22 @@ export function AdminSettings({ settings, onSettingsChange, adminUser, auditLog,
             </button>
           </div>
 
+          <div className="settings-row">
+            <div className="settings-copy">
+              <strong>Usar mesas</strong>
+              <span>Quando desligado, as mesas continuam cadastradas, só saem da tela — e só dá pra ter uma partida ao vivo por vez.</span>
+            </div>
+            <button
+              className={`switch ${settings.tablesEnabled ? "on" : ""}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.tablesEnabled}
+              onClick={() => updateSetting("tablesEnabled", !settings.tablesEnabled)}
+            >
+              <span />
+            </button>
+          </div>
+
           <div className="settings-field">
             <span>Mesas</span>
             {queue?.available === false ? (
@@ -256,6 +272,7 @@ function settingLabel(key) {
     finishFromPanel: "gerenciar partidas em uma tela",
     autoPickPlayers: "seleção automática de jogador",
     showQueuePanel: "mostrar a fila no painel",
+    tablesEnabled: "usar mesas",
   }[key] || key;
 }
 

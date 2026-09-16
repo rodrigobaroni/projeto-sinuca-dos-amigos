@@ -10,7 +10,7 @@ import { matchPlayerIds } from "../domain/match.js";
 // Presenca nao e auditada (nem aqui, nem na folha): dezenas de eventos por
 // noite afogariam a aba Logs, e a fila ja esta visivel na tela pra quem
 // precisa saber quem chegou.
-export function QueuePanel({ queue, liveMatches, players, playerById, showToast }) {
+export function QueuePanel({ queue, liveMatches, players, playerById, showToast, showTables = true }) {
   const [showArrivalSheet, setShowArrivalSheet] = useState(false);
   const { activeTables, holders, entries, available, markDeparture } = queue;
 
@@ -24,7 +24,7 @@ export function QueuePanel({ queue, liveMatches, players, playerById, showToast 
 
   return (
     <div className="card queue-panel">
-      {activeTables.length > 0 && (
+      {showTables && activeTables.length > 0 && (
         <div className="queue-tables-head">
           {activeTables.map((table) => {
             const live = liveMatches.some((match) => match.table_id === table.id);
@@ -92,19 +92,26 @@ export function QueuePanel({ queue, liveMatches, players, playerById, showToast 
 // Reaproveita .identity-alert-bg / .identity-alert / .identity-grid do
 // mesmo jeito, so que sem o onClose no fundo.
 function ArrivalSheet({ players, queue, liveMatches, showToast, onClose }) {
-  const { attendance, gameDay, holders, entries, markArrived } = queue;
+  const { attendance, gameDay, holders, entries, markArrived, markDeparture } = queue;
   const queueIds = new Set(entries.map((entry) => entry.player_id));
   const holderIds = new Set(Object.values(holders || {}).flat());
   const busyIds = new Set(liveMatches.flatMap((match) => matchPlayerIds(match)));
 
+  const rowFor = (playerId) => attendance.find((item) => item.player_id === playerId && item.game_day === gameDay);
+
   const stateFor = (playerId) => {
     if (busyIds.has(playerId)) return "jogando";
     if (holderIds.has(playerId)) return "na mesa";
-    const row = attendance.find((item) => item.player_id === playerId && item.game_day === gameDay);
-    if (row?.left_at) return "foi embora";
+    if (rowFor(playerId)?.left_at) return "foi embora";
     if (queueIds.has(playerId)) return "na fila";
     return "";
   };
+
+  // Quem da pra marcar como tendo ido embora: quem esta na jogatina agora.
+  // A saida e um controle SEPARADO do toque de chegada, nao um botao que
+  // muda de sentido conforme o estado - um botao contextual reabriria o
+  // risco de toque acidental que a trava de chegada resolveu.
+  const canMarkDeparture = (state, left) => !left && ["na fila", "na mesa", "jogando"].includes(state);
 
   // markArrived recarimba enqueued_at e manda a pessoa pro fim da fila - certo
   // pra quem nunca chegou ou foi embora e voltou, mas um toque acidental em
@@ -118,13 +125,15 @@ function ArrivalSheet({ players, queue, liveMatches, showToast, onClose }) {
   // upserts, e o segundo recarimba enqueued_at de novo, mandando a pessoa pro
   // fim da fila outra vez. Nao resolve dois admins em aparelhos diferentes
   // tocando ao mesmo tempo - isso continua sendo o AUD-06 de sempre.
+  // A trava vale para as DUAS acoes, por jogador: enquanto uma esta em voo,
+  // nem ela nem a outra disparam de novo no mesmo nome.
   const [pendingIds, setPendingIds] = useState(() => new Set());
 
-  const handleArrival = async (playerId, state) => {
-    if (!canMarkArrival(state) || pendingIds.has(playerId)) return;
+  const comTrava = async (playerId, acao) => {
+    if (pendingIds.has(playerId)) return;
     setPendingIds((current) => new Set(current).add(playerId));
     try {
-      await markArrived(playerId);
+      await acao();
     } catch (error) {
       showToast(`Erro: ${error.message}`);
     } finally {
@@ -136,31 +145,66 @@ function ArrivalSheet({ players, queue, liveMatches, showToast, onClose }) {
     }
   };
 
+  const handleArrival = async (playerId, state) => {
+    if (!canMarkArrival(state)) return;
+    await comTrava(playerId, () => markArrived(playerId));
+  };
+
+  const handleDeparture = async (playerId, state, left) => {
+    if (!canMarkDeparture(state, left)) return;
+    await comTrava(playerId, () => markDeparture(playerId));
+  };
+
   return (
     <div className="identity-alert-bg">
       <section className="identity-alert" role="alertdialog" aria-modal="true" aria-labelledby="arrival-sheet-title">
         <div className="eyebrow">fila</div>
         <div id="arrival-sheet-title" className="confirm-title">Quem chegou?</div>
-        <p>Toque pra marcar presença. Quem foi embora e voltou também entra por aqui.</p>
+        <p>Toque no nome pra marcar chegada. O ⨯ marca saída.</p>
         <div className="identity-grid" aria-label="Quem chegou">
           {players.map((player) => {
             const state = stateFor(player.id);
-            const disabled = !canMarkArrival(state) || pendingIds.has(player.id);
+            const left = Boolean(rowFor(player.id)?.left_at);
+            const pending = pendingIds.has(player.id);
+            const disabled = !canMarkArrival(state) || pending;
+            const leaveDisabled = !canMarkDeparture(state, left) || pending;
+            // Botoes irmaos, nunca aninhados: o ⨯ nao pode borbulhar pro
+            // toque de chegada (mesmo motivo do ADENDO D1 no card ao vivo).
             return (
-              <button
-                key={player.id}
-                type="button"
-                className={`identity-player ${disabled ? "disabled" : ""}`}
-                disabled={disabled}
-                aria-disabled={disabled}
-                onClick={() => handleArrival(player.id, state)}
-              >
-                <PlayerBall player={player} size={40} />
-                <span>
-                  <strong>{player.name}</strong>
-                  {state && <em>{state}</em>}
-                </span>
-              </button>
+              <div key={player.id} className="identity-player-row">
+                <button
+                  type="button"
+                  className={`identity-player ${disabled ? "disabled" : ""}`}
+                  disabled={disabled}
+                  aria-disabled={disabled}
+                  onClick={() => handleArrival(player.id, state)}
+                >
+                  <PlayerBall player={player} size={40} />
+                  <span>
+                    <strong>{player.name}</strong>
+                    {/* Quem esta jogando e ja foi marcado continua "jogando"
+                        - e verdade, a partida nao acabou - mas sem o aviso o
+                        admin nao ve que a marcacao pegou e toca de novo.
+                        "de saida" e nao "saiu" de proposito: o sufixo so
+                        aparece junto de "na fila"/"na mesa"/"jogando", e
+                        "jogando · saiu" se le como contradicao (jogando =
+                        ainda aqui, saiu = ja foi) - exatamente a confusao que
+                        o aviso deveria evitar. "de saida" diz pendente sem
+                        brigar com o estado ao lado. */}
+                    {(state || left) && <em>{[state, left && state !== "foi embora" ? "de saída" : ""].filter(Boolean).join(" · ")}</em>}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="queue-remove"
+                  aria-label={`${player.name} foi embora`}
+                  disabled={leaveDisabled}
+                  aria-disabled={leaveDisabled}
+                  onClick={() => handleDeparture(player.id, state, left)}
+                >
+                  ⨯
+                </button>
+              </div>
             );
           })}
         </div>

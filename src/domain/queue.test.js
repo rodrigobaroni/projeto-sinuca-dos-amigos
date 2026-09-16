@@ -6,6 +6,7 @@ import {
   lastLossTableId,
   nextForTable,
   queueForDay,
+  playersToReenqueue,
   suggestedTableIds,
   tableHolderSuggestion,
   tableHolders,
@@ -472,5 +473,105 @@ describe("tableHolderSuggestion", () => {
 
   it("aceita holders ausente sem quebrar", () => {
     expect(tableHolderSuggestion({ tableId: T1, holders: undefined, availablePlayerIds: ["a"] })).toBeNull();
+  });
+});
+
+// A projecao de "mesas desligadas" e feita RECOMPONDO buildQueue com a mesa
+// padrao sozinha (ver AdminView). Estes testes travam o porque: filtrar o
+// resultado depois - esconder rotulo, esvaziar lista - nao resolve, porque
+// suggestedTableIds e queueForDay ja decidiram com todas as mesas.
+describe("mesas desligadas: composicao com a mesa padrao sozinha", () => {
+  const T_PADRAO = T1;
+  const attendance = [
+    attendanceRow({ id: "att-x", player_id: "x", enqueued_at: at("20") }),
+    attendanceRow({ id: "att-y", player_id: "y", enqueued_at: at("21") }),
+  ];
+  // X perdeu na mesa padrao; Y ganhou ali e segue como dono. Alem disso, Z
+  // ganhou a ultima da outra mesa, entao e dono da T2.
+  const matches = [
+    finishedMatch({ id: "m1", table_id: T_PADRAO, player_a: "y", player_b: "x", winner_id: "y", winner_side: "a" }),
+    finishedMatch({ id: "m2", table_id: T2, player_a: "z", player_b: "w", winner_id: "z", winner_side: "a" }),
+  ];
+
+  // Sintoma 1: com todas as mesas, quem perdeu na padrao so e elegivel pra
+  // OUTRA mesa - e como toda partida passa a ser na padrao, ele nunca mais e
+  // escolhido. Fila sem saida.
+  it("com todas as mesas, o perdedor da mesa padrao NAO e elegivel pra ela", () => {
+    const { entries } = buildQueue({ tables, gameDay: GAME_DAY, matches, attendance });
+    expect(entries.find((entry) => entry.player_id === "x").suggestedTableIds).toEqual([T2, T3]);
+    expect(eligibleForTable(T_PADRAO, entries).map((entry) => entry.player_id)).not.toContain("x");
+  });
+
+  it("recompondo so com a mesa padrao, ele volta a ser elegivel pra proxima partida", () => {
+    const { entries } = buildQueue({ tables: [tables[0]], gameDay: GAME_DAY, matches, attendance });
+    expect(entries.find((entry) => entry.player_id === "x").suggestedTableIds).toEqual([T_PADRAO]);
+    expect(eligibleForTable(T_PADRAO, entries).map((entry) => entry.player_id)).toContain("x");
+  });
+
+  it("sem mesa pra alternar, o rotulo sai vazio sozinho - sem precisar apagar", () => {
+    const { entries } = buildQueue({ tables: [tables[0]], gameDay: GAME_DAY, matches, attendance });
+    // So o X espera: o Y ganhou a ultima na mesa padrao, entao esta NA MESA,
+    // nao na fila.
+    expect(entries.map((entry) => entry.player_id)).toEqual(["x"]);
+    expect(entries.map((entry) => entry.label)).toEqual([""]);
+  });
+
+  // Sintoma 2: quem segurava a outra mesa continuaria fora da fila, dono de
+  // uma mesa que a configuracao acabou de abolir.
+  it("quem segurava a outra mesa deixa de ser dono e volta pra fila", () => {
+    const comZ = [...attendance, attendanceRow({ id: "att-z", player_id: "z", enqueued_at: at("22") })];
+    const todas = buildQueue({ tables, gameDay: GAME_DAY, matches, attendance: comZ });
+    expect(Object.values(todas.holders).flat()).toContain("z");
+    expect(todas.entries.map((entry) => entry.player_id)).not.toContain("z");
+
+    const soPadrao = buildQueue({ tables: [tables[0]], gameDay: GAME_DAY, matches, attendance: comZ });
+    expect(Object.values(soPadrao.holders).flat()).not.toContain("z");
+    expect(soPadrao.entries.map((entry) => entry.player_id)).toContain("z");
+  });
+
+  // E o dono da mesa PADRAO continua sendo dono: ele e quem esta na mesa.
+  it("preserva o dono da mesa padrao", () => {
+    const { holders, entries } = buildQueue({ tables: [tables[0]], gameDay: GAME_DAY, matches, attendance });
+    expect(holders[T_PADRAO]).toEqual(["y"]);
+    expect(entries.map((entry) => entry.player_id)).not.toContain("y");
+  });
+});
+
+describe("playersToReenqueue", () => {
+  const saiu = (playerId) => attendanceRow({ id: "a-" + playerId, player_id: playerId, left_at: at("23") });
+  const presente = (playerId) => attendanceRow({ id: "a-" + playerId, player_id: playerId });
+
+  it("devolve os perdedores que continuam na jogatina", () => {
+    const attendance = [presente("a"), presente("b")];
+    expect(playersToReenqueue({ playerIds: ["a", "b"], gameDay: GAME_DAY, attendance })).toEqual(["a", "b"]);
+  });
+
+  // O caso da emenda: o admin marca que a pessoa foi embora enquanto ela
+  // ainda esta jogando. Quando a partida termina, ela nao pode voltar pra
+  // fila sozinha - seria desfazer em silencio o que o admin mandou.
+  it("nao ressuscita quem o admin marcou como tendo ido embora", () => {
+    const attendance = [saiu("a"), presente("b")];
+    expect(playersToReenqueue({ playerIds: ["a", "b"], gameDay: GAME_DAY, attendance })).toEqual(["b"]);
+  });
+
+  it("devolve vazio quando a dupla inteira que perdeu ja tinha ido embora", () => {
+    const attendance = [saiu("a"), saiu("b")];
+    expect(playersToReenqueue({ playerIds: ["a", "b"], gameDay: GAME_DAY, attendance })).toEqual([]);
+  });
+
+  // "Foi embora" e da noite: quem saiu na jogatina passada nao esta fora desta.
+  it("ignora saida registrada em outra jogatina", () => {
+    const attendance = [attendanceRow({ id: "velho", player_id: "a", game_day: "2026-06-20", left_at: at("23") })];
+    expect(playersToReenqueue({ playerIds: ["a"], gameDay: GAME_DAY, attendance })).toEqual(["a"]);
+  });
+
+  it("aceita listas vazias sem quebrar", () => {
+    expect(playersToReenqueue({ playerIds: [], gameDay: GAME_DAY, attendance: [] })).toEqual([]);
+    expect(playersToReenqueue({ playerIds: ["a"], gameDay: GAME_DAY, attendance: undefined })).toEqual(["a"]);
+  });
+
+  it("preserva a ordem recebida - ela decide o enqueued_at de cada um", () => {
+    const attendance = [presente("a"), saiu("b"), presente("c")];
+    expect(playersToReenqueue({ playerIds: ["c", "b", "a"], gameDay: GAME_DAY, attendance })).toEqual(["c", "a"]);
   });
 });

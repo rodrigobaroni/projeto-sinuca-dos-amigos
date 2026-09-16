@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { removeBy, upsertBy } from "../domain/collection.js";
-import { buildQueue } from "../domain/queue.js";
+import { buildQueue, playersToReenqueue } from "../domain/queue.js";
 import { gameDayKey } from "../utils/date.js";
 
 const sortTables = (items) =>
@@ -132,9 +132,16 @@ export function useQueue({ repo, matches, enabled }) {
   // mesmo milissegundo e cair no desempate por id de queueForDay, que não
   // tem relação nenhuma com quem perdeu primeiro.
   const enqueuePlayers = async (playerIds) => {
+    // Quem o admin marcou como tendo ido embora nao volta pra fila ao
+    // perder: o upsert de enfileirar limpa o left_at, entao sem esse filtro
+    // a pessoa reaparece na fila sozinha e a marcacao do admin some sem
+    // aviso. Filtrado aqui, e nao no repositorio, pra nao mexer no contrato
+    // de enqueuePlayer (que segue sendo o primitivo unico de chegou/voltou).
+    const alvos = playersToReenqueue({ playerIds, gameDay, attendance });
+    if (!alvos.length) return [];
     const base = Date.now();
     const rows = await Promise.all(
-      playerIds.map((playerId, index) =>
+      alvos.map((playerId, index) =>
         repo.enqueuePlayer({ gameDay, playerId, enqueuedAt: new Date(base + index).toISOString() }),
       ),
     );
@@ -169,6 +176,14 @@ export function useQueue({ repo, matches, enabled }) {
     gameDay,
     tables,
     activeTables,
+    // matches cru sai daqui pra quem precisa RECOMPOR a fila com outra lista
+    // de mesas (o AdminView faz isso quando as mesas estao desligadas). Sem
+    // isso o chamador remontaria a lista de liveMatches + finished, e esses
+    // dois nao somam o mesmo conjunto: finished, no App, exige vencedor
+    // (winner_id || winner_side), enquanto buildQueue quer status
+    // "finished" - uma partida finalizada sem vencedor mudaria quem e dono
+    // da mesa entre uma composicao e outra.
+    matches,
     attendance,
     available,
     loaded,

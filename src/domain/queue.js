@@ -30,10 +30,17 @@ function latestMatch(matches) {
 // Quem está segurando cada mesa: quem ganhou por último e ainda não jogou de
 // novo nem foi embora. Entre uma partida e a próxima o vencedor não está
 // esperando - está de pé na mesa - então não pode reaparecer na fila.
-export function tableHolders({ tables, gameDay, matches, attendance }) {
-  const leftIds = new Set(
-    attendance.filter((row) => row.game_day === gameDay && row.left_at).map((row) => row.player_id),
+// Quem o admin marcou como tendo ido embora nesta noite. Uma definicao so,
+// usada por tableHolders e por playersToReenqueue - se as duas divergirem, a
+// pessoa some de um lugar e reaparece no outro.
+function leftPlayerIds(gameDay, attendance) {
+  return new Set(
+    (attendance || []).filter((row) => row.game_day === gameDay && row.left_at).map((row) => row.player_id),
   );
+}
+
+export function tableHolders({ tables, gameDay, matches, attendance }) {
+  const leftIds = leftPlayerIds(gameDay, attendance);
   const liveMatches = matches.filter((match) => match.status === "live");
   const busyIds = new Set(liveMatches.flatMap((match) => matchPlayerIds(match)));
 
@@ -115,6 +122,17 @@ export function lastLossTableId({ playerId, gameDay, finishedMatches }) {
   });
   const latest = latestMatch(losses);
   return latest ? (latest.table_id ?? null) : null;
+}
+
+// Quem entra de volta na fila ao perder. O perdedor volta pro fim - menos
+// quem o admin ja marcou como tendo ido embora: reenfileirar essa pessoa
+// contradiz em silencio uma acao explicita do admin (ele marca que ela saiu,
+// ela perde a partida em andamento e reaparece na fila sozinha, porque o
+// upsert de enfileirar limpa o left_at). Quem saiu, ficou fora; voltar e
+// decisao do admin, pela folha de presenca.
+export function playersToReenqueue({ playerIds, gameDay, attendance }) {
+  const leftIds = leftPlayerIds(gameDay, attendance);
+  return (playerIds || []).filter((playerId) => !leftIds.has(playerId));
 }
 
 // Com 0 ou 1 mesa ativa a regra de alternância se desliga sozinha. Se a mesa

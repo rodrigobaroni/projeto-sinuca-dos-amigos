@@ -29,6 +29,11 @@ export const DEFAULT_SETTINGS = {
   // Bloco da fila no painel e opt-in: liga-se pelo interruptor na primeira
   // noite, pra poder desligar num toque se algo estiver errado.
   showQueuePanel: false,
+  // Mesas ligadas e o comportamento de hoje. Desligada, as mesas somem da
+  // tela (seletor, rotulo na fila, cabecalho de donos) mas continuam
+  // cadastradas, e a noite passa a ser de mesa unica - uma partida ao vivo
+  // por vez (ver a trava em StartMatchPanel).
+  tablesEnabled: true,
 };
 
 const MODEL_RULES = {

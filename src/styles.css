@@ -352,6 +352,10 @@ label.fld span{display:block;font-family:'Space Mono';font-size:11px;letter-spac
   background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-md);color:var(--cue);
   text-align:left;cursor:pointer;transition:border-color .16s ease,background .16s ease,transform .08s ease,box-shadow .16s ease;
 }
+.identity-player-row{display:flex;align-items:center;gap:8px;min-width:0}
+.identity-player-row .identity-player{flex:1;min-width:0}
+.identity-player-row .queue-remove{flex:0 0 auto}
+.identity-player-row .queue-remove:disabled{opacity:.35;cursor:not-allowed}
 .identity-player:active{transform:scale(.99)}
 .identity-player:focus-visible{outline:none;box-shadow:var(--focus-ring)}
 .identity-player:hover{border-color:var(--gold);background:linear-gradient(100deg,var(--surface-gold),var(--surface-2))}

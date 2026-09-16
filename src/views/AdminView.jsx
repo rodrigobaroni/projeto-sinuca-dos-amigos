@@ -8,7 +8,7 @@ import { QueuePanel } from "../components/QueuePanel.jsx";
 import { liveDayHeadToHead } from "../domain/dayScore.js";
 import { getGameRules } from "../domain/rules.js";
 import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, winnerSide } from "../domain/match.js";
-import { eligibleForTable, freeTables, tableHolderSuggestion } from "../domain/queue.js";
+import { buildQueue, eligibleForTable, freeTables, tableHolderSuggestion } from "../domain/queue.js";
 import { loadGameSettings } from "../services/gameSettingsStorage.js";
 import { fmtFull, fmtPeriod, playedAtISO, toDatetimeLocal } from "../utils/date.js";
 import { AdminSettings } from "./AdminSettings.jsx";
@@ -35,6 +35,57 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
   const [gameSettings, setGameSettings] = useState(loadGameSettings);
   const selectedLiveMatch = liveMatches.find((match) => match.id === selectedLiveMatchId) || null;
 
+  // ---- Mesas ligadas/desligadas: ponto unico de leitura da flag ----
+  // Quem consome (StartMatchPanel, QueuePanel, handleMatchFinished) recebe
+  // valores ja derivados e nunca le queue.activeTables/entries crus nem a
+  // propria flag - assim "o que a mesa significa" fica decidido num lugar so.
+  const tablesEnabled = gameSettings.tablesEnabled !== false;
+  // Mesa padrao: a primeira ativa (queue.activeTables ja vem ordenada por
+  // sort_order). Com as mesas desligadas a partida CONTINUA gravando
+  // table_id com ela. Nao e detalhe: tableHolders deriva o dono do table_id
+  // da ultima partida finalizada, entao sem mesa no dado nao haveria dono, e
+  // o vencedor cairia de volta na fila a cada partida - "quem ganha fica"
+  // quebraria justamente na noite mais simples.
+  const defaultTable = queue.activeTables[0] || null;
+  const defaultTableId = defaultTable?.id || "";
+  const effectiveActiveTables = useMemo(
+    () => (tablesEnabled ? queue.activeTables : (defaultTable ? [defaultTable] : [])),
+    [tablesEnabled, queue.activeTables, defaultTable],
+  );
+  // A fila e RECOMPOSTA com a mesa padrao sozinha - nao basta esconder mesa
+  // da tela. Se a composicao continuasse enxergando todas as mesas, duas
+  // coisas quebrariam de um jeito que o admin nao teria como desfazer:
+  //
+  // 1. suggestedTableIds de quem perdeu na mesa padrao continuaria sendo "a
+  //    outra mesa" (a regra de nao voltar pra mesa onde perdeu). Como toda
+  //    partida passa a ser na padrao, eligibleForTable nunca devolveria essa
+  //    pessoa: ela ficaria esperando pra sempre, sem nunca ser escolhida.
+  // 2. tableHolders continuaria dando dono as mesas que a flag aboliu, e
+  //    queueForDay tira dono da fila - quem segurava a outra mesa ficaria
+  //    fora da fila indefinidamente, segurando uma mesa que nao existe mais.
+  //
+  // Recompondo, os dois caem no lugar sozinhos: com uma mesa ativa so,
+  // suggestedTableIds vira [padrao] pra todo mundo, o label sai vazio (por
+  // isso nao ha map de label aqui) e so a padrao tem dono.
+  const composedQueue = useMemo(() => {
+    if (tablesEnabled) return { holders: queue.holders, entries: queue.entries };
+    return buildQueue({
+      tables: effectiveActiveTables,
+      gameDay: queue.gameDay,
+      matches: queue.matches,
+      attendance: queue.attendance,
+    });
+  }, [tablesEnabled, queue.holders, queue.entries, queue.gameDay, queue.matches, queue.attendance, effectiveActiveTables]);
+  // holders sai da composicao, entao o dono da MESA PADRAO e preservado (ele
+  // continua aparecendo como "na mesa" na folha de presenca - sem isso um
+  // toque acidental o mandaria pro fim da fila, que e o que canMarkArrival
+  // evita) e os das outras mesas, que a flag aboliu, deixam de existir.
+  const effectiveEntries = composedQueue.entries;
+  const effectiveQueue = useMemo(
+    () => ({ ...queue, activeTables: effectiveActiveTables, holders: composedQueue.holders, entries: effectiveEntries }),
+    [queue, effectiveActiveTables, composedQueue.holders, effectiveEntries],
+  );
+
   // Perdedor(es) voltam pro fim da fila em qualquer caminho que finalize uma
   // partida - isso independe de autoPickPlayers, que so controla o
   // pre-preenchimento do formulario. Falha ao enfileirar não desfaz a
@@ -51,14 +102,19 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
     if (!gameSettings.autoPickPlayers) return;
     // A mesa só entra no prefill se ainda estiver ativa - desativada entre o
     // fim da partida e agora, ou apagada, ela não pode ser pré-selecionada.
-    const validTableId = tableId && queue.activeTables.some((table) => table.id === tableId) ? tableId : "";
+    // effectiveActiveTables ja é a mesa padrão sozinha quando as mesas estão
+    // desligadas, então serve para os dois casos. Único efeito de borda: uma
+    // partida que rolou na outra mesa ANTES de a flag ser desligada não
+    // pré-seleciona mesa nenhuma - as próximas, gravadas na padrão, voltam a
+    // pré-selecionar normalmente.
+    const validTableId = tableId && effectiveActiveTables.some((table) => table.id === tableId) ? tableId : "";
     // Lado B vem da fila ANTES de enqueuePlayers aplicar (o estado só
     // atualiza no próximo render): os próprios perdedores desta partida
     // nunca entram como sugestão de adversário imediato, o que é o
     // comportamento certo - eles acabaram de voltar pro fim da fila.
     const neededB = finishedMode === "2x2" ? 2 : 1;
     const nextB = validTableId
-      ? eligibleForTable(validTableId, queue.entries).slice(0, neededB).map((entry) => entry.player_id)
+      ? eligibleForTable(validTableId, effectiveEntries).slice(0, neededB).map((entry) => entry.player_id)
       : [];
     setPrefill({ stamp: Date.now(), mode: finishedMode, tableId: validTableId, a: winnerIds, b: nextB });
   };
@@ -162,9 +218,9 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
           )}
           <div className="panel-start-grid">
             {gameSettings.showQueuePanel && (
-              <QueuePanel queue={queue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} />
+              <QueuePanel queue={effectiveQueue} liveMatches={liveMatches} players={players} playerById={playerById} showToast={showToast} showTables={tablesEnabled} />
             )}
-            <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={queue.activeTables} holders={queue.holders} queueLoaded={queue.loaded} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
+            <StartMatchPanel adminUser={adminUser} auditLog={auditLog} players={players} liveMatches={liveMatches} activeTables={effectiveActiveTables} holders={composedQueue.holders} queueLoaded={queue.loaded} fallbackTableId={tablesEnabled ? "" : defaultTableId} oneMatchAtATime={!tablesEnabled} showTableField={tablesEnabled} repo={repo} setMatches={setMatches} showToast={showToast} prefill={prefill} onStarted={(id) => { if (gameSettings.openMatchOnStart) setSelectedLiveMatchId(id); }} />
           </div>
         </section>
       )}
@@ -323,7 +379,7 @@ function PlayerAdmin({ players, addPlayer, updatePlayer, showToast }) {
   );
 }
 
-function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], holders = {}, queueLoaded = false, repo, setMatches, showToast, prefill, onStarted }) {
+function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activeTables = [], holders = {}, queueLoaded = false, fallbackTableId = "", oneMatchAtATime = false, showTableField = true, repo, setMatches, showToast, prefill, onStarted }) {
   const busyPlayerIds = new Set(liveMatches.flatMap(matchPlayerIds));
   const availablePlayers = players.filter((player) => !busyPlayerIds.has(player.id));
   const busyPlayers = players.filter((player) => busyPlayerIds.has(player.id));
@@ -340,10 +396,10 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
   const [playerB, setPlayerB] = useState(initialPlayerB);
   const [playerB2, setPlayerB2] = useState("");
   // Mesa ocupada nao e opcao: so entram no seletor as mesas sem partida ao
-  // vivo em cima. Com 0 ou 1 mesa LIVRE nao ha campo pra escolher - a unica
-  // (se houver) e usada direto, sem UI, pro formulario continuar identico ao
-  // de hoje nesse caso (ver tableHolders, que so rastreia dono de mesa
-  // quando a partida carrega table_id).
+  // vivo em cima. O campo aparece sempre que existe ao menos uma mesa livre,
+  // inclusive quando ha so uma - ver mesa e confirmar em qual vai jogar
+  // importa mais que economizar uma linha de formulario. Com zero mesa livre
+  // nao ha campo (nem formulario: os early-returns abaixo pegam esse caso).
   const availableTables = useMemo(() => freeTables({ activeTables, liveMatches }), [activeTables, liveMatches]);
   const [tableId, setTableId] = useState(() => (availableTables.length === 1 ? availableTables[0].id : ""));
   const [pickerFor, setPickerFor] = useState(null);
@@ -413,6 +469,21 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
 
   if (players.length < 2) return <div className="empty small-empty">Cadastre pelo menos 2 jogadores acima pra iniciar uma partida.</div>;
   if (availablePlayers.length < 2) return <div className="empty small-empty">Todo mundo cadastrado já está em partida ao vivo agora.</div>;
+  // Decisao de produto: com as mesas desligadas a noite e de mesa unica,
+  // entao so rola uma partida ao vivo por vez. A trava vale PELA
+  // CONFIGURACAO, nao por existir linha em pool_tables - sem nenhuma mesa
+  // cadastrada o comportamento e o mesmo.
+  //
+  // Isso reintroduz de proposito uma trava que o banco teve e perdeu: ver
+  // schema.sql:111 ("Antes so existia uma mesa de sinuca, entao so podia
+  // haver 1 partida 'live' por vez... essa trava foi removida"). La ela era
+  // limitacao tecnica de quando so havia uma mesa; aqui e escolha de quem
+  // toca a noite, e vive so no cliente - o indice unico continua removido no
+  // banco, porque com as mesas ligadas varias partidas ao vivo sao o normal.
+  // Nao e regressao: nao desfaca sem falar com o Rodrigo.
+  if (oneMatchAtATime && liveMatches.length > 0) {
+    return <div className="empty small-empty">Já tem uma partida rolando. Finalize pra começar a próxima.</div>;
+  }
   // Sem mesa livre nao da pra comecar nada - melhor dizer isso do que deixar
   // o admin montar uma partida que o botao nunca vai aceitar. So vale quando
   // ha mesa cadastrada: sem nenhuma mesa ativa a regra de mesa esta
@@ -452,7 +523,7 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
         </p>
       )}
       <div className="fld"><span>modalidade</span><div className="mode-switch compact"><button type="button" className={mode === "1x1" ? "active" : ""} onClick={() => { setMode("1x1"); setDirty(true); }}>1x1</button><button type="button" className={mode === "2x2" ? "active" : ""} onClick={() => { setMode("2x2"); setDirty(true); }}>2x2</button></div></div>
-      {availableTables.length > 1 && (
+      {showTableField && availableTables.length > 0 && (
         <label className="fld">
           <span>mesa</span>
           <select className="select no-margin" value={tableId} onChange={(event) => {
@@ -532,7 +603,10 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
           // table_id fora do payload quando nao ha mesa: table_id: null fixo
           // faria o PostgREST devolver 400 num banco sem a migração 20260915,
           // e iniciar partida é o caminho mais quente do painel.
-          ...(tableId ? { table_id: tableId } : {}),
+          // Com as mesas desligadas o seletor nao existe e tableId fica
+          // vazio, mas a partida ainda grava a mesa padrão (fallbackTableId):
+          // e o que mantem o dono da mesa e o "quem ganha fica" funcionando.
+          ...(tableId || fallbackTableId ? { table_id: tableId || fallbackTableId } : {}),
         };
         const playerAName = players.find((player) => player.id === playerA)?.name;
         const playerBName = players.find((player) => player.id === playerB)?.name;

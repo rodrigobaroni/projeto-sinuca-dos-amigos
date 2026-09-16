@@ -4,21 +4,24 @@ data: 2026-09-16
 ---
 # 2026-09-16 — Paginação e ordem determinística das partidas
 
-> [!success] APROVADO SEM RESSALVAS — reconferência final do Prumo, ainda não commitado
-> Revisão original contra `HEAD 2134990` bloqueou por achado de **alta severidade** em `src/services/supabaseRepository.js`; correção aplicada pelo Tabela e reconferida pelo Prumo, que fechou **sem ressalvas**. Validação independente: 148/148 testes, build e diff check verdes. O Pessoal já recebeu o parecer final. Falta só o commit — quando sair, atualizar esta nota, criar o registro em `Registro/Commits/` e marcar [[AUD-10 Achados latentes e menores]] L4 como corrigido.
+> [!success] APROVADO SEM RESSALVAS — commit [[2026-09-16 f18aab2 - paginacao-e-ordem|f18aab2]]
+> Revisão original contra `HEAD 2134990` bloqueou por achado de **alta severidade** em `src/services/supabaseRepository.js`; correção aplicada pelo Tabela e reconferida pelo Prumo, que fechou **sem ressalvas**. Validação independente: 148/148 testes, build e diff check verdes.
+>
+> Esta nota cobre só a parte de **paginação e ordem**. O bug do horário congelado que alimentou os lotes empatados (item 2 abaixo) tem nota própria — [[2026-09-16 - Horario congelado no formulario de partida]] — e os dois juntos têm uma terceira nota sobre como um causou o outro e os números medidos contra produção: [[2026-09-16 - Encadeamento paginacao e horario congelado]].
 
 ## O que a mudança faz
 
-Fecha [[AUD-10 Achados latentes e menores|L4 (nada é paginado)]] e resolve, de quebra, um segundo bug achado durante o trabalho:
+Fecha [[AUD-10 Achados latentes e menores|L4 (nada é paginado)]].
 
-1. **Paginação** — `players`, `matches` e `match_clips` passam por `fetchAllRows()` (`src/services/fetchAllRows.js`, novo), que percorre em páginas de 1000 linhas até a página vir incompleta. Sem isso, o PostgREST corta a resposta em 1000 linhas **sem erro nenhum**; como a ordem é crescente, o que sumia eram as partidas mais recentes. `attendance`, `pool_tables` e `audit_logs` ficam de fora de propósito (não crescem sem teto, ou já têm `.limit()` por decisão de produto).
-2. **Horário congelado no formulário** — `StartMatchPanel` calculava o campo "data e hora" uma vez, na montagem. Com `openMatchOnStart` desligado o formulário nunca desmonta, então a noite inteira ia pro banco com o mesmo carimbo (visto em produção: 20 partidas às 23:01, 13 às 02:35). `playedAtISO({ edited, inputValue, now })` (`src/utils/date.js:123`) resolve isso: sem edição, usa o instante real do clique; editado, lê o valor digitado no fuso do produto (`America/Sao_Paulo`); editado mas vazio/inválido, cai no instante real em vez de estourar (`new Date("").toISOString()` lança `RangeError`).
+`players`, `matches` e `match_clips` passam por `fetchAllRows()` (`src/services/fetchAllRows.js`, novo), que percorre em páginas de 1000 linhas até a página vir incompleta. Sem isso, o PostgREST corta a resposta em 1000 linhas **sem erro nenhum**; como a ordem é crescente, o que sumia eram as partidas mais recentes. `attendance`, `pool_tables` e `audit_logs` ficam de fora de propósito (não crescem sem teto, ou já têm `.limit()` por decisão de produto).
+
+Enquanto essa paginação estava sendo revisada, um segundo bug — o horário congelado no formulário — estava produzindo os lotes de `played_at` idêntico que tornaram a instabilidade da ordenação visível. Ver as duas notas linkadas acima para o bug em si e para como um alimentou o outro.
 
 ## Achado do Prumo — BLOQUEADO (severidade alta)
 
 **Onde**: `src/services/supabaseRepository.js`, consulta de `matches` em `loadScoreboard()`.
 
-**O que estava errado**: a consulta paginada ordenava só por `played_at` (`sb.from("matches").select("*").order("played_at", { ascending: true })`, sem segunda chave). Numa página do PostgREST, linhas empatadas em `played_at` podem vir em qualquer ordem — e o desempate de fato, quando a chave pedida não distingue, cai no `id`, que é **UUID aleatório**. `computeStats` calcula `curStreak` na ordem em que as partidas chegam (`src/domain/stats.js`), então o sorteio do UUID decidia sequência de vitória dentro de um lote de `played_at` igual — e lotes assim não são raros: o bug do horário congelado (item 2 acima) gravava dezenas de partidas no mesmo minuto.
+**O que estava errado**: a consulta paginada ordenava só por `played_at` (`sb.from("matches").select("*").order("played_at", { ascending: true })`, sem segunda chave). Numa página do PostgREST, linhas empatadas em `played_at` podem vir em qualquer ordem — e o desempate de fato, quando a chave pedida não distingue, cai no `id`, que é **UUID aleatório**. `computeStats` calcula `curStreak` na ordem em que as partidas chegam (`src/domain/stats.js`), então o sorteio do UUID decidia sequência de vitória dentro de um lote de `played_at` igual — e lotes assim não são raros: o [[2026-09-16 - Horario congelado no formulario de partida|bug do horário congelado]] gravava dezenas de partidas no mesmo minuto.
 
 **Cenário reproduzido**: mesma dupla de partidas (uma derrota às 02:02, uma vitória às 02:03), só a ordem de chegada muda — `curStreak` sai **1** na ordem cronológica real e **0** na ordem que o desempate por `id` daria. Teste que trava isso: `src/domain/stats.test.js:30` ("curStreak depende da ordem de chegada - por isso o desempate e cronologico").
 
@@ -46,8 +49,4 @@ Prumo confirmou a ordem corrigida nas três consultas (`matches`: `played_at ASC
 
 **Testes e build**: 148/148 testes, build e diff check verdes (validação independente).
 
-## Próximo passo
-
-Falta só o commit. Quando sair, atualizar esta nota com o sha, criar o registro em `Registro/Commits/` e marcar [[AUD-10 Achados latentes e menores]] L4 como corrigido (ajustando também o card correspondente no [[Kanban]], se o Súmula já tiver criado um).
-
-Relacionado: [[Serviços e Supabase]] · [[AUD-10 Achados latentes e menores]] · [[Estatísticas e Ranking]] · [[Diario de Trabalho]]
+Relacionado: [[Serviços e Supabase]] · [[AUD-10 Achados latentes e menores]] · [[Estatísticas e Ranking]] · [[2026-09-16 - Horario congelado no formulario de partida]] · [[2026-09-16 - Encadeamento paginacao e horario congelado]] · [[Diario de Trabalho]]
