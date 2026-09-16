@@ -20,6 +20,24 @@ describe("stats domain", () => {
     expect(stats.b).toMatchObject({ wins: 1, losses: 1, total: 2, pct: 50, curStreak: 1, bestStreak: 1 });
   });
 
+  // Por que a query de matches desempata por created_at ANTES de id (ver
+  // supabaseRepository.js): curStreak sai da ordem em que as partidas
+  // chegam, e id e UUID aleatorio. Nos lotes que o horario congelado criou
+  // (varias partidas com o mesmo played_at), desempatar por id deixaria o
+  // sorteio do UUID decidir sequencia de vitoria. Este teste trava a
+  // premissa: mesma dupla de partidas, so a ordem muda, e o resultado muda
+  // junto.
+  it("curStreak depende da ordem de chegada - por isso o desempate e cronologico", () => {
+    const derrota = { id: "f-uuid-alto", player_a: "a", player_b: "b", winner_id: "b" };
+    const vitoria = { id: "0-uuid-baixo", player_a: "a", player_b: "b", winner_id: "a" };
+
+    // Ordem real (derrota as 02:02, vitoria as 02:03): a Ana esta com 1 de sequencia.
+    expect(computeStats(players, [derrota, vitoria]).a).toMatchObject({ curStreak: 1, wins: 1, losses: 1 });
+    // Ordem que o desempate por id daria (o "0" vem antes do "f"): a mesma
+    // noite vira sequencia zerada.
+    expect(computeStats(players, [vitoria, derrota]).a).toMatchObject({ curStreak: 0, wins: 1, losses: 1 });
+  });
+
   it("keeps doubles outside the individual ranking and ranks the partnership", () => {
     const allPlayers = [...players, { id: "d", name: "Dani" }];
     const matches = [{

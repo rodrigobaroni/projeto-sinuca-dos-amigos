@@ -1,15 +1,55 @@
+import { fetchAllRows } from "./fetchAllRows.js";
+
+// Paginação: matches, players e match_clips crescem sem teto e por isso
+// passam por fetchAllRows (ver lá o porquê - o PostgREST trunca em 1000 sem
+// avisar). Ficam de fora, de propósito: attendance (filtrado por game_day -
+// uma noite tem dezenas de linhas, não milhares), pool_tables (unidades) e
+// audit_logs (já tem .limit() explícito, é paginação por decisão de produto).
+// Toda query paginada precisa de ordem TOTAL e determinística: sem isso o
+// PostgREST pode devolver linhas empatadas em ordem diferente entre duas
+// páginas, e a fronteira duplica uma linha e perde outra. E empate em
+// played_at é o que não falta (o horário congelado gravou 20 partidas no
+// mesmo minuto).
+//
+// A ordem do desempate importa mais do que parece: id aqui é UUID ALEATÓRIO.
+// Como sortByPlayedAt é estável e computeStats calcula curStreak na ordem em
+// que as partidas chegam, desempatar por id faria o sorteio do UUID decidir
+// sequência de vitória - dentro de um lote de played_at igual, a derrota
+// podia aparecer depois da vitória. created_at é not null e registra a ordem
+// real de inserção, então ele desempata de verdade; id fica por último, só
+// para fechar a ordem total.
 export function createRepository(sb) {
   return {
     async loadScoreboard() {
       const [{ data: players, error: playersError }, { data: matches, error: matchesError }] = await Promise.all([
-        sb.from("players").select("*").order("name"),
-        sb.from("matches").select("*").order("played_at", { ascending: true }),
+        fetchAllRows((from, to) => sb
+          .from("players")
+          .select("*")
+          .order("name")
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)),
+        // played_at crescente continua sendo o contrato com o resto do app
+        // (sortByPlayedAt e o cálculo de sequências contam com isso): as
+        // páginas vêm ordenadas e são concatenadas na ordem, então a lista
+        // final sai ordenada igual à de antes - só completa.
+        fetchAllRows((from, to) => sb
+          .from("matches")
+          .select("*")
+          .order("played_at", { ascending: true })
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)),
       ]);
       if (playersError || matchesError) throw playersError || matchesError;
-      const { data: clips, error: clipsError } = await sb
+      // Aqui created_at já é a chave principal, então a ordem cronológica
+      // não depende do desempate; id entra só para fechar a ordem total.
+      const { data: clips, error: clipsError } = await fetchAllRows((from, to) => sb
         .from("match_clips")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to));
       const safeClips = clipsError ? [] : clips || [];
       return {
         players: players || [],

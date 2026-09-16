@@ -33,8 +33,11 @@ A constraint `matches_finished_has_winner` aceita uma partida **1x1** finalizada
 ### L3 — Dependência de fuso → promovido
 Deixou de ser latente: a própria suíte falha sob outro `TZ`. Virou achado próprio em [[AUD-12 Dia de jogatina depende do fuso do navegador]].
 
-### L4 — Nada é paginado
+### L4 — Nada é paginado 🚧 correção em andamento
 `loadScoreboard()` faz `select("*")` sem `limit`. A API REST do Supabase aplica um teto de linhas; ao ultrapassá-lo o app **para de ver as partidas mais antigas sem erro nenhum** e todo o ranking histórico fica errado em silêncio. Hoje são 406 partidas. Ver [[Serviços e Supabase]].
+
+> [!warning] Correção aprovada pelo Prumo — falta só o commit
+> A correção introduziu um segundo achado (ordenação instável derrubando `curStreak`), corrigido e reconferido: **APROVADO SEM RESSALVAS**. Ver [[2026-09-16 - Paginacao e ordem deterministica das partidas]]. Assim que commitar, este item vira ✅ corrigido.
 
 ## Menores (visíveis, baixo impacto)
 

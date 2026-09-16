@@ -5,6 +5,7 @@ tags: [registro, moc]
 
 Índice cronológico invertido (mais recente primeiro) das sessões de trabalho registradas no vault.
 
+- [[2026-09-16 - Paginacao e ordem deterministica das partidas]] — ✅ APROVADO SEM RESSALVAS na reconferência final do Prumo (achado alto original: desempate por UUID reordenava partidas e alterava `curStreak`, corrigido). Fecha [[AUD-10 Achados latentes e menores|L4]]. 148/148 testes, build e diff check verdes; falta só o commit.
 - [[2026-09-15 - Cards MESA-01 MESA-02 MESA-03]] — triagem do Súmula: MESA-01 (sugerir dupla inteira, aguarda decisão de UX) e MESA-02 (fechar lacuna de teste) no Backlog; MESA-03 (QA ao vivo contra hml, bloqueante pro push) em QA.
 - [[2026-09-15 790f1ce - mesas-livres]] — commit que fecha a revisão de mesas livres; Prumo aprovou com ressalva baixa, 119 testes e build verdes.
 - [[2026-09-15 - Mesas livres no formulario de partida]] — ✅ APROVADO COM RESSALVAS pelo Prumo na reconferência (os 2 bloqueios corrigidos; ressalva baixa de cobertura de teste), entregue no commit acima.
