@@ -5,11 +5,12 @@ import { FinishMatchButton } from "../components/FinishMatchButton.jsx";
 import { ViewHead } from "../components/layout.jsx";
 import { PlayerPickerModal } from "../components/PlayerPickerModal.jsx";
 import { QueuePanel } from "../components/QueuePanel.jsx";
+import { liveDayHeadToHead } from "../domain/dayScore.js";
 import { getGameRules } from "../domain/rules.js";
-import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
+import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, winnerSide } from "../domain/match.js";
 import { eligibleForTable, freeTables, tableHolderSuggestion } from "../domain/queue.js";
 import { loadGameSettings } from "../services/gameSettingsStorage.js";
-import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange, playedAtISO, toDatetimeLocal } from "../utils/date.js";
+import { fmtFull, fmtPeriod, playedAtISO, toDatetimeLocal } from "../utils/date.js";
 import { AdminSettings } from "./AdminSettings.jsx";
 
 // queue (estado da fila, ver src/hooks/useQueue.js) alimenta a secao "fila"
@@ -125,7 +126,12 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
               entao o empilhamento de hoje continua identico. */}
           {liveMatches.length > 0 && (
           <div className="panel-live-grid">
-            {liveMatches.map((match) => (
+            {liveMatches.map((match) => {
+              // Placar do confronto desta jogatina: aparece sempre que ha
+              // partida ao vivo, independente de finishFromPanel - e leitura,
+              // nao acao. A regra mora em domain/dayScore.js, com teste.
+              const dayScore = liveDayHeadToHead(finished, match);
+              return (
               // Dois botoes nativos irmaos, nao um aninhado dentro do outro: o
               // keydown de Enter/Espaço no botao de "Definir vencedor" nao pode
               // borbulhar e tambem abrir a partida (ver ADENDO D1).
@@ -134,6 +140,15 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
                   <div className="live-label"><span /> <span className="eyebrow">ao vivo agora</span></div>
                   <div className="live-row">
                     <strong>{sideLabel(match, "a", playerName)} <span>vs</span> {sideLabel(match, "b", playerName)}</strong>
+                  </div>
+                  {/* As bolas viram badge no fim desta linha, em vez de linha
+                      propria: o card nao ganha uma quarta peca empilhada. */}
+                  <div className="live-card-score">
+                    <strong>{sideLabel(match, "a", playerName)}</strong>
+                    <b>{dayScore.winsA}</b>
+                    <em>x</em>
+                    <b>{dayScore.winsB}</b>
+                    <strong>{sideLabel(match, "b", playerName)}</strong>
                     <span className="rank-sub">{(match.ball_log || []).length} bolas</span>
                   </div>
                 </button>
@@ -141,7 +156,8 @@ export function AdminView({ repo, isAdmin, setIsAdmin, adminUser, auditLogs, aud
                   <FinishMatchButton match={match} playerName={playerName} persistMatch={persistMatch} auditLog={auditLog} adminUser={adminUser} showToast={showToast} onFinished={handleMatchFinished} buttonClassName="btn chalk small" />
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
           )}
           <div className="panel-start-grid">
@@ -559,27 +575,6 @@ function LiveMatchRouter({ settings, ...props }) {
   const rules = useMemo(() => getGameRules(settings), [settings]);
   if (matchMode(props.liveMatch) === "2x2" || !settings.trackBalls || rules.simpleOnly) return <SimpleLiveMatchPanel {...props} settings={settings} rules={rules} />;
   return <LiveMatchPanel {...props} settings={settings} rules={rules} />;
-}
-
-function liveDayHeadToHead(finished, liveMatch) {
-  const gameDay = gameDayKey(liveMatch.played_at);
-  const { start, end } = gameDayRange(gameDay);
-  const liveSides = matchSides(liveMatch);
-  const dayMatches = matchesInRange(finished, start, end).filter((match) => {
-    if (matchMode(match) !== matchMode(liveMatch)) return false;
-    const sides = matchSides(match);
-    return [teamKey(sides.a), teamKey(sides.b)].includes(teamKey(liveSides.a))
-      && [teamKey(sides.a), teamKey(sides.b)].includes(teamKey(liveSides.b));
-  });
-  const liveAKey = teamKey(liveSides.a);
-  return {
-    gameDay,
-    start,
-    end,
-    total: dayMatches.length,
-    winsA: dayMatches.filter((match) => teamKey(matchSides(match)[winnerSide(match)]) === liveAKey).length,
-    winsB: dayMatches.filter((match) => teamKey(matchSides(match)[winnerSide(match)]) !== liveAKey).length,
-  };
 }
 
 function LiveDayScore({ liveMatch, finished, playerById }) {

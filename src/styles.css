@@ -814,6 +814,22 @@ button.card,button.rank-row,button.match,button.select{font:inherit;color:inheri
 /* So aparece com finishFromPanel ligado - sem a flag o card so tem o botao
    acima, entao nao muda nada no visual de hoje. */
 .card.live-card .finish-match-slot{margin-top:10px}
+/* Variante do placar para o card do painel. NAO reaproveita
+   .live-day-score-board: aquele usa --live-gold/--live-cream/--live-muted,
+   alias definidos dentro de .live-table, que nao existem aqui - e o card usa
+   a paleta chalk, nao a felt/gold do placar cheio. Nome trunca com ellipsis;
+   o numero do placar nunca encolhe (minmax(0,1fr) so nos nomes). */
+.live-card-score{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto auto minmax(0,1fr) auto;
+  align-items:center;gap:6px;margin-top:6px;
+  font-family:'Space Mono';white-space:nowrap;
+}
+.live-card-score strong{overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--cue);font-weight:600}
+.live-card-score strong:first-child{text-align:right}
+.live-card-score b{font-size:18px;line-height:1;color:var(--gold)}
+.live-card-score em{font-style:normal;color:var(--muted);font-weight:800;font-size:11px}
+.live-card-score .rank-sub{flex-shrink:0;margin-left:2px}
 .live-label{display:flex;align-items:center;gap:8px}
 .live-label span:first-child{width:8px;height:8px;border-radius:50%;background:var(--chalk);box-shadow:0 0 8px var(--chalk)}
 .live-label .eyebrow{color:var(--chalk)}
