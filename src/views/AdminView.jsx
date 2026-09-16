@@ -9,7 +9,7 @@ import { getGameRules } from "../domain/rules.js";
 import { addMatchIfAbsent, matchMode, matchPlayerIds, matchSides, sideLabel, teamKey, winnerSide } from "../domain/match.js";
 import { eligibleForTable, freeTables, tableHolderSuggestion } from "../domain/queue.js";
 import { loadGameSettings } from "../services/gameSettingsStorage.js";
-import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange } from "../utils/date.js";
+import { fmtFull, fmtPeriod, gameDayKey, gameDayRange, matchesInRange, playedAtISO, toDatetimeLocal } from "../utils/date.js";
 import { AdminSettings } from "./AdminSettings.jsx";
 
 // queue (estado da fila, ver src/hooks/useQueue.js) alimenta a secao "fila"
@@ -332,11 +332,14 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
   const [tableId, setTableId] = useState(() => (availableTables.length === 1 ? availableTables[0].id : ""));
   const [pickerFor, setPickerFor] = useState(null);
   const [starting, setStarting] = useState(false);
-  const [when, setWhen] = useState(() => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    return now.toISOString().slice(0, 16);
-  });
+  // when so vale quando whenEdited e true. Enquanto o admin nao mexe no
+  // campo, o que aparece na tela e o relogio (recalculado no render, que so
+  // muda de fato na virada do minuto) e o que vai pro banco e o instante do
+  // clique - ver playedAtISO. Antes o valor era calculado uma vez na
+  // montagem e congelava: com openMatchOnStart desligado o formulario nunca
+  // desmonta, e a noite inteira era gravada no mesmo minuto.
+  const [when, setWhen] = useState(() => toDatetimeLocal(Date.now()));
+  const [whenEdited, setWhenEdited] = useState(false);
   // Guarda o ultimo stamp aplicado pra aplicar o prefill exatamente uma vez
   // por partida finalizada - nao a cada render. Sem isso (era o bug: um
   // unico efeito reagindo a players/liveMatches) o formulario sobrescrevia a
@@ -479,7 +482,7 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
           {mode === "2x2" && <label className="fld"><span>parceiro B</span><button type="button" className="select" onClick={() => setPickerFor("b2")}>{availablePlayers.find((player) => player.id === playerB2)?.name || "Selecionar jogador"}</button></label>}
         </div>
       </div>
-      <label className="fld"><span>data e hora</span><input className="search no-margin" type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)} /></label>
+      <label className="fld"><span>data e hora</span><input className="search no-margin" type="datetime-local" value={whenEdited ? when : toDatetimeLocal(Date.now())} onChange={(event) => { setWhen(event.target.value); setWhenEdited(true); }} /></label>
       {pickerFor && (
         <PlayerPickerModal
           title={pickerLabels[pickerFor]}
@@ -507,7 +510,7 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
           breaker_id: playerA,
           team_a: mode === "2x2" ? [playerA, playerA2] : null,
           team_b: mode === "2x2" ? [playerB, playerB2] : null,
-          played_at: new Date(when).toISOString(),
+          played_at: playedAtISO({ edited: whenEdited, inputValue: when }),
           ball_log: [],
           status: "live",
           // table_id fora do payload quando nao ha mesa: table_id: null fixo
@@ -526,6 +529,9 @@ function StartMatchPanel({ adminUser, auditLog, players, liveMatches = [], activ
           // uma partida ao vivo (o efeito 2 ja limpa os jogadores, que agora
           // estao ocupados) - um prefill futuro pode voltar a aplicar normal.
           setDirty(false);
+          // A proxima partida nao herda o horario retroativo desta: o campo
+          // volta a seguir o relogio, mesma ideia do setDirty(false) acima.
+          setWhenEdited(false);
           await auditLog?.({
             action: "match_started",
             entityType: "match",

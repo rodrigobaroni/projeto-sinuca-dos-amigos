@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultGameDay, gameDayKey, gameDayRange, matchesInRange, sortByPlayedAt } from "./date.js";
+import { defaultGameDay, gameDayKey, gameDayRange, matchesInRange, playedAtISO, sortByPlayedAt } from "./date.js";
 
 describe("game day date helpers", () => {
   it("assigns matches before noon to the previous game day", () => {
@@ -60,5 +60,48 @@ describe("game day date helpers", () => {
 
     expect(sortByPlayedAt([comData, semData]).map((m) => m.id)).toEqual(["com-data", "sem-data"]);
     expect(sortByPlayedAt([semData, comData]).map((m) => m.id)).toEqual(["sem-data", "com-data"]);
+  });
+});
+
+describe("playedAtISO", () => {
+  const AGORA = new Date("2026-09-16T04:30:00.000Z").getTime();
+
+  // O bug: o campo foi calculado quando o formulario montou, horas antes, e
+  // o formulario nao desmonta mais entre uma partida e outra.
+  it("grava o instante real quando o admin nao mexeu no campo", () => {
+    expect(playedAtISO({ edited: false, inputValue: "2026-09-15T23:01", now: AGORA }))
+      .toBe("2026-09-16T04:30:00.000Z");
+  });
+
+  it("respeita o horario digitado quando o admin edita (partida retroativa)", () => {
+    // 23:01 no fuso do produto (UTC-3) = 02:01Z do dia seguinte.
+    expect(playedAtISO({ edited: true, inputValue: "2026-09-15T23:01", now: AGORA }))
+      .toBe("2026-09-16T02:01:00.000Z");
+  });
+
+  it("le o valor digitado no fuso do produto, nao no do navegador", () => {
+    expect(playedAtISO({ edited: true, inputValue: "2026-06-25T12:00", now: AGORA }))
+      .toBe("2026-06-25T15:00:00.000Z");
+  });
+
+  // new Date("").toISOString() lanca - e o admin pode apagar o campo.
+  it("cai no instante real quando o campo editado esta vazio ou invalido", () => {
+    expect(playedAtISO({ edited: true, inputValue: "", now: AGORA })).toBe("2026-09-16T04:30:00.000Z");
+    expect(playedAtISO({ edited: true, inputValue: "nao e data", now: AGORA })).toBe("2026-09-16T04:30:00.000Z");
+  });
+
+  it("usa o relogio de verdade quando now nao e passado", () => {
+    const antes = Date.now();
+    const gravado = new Date(playedAtISO({ edited: false, inputValue: "2026-01-01T00:00" })).getTime();
+    expect(gravado).toBeGreaterThanOrEqual(antes);
+    expect(gravado).toBeLessThanOrEqual(Date.now());
+  });
+
+  // Duas partidas seguidas nao podem mais sair com o mesmo carimbo so porque
+  // o formulario continuou montado.
+  it("da carimbos diferentes para inicios em instantes diferentes", () => {
+    const primeira = playedAtISO({ edited: false, inputValue: "2026-09-15T23:01", now: AGORA });
+    const segunda = playedAtISO({ edited: false, inputValue: "2026-09-15T23:01", now: AGORA + 47 * 60 * 1000 });
+    expect(primeira).not.toBe(segunda);
   });
 });

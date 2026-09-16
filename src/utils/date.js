@@ -106,6 +106,28 @@ export function toDatetimeLocal(date) {
   return parts ? `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}` : "";
 }
 
+// O horario gravado na partida e o instante real do inicio. O campo do
+// formulario so manda quando o admin o edita a mao - e o caminho de lancar
+// partida retroativa, que nao pode quebrar.
+//
+// Sem essa distincao o valor calculado na montagem do formulario congelava:
+// com openMatchOnStart desligado o formulario nunca desmonta, e a noite
+// inteira ia pro banco com o mesmo horario (em producao, 20 partidas as
+// 23:01, 13 as 02:35, 8 as 01:49).
+//
+// O que o admin digita vem sem fuso ("2026-09-15T23:01") e e lido como
+// horario de parede no fuso do produto, igual a todo input de data da casa -
+// nao no fuso de quem esta com o navegador aberto. Campo editado mas
+// invalido (o admin apagou o conteudo) cai no instante real em vez de
+// estourar: new Date("").toISOString() lanca RangeError.
+export function playedAtISO({ edited, inputValue, now = Date.now() }) {
+  if (edited) {
+    const parsed = toInstant(inputValue);
+    if (parsed) return parsed.toISOString();
+  }
+  return new Date(now).toISOString();
+}
+
 export function toDateInputValue(date) {
   const parts = zonedParts(date);
   return parts ? `${parts.year}-${parts.month}-${parts.day}` : "";
